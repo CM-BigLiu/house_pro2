@@ -1,0 +1,142 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>首页看板 - 房屋租售管理系统</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon"><i data-lucide="home"></i></div>
+        <div class="brand-title">优居 ERP</div>
+      </div>
+      <nav class="nav">
+        <div class="nav-group">
+          <div class="nav-label">主菜单</div>
+          <a class="nav-item active" href="index.html"><i data-lucide="layout-dashboard"></i> 首页</a>
+          <div class="nav-item" data-toggle href="#"><i data-lucide="building-2"></i> 房屋管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
+          <div class="subnav show">
+            <a href="pages/rent.html">租房管理</a>
+            <a href="pages/sale.html">售房管理</a>
+            <a href="pages/reserve-house.html">储备房源</a>
+            <a href="pages/reserve-client.html">储备客源</a>
+          </div>
+          <div class="nav-item" data-toggle href="#"><i data-lucide="banknote"></i> 财务管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
+          <div class="subnav">
+            <a href="pages/finance-bill.html">账单</a>
+            <a href="pages/finance-flow.html">流水账</a>
+          </div>
+          <div class="nav-item" data-toggle href="#"><i data-lucide="settings"></i> 系统管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
+          <div class="subnav">
+            <a href="pages/system-role.html">角色管理</a>
+            <a href="pages/system-employee.html">人员管理</a>
+          </div>
+        </div>
+      </nav>
+    </aside>
+    <div class="main">
+      <header class="header">
+        <div class="header-left">
+          <button class="icon-btn" data-menu-toggle><i data-lucide="menu"></i></button>
+          <div class="breadcrumb"><span>首页</span><span>/</span><span class="current">看板</span></div>
+        </div>
+        <div class="header-right">
+          <button class="icon-btn"><i data-lucide="search"></i></button>
+          <button class="icon-btn"><i data-lucide="bell"></i><span class="badge"></span></button>
+          <div class="user">
+            <div class="user-avatar">张</div>
+            <span class="user-name">张店长</span>
+          </div>
+        </div>
+      </header>
+      <main class="content">
+        <div class="kpi-grid">
+          <div class="kpi-card blue">
+            <div class="kpi-label">在租房源</div>
+            <div class="kpi-value">248<span class="kpi-unit">套</span></div>
+            <div class="kpi-trend">+12 较上月</div>
+          </div>
+          <div class="kpi-card green">
+            <div class="kpi-label">在租租客</div>
+            <div class="kpi-value">1,056<span class="kpi-unit">人</span></div>
+            <div class="kpi-trend">+38 较上月</div>
+          </div>
+          <div class="kpi-card pink">
+            <div class="kpi-label">本月应收</div>
+            <div class="kpi-value">86.5<span class="kpi-unit">万</span></div>
+            <div class="kpi-trend">+5.2%</div>
+          </div>
+          <div class="kpi-card yellow">
+            <div class="kpi-label">待办审批</div>
+            <div class="kpi-value">7<span class="kpi-unit">项</span></div>
+            <div class="kpi-trend">3 项即将超时</div>
+          </div>
+          <div class="kpi-card purple">
+            <div class="kpi-label">储备房源</div>
+            <div class="kpi-value">64<span class="kpi-unit">套</span></div>
+            <div class="kpi-trend">+8 本周新增</div>
+          </div>
+          <div class="kpi-card red">
+            <div class="kpi-label">欠款账单</div>
+            <div class="kpi-value">12<span class="kpi-unit">笔</span></div>
+            <div class="kpi-trend">总额 ¥42,300</div>
+          </div>
+        </div>
+        <div class="dashboard-grid">
+          <div class="dashboard-card">
+            <div class="card-header"><div class="card-title">待办审批</div><a href="#" class="text-primary">全部</a></div>
+            <div class="dashboard-card-body">
+              <ul class="dashboard-list">
+                <li><span>王大雷 退租申请</span><span class="text-warning">待审批</span></li>
+                <li><span>李梅 换房申请</span><span class="text-warning">待审批</span></li>
+                <li><span>张江高科 3-1201 维修工单</span><span class="text-primary">待派单</span></li>
+                <li><span>锦绣华庭 8-902 续租协议</span><span class="text-success">已通过</span></li>
+              </ul>
+            </div>
+          </div>
+          <div class="dashboard-card">
+            <div class="card-header"><div class="card-title">系统公告</div><a href="#" class="text-primary">更多</a></div>
+            <div class="dashboard-card-body">
+              <ul class="dashboard-list">
+                <li><span>【通知】8月房租账单已生成</span><span class="text-muted">今天</span></li>
+                <li><span>【制度】新增客源录入规范</span><span class="text-muted">昨天</span></li>
+                <li><span>【培训】新角色权限模型说明</span><span class="text-muted">08-11</span></li>
+                <li><span>【提醒】系统将于本周日维护</span><span class="text-muted">08-10</span></li>
+              </ul>
+            </div>
+          </div>
+          <div class="dashboard-card">
+            <div class="card-header"><div class="card-title">本月业绩排行榜</div><a href="#" class="text-primary">详情</a></div>
+            <div class="dashboard-card-body">
+              <ul class="dashboard-list">
+                <li><span>1. 陈小伟</span><span class="text-danger">¥128,000</span></li>
+                <div class="rank-bar"><div class="rank-fill top" style="width:92%"></div></div>
+                <li><span>2. 刘思思</span><span class="text-primary">¥96,500</span></li>
+                <div class="rank-bar"><div class="rank-fill" style="width:72%"></div></div>
+                <li><span>3. 赵强</span><span class="text-primary">¥74,200</span></li>
+                <div class="rank-bar"><div class="rank-fill" style="width:55%"></div></div>
+              </ul>
+            </div>
+          </div>
+          <div class="dashboard-card">
+            <div class="card-header"><div class="card-title">快捷入口</div></div>
+            <div class="dashboard-card-body">
+              <div class="house-tags">
+                <a href="pages/rent.html" class="tag tag-blue">录入租房</a>
+                <a href="pages/sale.html" class="tag tag-blue">录入售房</a>
+                <a href="pages/reserve-house.html" class="tag tag-green">储备房源</a>
+                <a href="pages/finance-bill.html" class="tag tag-orange">生成账单</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

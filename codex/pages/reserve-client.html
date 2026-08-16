@@ -1,0 +1,116 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>储备客源 - 房屋租售管理系统</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon"><i data-lucide="home"></i></div>
+        <div class="brand-title">优居 ERP</div>
+      </div>
+      <nav class="nav">
+        <div class="nav-group">
+          <div class="nav-label">主菜单</div>
+          <a class="nav-item" href="../index.html"><i data-lucide="layout-dashboard"></i> 首页</a>
+          <div class="nav-item expanded" data-toggle href="#"><i data-lucide="building-2"></i> 房屋管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
+          <div class="subnav show">
+            <a href="rent.html">租房管理</a>
+            <a href="sale.html">售房管理</a>
+            <a href="reserve-house.html">储备房源</a>
+            <a class="active" href="reserve-client.html">储备客源</a>
+          </div>
+          <div class="nav-item" data-toggle href="#"><i data-lucide="banknote"></i> 财务管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
+          <div class="subnav">
+            <a href="finance-bill.html">账单</a>
+            <a href="finance-flow.html">流水账</a>
+          </div>
+          <div class="nav-item" data-toggle href="#"><i data-lucide="settings"></i> 系统管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
+          <div class="subnav">
+            <a href="system-role.html">角色管理</a>
+            <a href="system-employee.html">人员管理</a>
+          </div>
+        </div>
+      </nav>
+    </aside>
+    <div class="main">
+      <header class="header">
+        <div class="header-left">
+          <button class="icon-btn" data-menu-toggle><i data-lucide="menu"></i></button>
+          <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><span>房屋管理</span><span>/</span><span class="current">储备客源</span></div>
+        </div>
+        <div class="header-right">
+          <button class="icon-btn"><i data-lucide="search"></i></button>
+          <button class="icon-btn"><i data-lucide="bell"></i><span class="badge"></span></button>
+          <div class="user"><div class="user-avatar">张</div><span class="user-name">张店长</span></div>
+        </div>
+      </header>
+      <main class="content">
+        <div class="page-header">
+          <div class="page-title">储备客源</div>
+          <div class="page-actions">
+            <button class="btn btn-default"><i data-lucide="download"></i> 导出</button>
+            <button class="btn btn-primary"><i data-lucide="plus"></i> 新增客源</button>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab active">全部</div>
+          <div class="tab">租房</div>
+          <div class="tab">售房</div>
+          <div class="tab">今日新增</div>
+          <div class="tab">7日未跟进</div>
+        </div>
+        <div class="filter-bar">
+          <div class="filter-group"><span class="filter-label">需求类型</span><select class="select"><option>全部</option><option>整租</option><option>合租</option><option>购房</option></select></div>
+          <div class="filter-group"><span class="filter-label">预算</span><input class="input input-sm" placeholder="最低"><input class="input input-sm" placeholder="最高"></div>
+          <div class="filter-group"><span class="filter-label">状态</span><select class="select"><option>全部</option><option>跟进中</option><option>已成交</option></select></div>
+        </div>
+        <div class="house-grid">
+          <div class="house-card">
+            <div class="house-card-image" style="background:linear-gradient(135deg,#dbeafe 0%,#bfdbfe 100%)"><span class="tag tag-blue">租房</span></div>
+            <div class="house-card-body">
+              <div class="house-title">陈先生 · 张江高科附近整租两居</div>
+              <div class="house-meta"><span><i data-lucide="phone"></i> 138****5678</span><span><i data-lucide="map-pin"></i> 浦东 · 张江</span><span><i data-lucide="calendar"></i> 8月入住</span></div>
+              <div class="house-price"><span class="price-value">6,000</span><span class="price-unit">元/月</span></div>
+              <div class="house-tags"><span class="tag tag-green">跟进中</span><span class="tag tag-gray">长租</span></div>
+              <div class="house-footer"><div class="house-owner"><div class="avatar">李</div><span>业务员 李芳</span></div><div class="house-actions"><button class="btn btn-sm btn-default">跟进</button></div></div>
+            </div>
+          </div>
+          <div class="house-card">
+            <div class="house-card-image" style="background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%)"><span class="tag tag-orange">售房</span></div>
+            <div class="house-card-body">
+              <div class="house-title">王女士 · 联洋板块三房学区</div>
+              <div class="house-meta"><span><i data-lucide="phone"></i> 139****7788</span><span><i data-lucide="map-pin"></i> 浦东 · 联洋</span><span><i data-lucide="calendar"></i> 3个月</span></div>
+              <div class="house-price"><span class="price-value">1,500</span><span class="price-unit">万</span></div>
+              <div class="house-tags"><span class="tag tag-orange">看房中</span><span class="tag tag-blue">学区</span></div>
+              <div class="house-footer"><div class="house-owner"><div class="avatar">赵</div><span>经纪人 赵强</span></div><div class="house-actions"><button class="btn btn-sm btn-default">跟进</button></div></div>
+            </div>
+          </div>
+          <div class="house-card">
+            <div class="house-card-image" style="background:linear-gradient(135deg,#dcfce7 0%,#bbf7d0 100%)"><span class="tag tag-blue">租房</span></div>
+            <div class="house-card-body">
+              <div class="house-title">周先生 · 金桥合租独卫主卧</div>
+              <div class="house-meta"><span><i data-lucide="phone"></i> 136****3355</span><span><i data-lucide="map-pin"></i> 浦东 · 金桥</span><span><i data-lucide="calendar"></i> 即住</span></div>
+              <div class="house-price"><span class="price-value">2,500</span><span class="price-unit">元/月</span></div>
+              <div class="house-tags"><span class="tag tag-green">跟进中</span><span class="tag tag-gray">独卫</span></div>
+              <div class="house-footer"><div class="house-owner"><div class="avatar">陈</div><span>业务员 陈小伟</span></div><div class="house-actions"><button class="btn btn-sm btn-default">跟进</button></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="pagination">
+          <button class="page-btn"><i data-lucide="chevron-left"></i></button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">2</button>
+          <button class="page-btn"><i data-lucide="chevron-right"></i></button>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="../assets/js/main.js"></script>
+</body>
+</html>
