@@ -1,0 +1,50 @@
+**结论**
+`./UI/` 当前已经达到“高保真演示版”水平：24/24 个页面齐全、UTF-8 正确、渲染和基础响应式检查通过。但对照 [产品文档-最终.md](D:/04-profile/test/house_pro4/house_pro2/产品文档-最终.md:174) 和验收标准，还不能判定为“完全符合产品需求”。主要差距集中在权限矩阵、首页看板深度、系统管理交互结构和少量财务字段。
+
+**已符合**
+- 菜单与页面覆盖：首页、房屋 7 项、财务 12 项、系统 4 项均已补齐。
+- 租房、售房、储备房源、储备客源的主结构、筛选、卡片字段基本完整。
+- 4 步房源向导、28 个特色标签、黑名单预警、租售/储备字段差异已体现。
+- 账单、涨价统计、合伙人、业绩核算、财务核算、欠款、代付、开票的主字段与流程基本符合。
+- `UI/smoke-test.js`：24/24 页面渲染通过。
+- 浏览器检查：1440px 全量 24 页无横向溢出；390px 抽样 7 页无横向溢出；无页面 JS 错误，仅有 favicon 404。
+- 编码检查：HTML 均声明 UTF-8，静态服务器 MIME 也返回 UTF-8，未发现乱码字符。
+
+**P0 修改建议**
+1. 修正菜单权限矩阵偏差  
+   [ui-core.js](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/ui-core.js:5) 中 `agent` 看不到租房管理；开票管理缺少 `store_manager`；字典管理、人员管理只给 `super_admin`，与 [产品文档-最终.md](D:/04-profile/test/house_pro4/house_pro2/产品文档-最终.md:174) 不一致。建议把角色到菜单权限抽成一份矩阵数据，侧边栏、按钮、首页分组都从这份数据派生，避免三处规则漂移。
+
+2. 重构角色管理页面结构  
+   需求是“左侧角色列表，选中角色后右侧展开权限配置”，且角色列表必须含员工数；当前 [data-system.js](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/data-system.js:14) 是“权限树 + 宽表格”，且 [columns](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/data-system.js:22) 缺少员工数字段。建议改为：左栏角色列表，右栏分“基本信息 / 菜单权限 / 操作权限 / 数据范围 / 权限预览”，并展示员工数、内置角色、父角色、继承结果。
+
+3. 首页 18 张大卡片尚未达到需求深度  
+   需求要求 6x3 卡片、图表、卡片操作、grid-stack 拖拽配置；当前 [ui-render.js](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/ui-render.js:358) 用通用指标块渲染，[ui.css](D:/04-profile/test/house_pro4/house_pro2/UI/assets/css/ui.css:477) 卡片最小高度仅 150px，远低于需求的大卡片规格。至少应补齐环形图、进度条、柱状图、卡片详情/复制链接、配置态和 6x3 布局示意。
+
+**P1 修改建议**
+1. 流水账状态 Tab 不完整  
+   [data-finance.js](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/data-finance.js:31) 只显示“今日待出纳 / 未出纳 / 终审待审”，缺少账单页同款的“全部、应收、应付、待收、待付、逾期、已收、已付、待平账”状态组，见 [产品文档-最终.md](D:/04-profile/test/house_pro4/house_pro2/产品文档-最终.md:1241)。
+
+2. 财务表格字段补齐  
+   [公寓利润](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/data-finance.js:83) 为 15 列，需求为 17 列；[收入成本](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/data-finance.js:129) 缺“租金差额、本月服务费收入、上月服务费收入”；[收支计划](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/data-finance.js:229) 缺“录入人员”。这些会直接影响财务验收。
+
+3. 字典分类数量与实际不符  
+   [data-system.js](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/data-system.js:80) 标称“23 类字典”，实际树里缺 `disk_type` 盘源、`plan_type` 计划类型。建议逐项对照 [7.3.1 字典分类](D:/04-profile/test/house_pro4/house_pro2/产品文档-最终.md:1807) 生成树，避免文案与数据不一致。
+
+4. 人员管理缺少店面视图  
+   [data-system.js](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/data-system.js:112) 有 6 个 Tab，但只渲染员工表；需求还包含店面列表、职位/权限、待分配员工、核心字段设置、人脸识别设置的不同内容。建议至少给每个 Tab 一套代表性表格或表单，不再共用同一个员工表。
+
+5. 小区管理布局与需求不一致  
+   需求明确是小区卡片列表；当前 [data-base.js](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/data-base.js:214) 用树 + 表格替代。若产品确认表格更好，应更新需求；否则改回卡片视图，并保留树形级联。
+
+6. 客户管理和售房筛选还有字段缺口  
+   [客户管理](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/data-base.js:179) 缺店面、客户状态、来源渠道、跟进时间范围和客户匹配结果区；[售房筛选](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/data-base.js:79) 缺备用电话、验真剩余时间的数值区间、完整朝向、来源多选、室/厅/卫/阳四个独立控件等。
+
+7. Tab 只切样式，不切数据  
+   当前 [ui-main.js](D:/04-profile/test/house_pro4/house_pro2/UI/assets/js/ui-main.js:159) 仅更新 active 状态。租房“房间信息/房东信息”、售房 5 个 SubTab、财务各子表、人员管理 6 个 Tab 至少应切换一组示例数据，否则无法用于关键流程走查。
+
+**P2 修改建议**
+- 首页用户问候语固定为“下午好”，建议按当前时间或服务端时间生成；城市切换建议补“城市 + 店面”级联；顶部工具栏补“帮助中心”。
+- 业主校验建议补真实校验态：手机号为空时阻止发布、黑名单命中弹窗、跟进内容 `0/500` 计数。
+- 静态服务器可补一个 favicon，消除浏览器控制台 404。
+
+Context7 连接器当前未在本会话暴露，以上结论基于仓库内的最终产品文档、验收文档和 `./UI/` 本地源码复核。建议先修 P0 三项，再处理财务字段和 Tab 状态，这两类最容易被验收方直接判定不通过。

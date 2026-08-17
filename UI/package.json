@@ -1,0 +1,9 @@
+{
+  "name": "youju-erp-hifi-ui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "优居 ERP 高保真 UI（基于 codex 原型）",
+  "scripts": {
+    "dev": "node server.js"
+  }
+}

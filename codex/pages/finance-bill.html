@@ -1,108 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>账单 - 房屋租售管理系统</title>
-  <link rel="stylesheet" href="../assets/css/style.css">
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="../assets/css/style.css"><script src="../assets/js/vendor/lucide.min.js"></script>
 </head>
-<body>
-  <div class="app">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-icon"><i data-lucide="home"></i></div>
-        <div class="brand-title">优居 ERP</div>
-      </div>
-      <nav class="nav">
-        <div class="nav-group">
-          <div class="nav-label">主菜单</div>
-          <a class="nav-item" href="../index.html"><i data-lucide="layout-dashboard"></i> 首页</a>
-          <div class="nav-item" data-toggle href="#"><i data-lucide="building-2"></i> 房屋管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
-          <div class="subnav">
-            <a href="rent.html">租房管理</a>
-            <a href="sale.html">售房管理</a>
-            <a href="reserve-house.html">储备房源</a>
-            <a href="reserve-client.html">储备客源</a>
-          </div>
-          <div class="nav-item expanded" data-toggle href="#"><i data-lucide="banknote"></i> 财务管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
-          <div class="subnav show">
-            <a class="active" href="finance-bill.html">账单</a>
-            <a href="finance-flow.html">流水账</a>
-          </div>
-          <div class="nav-item" data-toggle href="#"><i data-lucide="settings"></i> 系统管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
-          <div class="subnav">
-            <a href="system-role.html">角色管理</a>
-            <a href="system-employee.html">人员管理</a>
-          </div>
-        </div>
-      </nav>
-    </aside>
-    <div class="main">
-      <header class="header">
-        <div class="header-left">
-          <button class="icon-btn" data-menu-toggle><i data-lucide="menu"></i></button>
-          <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><span>财务管理</span><span>/</span><span class="current">账单</span></div>
-        </div>
-        <div class="header-right">
-          <button class="icon-btn"><i data-lucide="search"></i></button>
-          <button class="icon-btn"><i data-lucide="bell"></i><span class="badge"></span></button>
-          <div class="user"><div class="user-avatar">张</div><span class="user-name">张店长</span></div>
-        </div>
-      </header>
-      <main class="content">
-        <div class="page-header">
-          <div class="page-title">账单</div>
-          <div class="page-actions">
-            <button class="btn btn-default"><i data-lucide="file-spreadsheet"></i> 导出</button>
-            <button class="btn btn-primary"><i data-lucide="plus"></i> 新增账单</button>
-          </div>
-        </div>
-        <div class="tabs">
-          <div class="tab active">应收</div>
-          <div class="tab">应付</div>
-          <div class="tab">已收</div>
-          <div class="tab">已付</div>
-          <div class="tab">欠款</div>
-        </div>
-        <div class="filter-bar">
-          <div class="filter-group"><span class="filter-label">账单类型</span><select class="select"><option>房租</option><option>押金</option><option>水电</option></select></div>
-          <div class="filter-group"><span class="filter-label">账期</span><input class="input input-sm" value="2026-08"></div>
-          <div class="filter-group"><span class="filter-label">状态</span><select class="select"><option>全部</option><option>待收</option><option>已收</option><option>欠款</option></select></div>
-          <div class="filter-group"><span class="filter-label">房源</span><input class="input" placeholder="输入小区/房号"></div>
-          <div class="filter-group" style="margin-left:auto"><button class="btn btn-ghost"><i data-lucide="refresh-cw"></i> 刷新</button></div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">应收账单列表</div>
-            <div class="page-actions"><button class="btn btn-sm btn-default">批量收款</button><button class="btn btn-sm btn-default">批量催缴</button></div>
-          </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead><tr><th><input type="checkbox"></th><th>房源</th><th>租客</th><th>费用类型</th><th>账期</th><th>应付金额</th><th>已付金额</th><th>欠款</th><th>状态</th><th>操作</th></tr></thead>
-              <tbody>
-                <tr><td><input type="checkbox"></td><td>汤臣豪园 3-1201</td><td>王小明</td><td>房租</td><td>2026-08</td><td>¥6,800</td><td>¥0</td><td>¥6,800</td><td><span class="status-dot" style="background:#d97706"></span>待收</td><td><button class="btn btn-sm btn-primary">收款</button></td></tr>
-                <tr><td><input type="checkbox"></td><td>锦绣华庭 8-902 A室</td><td>李雷</td><td>房租</td><td>2026-08</td><td>¥2,400</td><td>¥2,400</td><td>¥0</td><td><span class="status-dot" style="background:#16a34a"></span>已收</td><td><button class="btn btn-sm btn-default">详情</button></td></tr>
-                <tr><td><input type="checkbox"></td><td>世纪公园 6-301</td><td>—</td><td>待出租成本</td><td>2026-08</td><td>¥7,200</td><td>¥0</td><td>¥0</td><td><span class="status-dot" style="background:#64748b"></span>内部</td><td><button class="btn btn-sm btn-default">详情</button></td></tr>
-                <tr><td><input type="checkbox"></td><td>碧云国际 12-1505 B室</td><td>韩梅梅</td><td>房租+水费</td><td>2026-08</td><td>¥3,180</td><td>¥0</td><td>¥3,180</td><td><span class="status-dot" style="background:#dc2626"></span>欠款</td><td><button class="btn btn-sm btn-primary">催缴</button></td></tr>
-                <tr><td><input type="checkbox"></td><td>张江高科 3-1201</td><td>张伟</td><td>押金</td><td>2026-08</td><td>¥13,600</td><td>¥13,600</td><td>¥0</td><td><span class="status-dot" style="background:#16a34a"></span>已收</td><td><button class="btn btn-sm btn-default">详情</button></td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="pagination" style="padding:16px">
-            <span class="text-muted">共 128 条</span>
-            <div style="display:flex;gap:4px">
-              <button class="page-btn"><i data-lucide="chevron-left"></i></button>
-              <button class="page-btn active">1</button>
-              <button class="page-btn">2</button>
-              <button class="page-btn">3</button>
-              <button class="page-btn"><i data-lucide="chevron-right"></i></button>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
-  </div>
-  <script src="../assets/js/main.js"></script>
-</body>
-</html>
+<body><div class="app"><aside class="sidebar"></aside><div class="main"><header class="header"></header><main class="content"></main></div></div>
+<script src="../assets/js/prototype-data.js"></script><script src="../assets/js/prototype-data-finance.js"></script><script src="../assets/js/prototype-data-system.js"></script>
+<script>window.PROTOTYPE_PAGE = PROTOTYPE_PAGES.bill;</script><script src="../assets/js/prototype.js"></script><script src="../assets/js/main.js"></script>
+</body></html>

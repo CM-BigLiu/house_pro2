@@ -1,61 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>人员管理 - 房屋租售管理系统</title>
-  <link rel="stylesheet" href="../assets/css/style.css">
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="../assets/css/style.css"><script src="../assets/js/vendor/lucide.min.js"></script>
 </head>
-<body>
-  <div class="app">
-    <aside class="sidebar">
-      <div class="brand"><div class="brand-icon"><i data-lucide="home"></i></div><div class="brand-title">优居 ERP</div></div>
-      <nav class="nav">
-        <div class="nav-group">
-          <div class="nav-label">主菜单</div>
-          <a class="nav-item" href="../index.html"><i data-lucide="layout-dashboard"></i> 首页</a>
-          <div class="nav-item" data-toggle href="#"><i data-lucide="building-2"></i> 房屋管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
-          <div class="subnav"><a href="rent.html">租房管理</a><a href="sale.html">售房管理</a><a href="reserve-house.html">储备房源</a><a href="reserve-client.html">储备客源</a></div>
-          <div class="nav-item" data-toggle href="#"><i data-lucide="banknote"></i> 财务管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
-          <div class="subnav"><a href="finance-bill.html">账单</a><a href="finance-flow.html">流水账</a></div>
-          <div class="nav-item expanded" data-toggle href="#"><i data-lucide="settings"></i> 系统管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
-          <div class="subnav show"><a href="system-role.html">角色管理</a><a class="active" href="system-employee.html">人员管理</a></div>
-        </div>
-      </nav>
-    </aside>
-    <div class="main">
-      <header class="header">
-        <div class="header-left"><button class="icon-btn" data-menu-toggle><i data-lucide="menu"></i></button><div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><span>系统管理</span><span>/</span><span class="current">人员管理</span></div></div>
-        <div class="header-right"><button class="icon-btn"><i data-lucide="search"></i></button><button class="icon-btn"><i data-lucide="bell"></i><span class="badge"></span></button><div class="user"><div class="user-avatar">张</div><span class="user-name">张店长</span></div></div>
-      </header>
-      <main class="content">
-        <div class="page-header"><div class="page-title">人员管理</div><div class="page-actions"><button class="btn btn-default"><i data-lucide="building-2"></i> 店面设置</button><button class="btn btn-primary"><i data-lucide="plus"></i> 新增员工</button></div></div>
-        <div class="tabs"><div class="tab active">员工</div><div class="tab">部门</div><div class="tab">分组</div><div class="tab">店面</div></div>
-        <div class="filter-bar">
-          <div class="filter-group"><span class="filter-label">姓名</span><input class="input" placeholder="搜索员工"></div>
-          <div class="filter-group"><span class="filter-label">店面</span><select class="select"><option>张江店</option><option>浦东店</option></select></div>
-          <div class="filter-group"><span class="filter-label">角色</span><select class="select"><option>全部</option><option>店长</option><option>管家</option><option>业务员</option></select></div>
-          <div class="filter-group" style="margin-left:auto"><button class="btn btn-ghost"><i data-lucide="refresh-cw"></i> 刷新</button></div>
-        </div>
-        <div class="card">
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead><tr><th>姓名</th><th>手机号</th><th>店面</th><th>部门</th><th>分组</th><th>职位</th><th>角色</th><th>状态</th><th>操作</th></tr></thead>
-              <tbody>
-                <tr><td>张伟</td><td>138****0001</td><td>张江店</td><td>业务部</td><td>1组</td><td>店长</td><td>store_manager</td><td><span class="status-dot" style="background:#16a34a"></span>在职</td><td><button class="btn btn-sm btn-default">编辑</button><button class="btn btn-sm btn-default">授权</button></td></tr>
-                <tr><td>王晓明</td><td>139****1122</td><td>张江店</td><td>业务部</td><td>1组</td><td>管家</td><td>housekeeper</td><td><span class="status-dot" style="background:#16a34a"></span>在职</td><td><button class="btn btn-sm btn-default">编辑</button><button class="btn btn-sm btn-default">授权</button></td></tr>
-                <tr><td>李芳</td><td>136****3344</td><td>张江店</td><td>业务部</td><td>2组</td><td>管家组长</td><td>housekeeper_lead</td><td><span class="status-dot" style="background:#16a34a"></span>在职</td><td><button class="btn btn-sm btn-default">编辑</button><button class="btn btn-sm btn-default">授权</button></td></tr>
-                <tr><td>赵强</td><td>137****5566</td><td>浦东店</td><td>业务部</td><td>1组</td><td>业务员</td><td>salesman</td><td><span class="status-dot" style="background:#16a34a"></span>在职</td><td><button class="btn btn-sm btn-default">编辑</button><button class="btn btn-sm btn-default">授权</button></td></tr>
-                <tr><td>刘思思</td><td>138****7788</td><td>浦东店</td><td>业务部</td><td>2组</td><td>综合经纪人</td><td>agent</td><td><span class="status-dot" style="background:#16a34a"></span>在职</td><td><button class="btn btn-sm btn-default">编辑</button><button class="btn btn-sm btn-default">授权</button></td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="pagination" style="padding:16px"><span class="text-muted">共 32 人</span><div style="display:flex;gap:4px"><button class="page-btn"><i data-lucide="chevron-left"></i></button><button class="page-btn active">1</button><button class="page-btn">2</button><button class="page-btn">3</button><button class="page-btn"><i data-lucide="chevron-right"></i></button></div></div>
-        </div>
-      </main>
-    </div>
-  </div>
-  <script src="../assets/js/main.js"></script>
-</body>
-</html>
+<body><div class="app"><aside class="sidebar"></aside><div class="main"><header class="header"></header><main class="content"></main></div></div>
+<script src="../assets/js/prototype-data.js"></script><script src="../assets/js/prototype-data-finance.js"></script><script src="../assets/js/prototype-data-system.js"></script>
+<script>window.PROTOTYPE_PAGE = PROTOTYPE_PAGES.employee;</script><script src="../assets/js/prototype.js"></script><script src="../assets/js/main.js"></script>
+</body></html>

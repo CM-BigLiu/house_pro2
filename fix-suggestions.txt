@@ -1,0 +1,101 @@
+好，只给修复建议，不动代码。以下按优先级给出精确到文件和配置键的修复方案。
+
+---
+
+# `./UI/` 偏差修复建议（8 项）
+
+## P1-1 客户管理改卡片视图（U-029 / C-005）
+
+**位置**：`UI/assets/js/data-base.js:181`（customer 配置块）
+
+**方案**：
+1. `layout: 'table'` 改为 `layout: 'cards'`，删除 `columns`/`rows`，改为 `cards` 数组。
+2. 卡片数据结构复用现有 `cardsHtml` 支持的 `{ title, tags, fields, actions }`：
+   - `title`: `王小明 · 租客`
+   - `tags`: `[{label:'租客',type:'blue'}, {label:'在租',type:'green'}]`；黑名单客户加 `{label:'黑名单',type:'red'}`（C-008）
+   - `fields`: 手机号（脱敏）、身份证（脱敏）、关联房源、合同到期、状态、来源、业务员、最近跟进（C-005）
+   - `actions`: 查看/跟进/转签约/匹配房源/一键带看/短信联系/加入黑名单，保留 `permission: 'client:create'` 等权限键以维持按钮级 RBAC。
+3. 备注：产品文档 §1.2 与 §5.5.2 均为卡片视图，验收 C-005 也写"客户卡片"，当前表格为偏差。
+
+## P1-2 删图模式（§5.2.4 / UX-007 / U-030）
+
+**位置**：`UI/assets/js/data-base.js`（sale、rent 配置）、`ui-render.js`、`ui-main.js`
+
+**方案**：
+1. **数据**：sale/rent 的 cards 每项加 `image: 'assets/img/xxx.jpg'`（或占位色块 `thumb: true`）；`cardsHtml` 在 `.detail-card` 顶部渲染 `<div class="card-thumb">` 图片区。
+2. **开关**：sale 页 `actions` 加 `{ label: '删图模式', icon: 'image-off', toggle: 'no-image' }`；rent 页同理（UX-007 适用于所有卡片列表）。
+3. **交互**：`ui-main.js` 增加委托——点击 `[data-toggle-no-image]` 时给 `.content` 切 `no-image` class。
+4. **样式**：`ui.css` 加 `.content.no-image .card-thumb { display:none }`；原型层面无需持久化，真实实现按用户偏好存后端。
+
+## P2-3 日期/范围筛选改为区间（§5.2.3）
+
+**位置**：`ui-core.js` `filtersHtml`（199-210 行）、sale 页 filters
+
+**方案**：
+1. `filtersHtml` 支持新类型 `type: 'range'`，渲染为 `<input> - <input>` 双输入（支持 `rangeType: 'date'|'number'` 复用）。
+2. sale 页 `发布日期/新增日期/更新价格/下架日期/议价日期/速销起始/速销截止/验真剩余` 改为 `{ type:'range', rangeType:'date' }`。
+3. 已有的 `首付最低/首付最高`、`底价最低/底价最高`、`售价最低/售价最高`、`面积最低/面积最高` 等成对字段可保留现状（语义已等价），或统一改 range 减少字段数——建议统一改 range，筛选区更紧凑。
+
+## P2-4 售房排序区独立渲染（§5.2.4）
+
+**位置**：`data-base.js` sale 页 `views` 字段、`ui-render.js:22`
+
+**方案**：
+1. sale 页把 `views: ['发布时间','新增时间','总价','单价','面积','楼层','跟进时间','房源质量','更多']` 改名为 `sorts`，避免与租房页"视图管理"（默认/公司/新建视图）语义冲突。
+2. `ui-render.js` 增加：`page.sorts` 渲染为 `<div class="sort-bar">排序：button…</div>`，首个带 `▾` 与 active 态表示默认按发布时间倒序；`ui-main.js` 对 `.sort-bar button` 做 setActive（已有 view-switch 同款逻辑可复用选择器合并）。
+3. 租房页的 `views`（视图管理）保持不变——它是正确的"个人/公司视图"语义。
+
+## P2-5 看板补齐视图角色（§4.13.3 / §4.14）
+
+**位置**：`ui-core.js:37-44`（PROTOTYPE_ROLES）、`ui-render.js:234-239`（roleGroups）
+
+**方案**：
+1. `PROTOTYPE_ROLES` 增加：`boss`（老板）、`company_admin`（公司管理员）、`finance_clerk`（财务专员）、`agent`（综合经纪人）。
+2. `roleGroups` 按 §4.14 补映射：
+   - `boss`: `['housing','finance','contract','risk','landlord']`（老板视图：含未公开分组）
+   - `finance_manager`: `['finance','contract','work']`（现状已对，验收 §4.14 为"10 张财务+审批"，当前 finance3+contract3+work4 恰好 10 张 ✅ 可不动）
+   - `finance_clerk`: `['finance','work']`
+   - `agent`: `['housing','work']`（同 salesman）
+   - `company_admin`: `'*'`（业务全权限）
+3. 菜单 roles 数组同步：agent 加入售房/储备房源/客户管理；finance_clerk 加入账单/流水账/欠款统计等受限财务项；boss 仅首页。
+
+## P2-6 账单/流水账「更多筛选」内容
+
+**位置**：`data-finance.js` bill/flow filters
+
+**方案**：账单页 filters 补充需求 §6.1.1 隐含的常用项：`收付状态多选`（或仅靠状态 Tab，保持现状即可）、`收付款人` 输入、`管家` 下拉、`房源编号` 输入。优先级低，当前"更多筛选"按钮已是占位，可在真实实现时展开，原型可不动。**若本轮要收敛，直接把这 3 个输入加进 filters 数组即可。**
+
+## P2-7 首页「我的待办」首屏弹窗（§13.1 / UX-001）
+
+**位置**：`ui-render.js` renderDashboard、`index.html`
+
+**方案**：
+1. 新增 `<dialog class="prototype-dialog" data-todo-dialog>`：标题"我的待办"，列出审批流程 12 / 巡房逾期 9 / 反馈回复 5，底部"逐条处理 / 关闭"。
+2. 在 `renderDashboard()` 末尾调用 `dialog.showModal()`（仅非 readonly 角色）；`ui-main.js` 复用现有 `data-dialog-close` 逻辑关闭。
+3. 「首页设置」按钮点击后 toast 提示"已关闭自动弹出"即可（原型不持久化）；真实实现按 UX-002 持久化到用户偏好。
+
+## P3-8 小区管理改区域分组卡片（§5.6.1）
+
+**位置**：`data-base.js` community 配置
+
+**方案**（二选一）：
+- **方案 A（推荐，改动小）**：保持现有 `split` 树+表格，但左侧树标题改为"区域 → 小区"，节点按区域分组（浦东/闵行…），语义即对齐 §5.6.1「按区域分组」；表格行即小区信息，列已齐 12 项。验收 CM-003 只要求字段完整，未强制卡片。
+- **方案 B（严格贴合文档示意）**：`layout: 'cards'`，cards 按区域分组渲染（renderPage 需支持 `cardGroups: [{group:'浦东', cards:[…]}]`，渲染为分组标题+卡片栅格）。改动涉及 ui-render 增加分组逻辑，成本略高。
+- 建议选 A，并在 page `note` 里注明"列表以表格呈现，字段与卡片等价"。
+
+---
+
+## 工作量预估
+
+| 项 | 文件 | 预估 |
+|---|---|---|
+| P1-1 客户卡片 | data-base.js | 0.5h |
+| P1-2 删图模式 | data-base/ui-render/ui-main/ui.css | 1h |
+| P2-3 range 筛选 | ui-core + sale filters | 0.5h |
+| P2-4 排序区 | data-base + ui-render + ui-main | 0.5h |
+| P2-5 角色补齐 | ui-core + ui-render | 0.5h |
+| P2-6 账单筛选 | data-finance.js | 10min |
+| P2-7 待办弹窗 | ui-render + index.html | 0.5h |
+| P3-8 小区（方案A） | data-base.js | 10min |
+
+全部约 **半天**。需要我执行时说一声即可。

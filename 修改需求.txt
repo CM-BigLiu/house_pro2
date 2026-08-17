@@ -1,0 +1,880 @@
+我重新仔细对照产品文档与原型代码，这次逐字段比对，给出更精确的修复建议。
+我已掌握全部需求。现在生成第三轮精确审查报告，**只列出真正缺失/错误的关键点**，附精确行号 + 修复方案。
+
+---
+
+# 第三轮审查报告：精准修复清单
+
+## 总体复核结论
+
+经过第三轮逐行对照产品文档（2746 行）与 9 个 HTML 原型（966 行），修正前两轮的过度推断，**真正的关键问题**如下。下面按问题类型分类，每个问题给出**精确位置**、**真实需求**、**修复方案**。
+
+---
+
+## 一、阻塞性问题（导致原型不可用，必须立即修复）
+
+### 🔴 P0-1：缺失「客户管理」「小区管理」两个一级页面
+
+**位置：** 整个 `codex/pages/` 目录
+
+**需求依据：**
+- 产品文档 §3.2 菜单权限矩阵：`house:customer`、`house:community` 为独立路由
+- §5.5 客户管理（5 个 Tab：全部/租客/买家/业主/储备客源）
+- §5.6 小区管理（五级级联）
+
+**修复：** 新建 `codex/pages/customer.html` 和 `codex/pages/community.html`
+
+---
+
+### 🔴 P0-2：缺失 10 个财务二级页面 + 2 个系统管理二级页面
+
+**位置：** 整个 `codex/pages/` 目录
+
+**需求依据：**
+- §3.2 菜单权限矩阵共 12 个财务模块，原型仅 2 个
+- §3.2 系统管理共 4 个模块，原型仅 2 个（缺权限管理、字典管理）
+
+**需新建文件：**
+
+```
+codex/pages/
+├── customer.html                  # 客户管理（§5.5）
+├── community.html                 # 小区管理（§5.6）
+├── finance-rent-increase.html     # 涨价统计（§6.3）
+├── finance-profit.html            # 公寓利润（§6.4，5 子 Tab）
+├── finance-partner.html           # 合伙人（§6.5）
+├── finance-income-cost.html       # 收入成本（§6.6，5 子 Tab）
+├── finance-performance.html       # 业绩核算（§6.7，4 一级 + 3 二级 Tab）
+├── finance-accounting.html        # 财务核算（§6.8，毛利/毛利率）
+├── finance-arrears.html           # 欠款统计（§6.9，3 子 Tab）
+├── finance-plan.html              # 收支计划（§6.10）
+├── finance-payout.html            # 代付管理（§6.11，3 子 Tab）
+├── finance-billing.html           # 开票管理（§6.12，3 子 Tab + 7 状态）
+├── system-permission.html         # 权限管理（§7.2）
+└── system-dictionary.html         # 字典管理（§7.3，22+ 字典）
+```
+
+---
+
+### 🔴 P0-3：所有 9 个 HTML 的侧边栏菜单不全
+
+**位置：** 所有 HTML 的 `<nav class="nav">` 部分（如 `index.html:17-39`）
+
+**现状：** 房屋管理 4 项 + 财务 2 项 + 系统 2 项 = 8 项
+
+**需求：** 房屋管理 6 项 + 财务 12 项 + 系统 4 项 = 22 项
+
+**修复模板（替换所有 HTML 的 nav）：**
+
+```html
+<nav class="nav">
+  <div class="nav-group">
+    <div class="nav-label">主菜单</div>
+    <a class="nav-item" href="index.html"><i data-lucide="layout-dashboard"></i> 首页</a>
+
+    <div class="nav-item" data-toggle><i data-lucide="building-2"></i> 房屋管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
+    <div class="subnav">
+      <a href="pages/rent.html">租房管理</a>
+      <a href="pages/sale.html">售房管理</a>
+      <a href="pages/reserve-house.html">储备房源</a>
+      <a href="pages/reserve-client.html">储备客源</a>
+      <a href="pages/customer.html">客户管理</a>
+      <a href="pages/community.html">小区管理</a>
+    </div>
+
+    <div class="nav-item" data-toggle><i data-lucide="banknote"></i> 财务管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
+    <div class="subnav">
+      <a href="pages/finance-bill.html">账单</a>
+      <a href="pages/finance-flow.html">流水账</a>
+      <a href="pages/finance-rent-increase.html">涨价统计</a>
+      <a href="pages/finance-profit.html">公寓利润</a>
+      <a href="pages/finance-partner.html">合伙人</a>
+      <a href="pages/finance-income-cost.html">收入成本</a>
+      <a href="pages/finance-performance.html">业绩核算</a>
+      <a href="pages/finance-accounting.html">财务核算</a>
+      <a href="pages/finance-arrears.html">欠款统计</a>
+      <a href="pages/finance-plan.html">收支计划</a>
+      <a href="pages/finance-payout.html">代付管理</a>
+      <a href="pages/finance-billing.html">开票管理</a>
+    </div>
+
+    <div class="nav-item" data-toggle><i data-lucide="settings"></i> 系统管理<i data-lucide="chevron-right" class="nav-chevron"></i></div>
+    <div class="subnav">
+      <a href="pages/system-role.html">角色管理</a>
+      <a href="pages/system-permission.html">权限管理</a>
+      <a href="pages/system-dictionary.html">字典管理</a>
+      <a href="pages/system-employee.html">人员管理</a>
+    </div>
+  </div>
+</nav>
+```
+
+---
+
+### 🔴 P0-4：首页看板严重不符合需求 §4.1
+
+**位置：** `codex/index.html:56-136`
+
+**现状问题清单：**
+
+| # | 缺失项 | 需求位置 | 修复要点 |
+|---|---|---|---|
+| 1 | 顶部工具栏（老板/我的展示切换、配置、收款码、钱包、首页设置、城市切换） | §4.2 | 替换 `.header` |
+| 2 | 用户卡片（头像+姓名+问候语+门店+岗位+手机号） | §4.3 | 替换 `.user` 块 |
+| 3 | 顶部广告横幅（CMS 配置） | §4.4 | 新增 banner 区 |
+| 4 | 快捷入口（默认 3 项 + 编辑） | §4.5 | 改造现有「快捷入口」 |
+| 5 | 数据概览（5 项指标卡片：收房粉/收客黄/带看绿/应收蓝/实收紫，时间 Tab：今日/本周/本月/上月） | §4.6 | 替换 `.kpi-grid` |
+| 6 | 待办审批（4 状态 Tab：待处理/已发起/已处理/抄送我） | §4.7 | 改造现有「待办审批」 |
+| 7 | 系统公告（9 分类 Tab） | §4.8 | 改造现有「系统公告」 |
+| 8 | 业绩排行榜（3 维度 Tab + 业绩类型 + 时间 Tab + TOP20） | §4.9 | 改造现有「业绩排行榜」 |
+| 9 | 12 张小卡片（租客 6 + 房东 6，财务到期预警） | §4.10 | 新增两组卡片 |
+| 10 | 18 张大卡片（房源 4 + 财务 3 + 合同 3 + 风险 2 + 房东 2 + 我的工作 4） | §4.11 | 新增 6 个 dashboard-section |
+
+---
+
+## 二、房屋管理模块的精确问题
+
+### 🔴 P0-5：租房管理 Tab 结构错误
+
+**位置：** `codex/pages/rent.html:61-67`
+
+**现状：**
+```html
+<div class="tabs">
+  <div class="tab active">全部</div>
+  <div class="tab">整租</div>
+  <div class="tab">合租</div>
+  <div class="tab">空置</div>
+  <div class="tab">即将到期</div>
+</div>
+```
+
+**需求（§5.1.5）：** 三层 Tab 分离
+- **顶部视图切换：** `房间信息 / 房东信息`
+- **租房类型 Tab：** `整租 / 合租`
+- **状态 Tab：** `全部 / 可租 / 已定 / 冻结`
+
+**修复：**
+```html
+<!-- 顶部视图切换 -->
+<div class="tabs">
+  <div class="tab active">房间信息</div>
+  <div class="tab">房东信息</div>
+</div>
+
+<!-- 租房类型 + 状态 -->
+<div class="toolbar-row" style="margin-top:8px">
+  <div class="status-tabs" style="margin:0">
+    <button class="status-tab active">整租</button>
+    <button class="status-tab">合租</button>
+  </div>
+  <span style="border-left:1px solid var(--gray-200);margin:0 8px"></span>
+  <div class="status-tabs" style="margin:0">
+    <button class="status-tab active">全部</button>
+    <button class="status-tab">可租</button>
+    <button class="status-tab">已定</button>
+    <button class="status-tab">冻结</button>
+  </div>
+  <span class="text-muted" style="margin-left:auto">合计 153 间：未租 59 间、已租 94 间</span>
+</div>
+```
+
+---
+
+### 🔴 P0-6：租房管理缺少综合查询和完整筛选
+
+**位置：** `codex/pages/rent.html:68-74`
+
+**需求（§5.1.3 + §5.1.4）：** 综合查询支持 9 个字段 + 15 个筛选条件
+
+**修复（替换 filter-bar）：**
+```html
+<div class="filter-bar">
+  <div class="filter-group" style="flex:1;min-width:320px">
+    <input class="input w-full" placeholder="综合查询：房源编号/物业地址/门牌号/租客姓名/租客电话/同住人/业务员/管家">
+  </div>
+  <button class="btn btn-primary"><i data-lucide="search"></i> 搜索</button>
+  <button class="btn btn-default">更多筛选 ▾</button>
+  <button class="btn btn-ghost">重置</button>
+</div>
+
+<!-- 详细筛选（默认折叠） -->
+<div class="filter-bar">
+  <div class="filter-group"><span class="filter-label">排序</span>
+    <select class="select"><option>按物业排序</option><option>按时间排序</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">店面</span>
+    <select class="select"><option>全部店面</option><option>张江店</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">门牌号</span><input class="input input-sm"></div>
+  <div class="filter-group"><span class="filter-label">房源编号</span><input class="input input-sm"></div>
+  <div class="filter-group"><span class="filter-label">业务员</span><select class="select"><option>请选择</option></select></div>
+  <div class="filter-group"><span class="filter-label">管家</span><select class="select"><option>请选择</option></select></div>
+  <div class="filter-group"><span class="filter-label">缴费方式</span>
+    <select class="select">
+      <option>月付</option><option>二月付</option><option>季付</option><option>四月付</option>
+      <option>半年付</option><option>年付</option><option>二年付</option><option>三年付</option>
+      <option>四年付</option><option>全额支付</option><option>不规则缴费</option>
+    </select>
+  </div>
+  <div class="filter-group"><span class="filter-label">租赁期限</span>
+    <select class="select">
+      <option>1个月</option><option>2个月</option><option>3个月</option><option>半年</option>
+      <option>1年</option><option>2年</option><option>3年</option><option>其他</option>
+    </select>
+  </div>
+  <div class="filter-group"><span class="filter-label">户型</span><select class="select"><option>1室</option><option>2室</option></select></div>
+  <div class="filter-group"><span class="filter-label">区域</span><select class="select"><option>朝阳区</option></select></div>
+  <div class="filter-group"><span class="filter-label">业务状态</span>
+    <select class="select">
+      <option>待收款</option><option>账单逾期</option><option>已到期</option>
+      <option>有欠款</option><option>水电欠费</option><option>快到期</option>
+    </select>
+  </div>
+</div>
+```
+
+---
+
+### 🔴 P0-7：租房管理缺少合租的套+分间两层结构
+
+**位置：** `codex/pages/rent.html:75-137`
+
+**需求（§5.1.6）：** 合租需显示「套利润看板（本套总租客租金/总租客押金/本套利润）+ 房东信息 + 房间明细（房型 9 项 + 房间状态 7 项）」
+
+**修复（新增合租套卡片样式）：**
+```html
+<!-- 合租套卡片 -->
+<div class="detail-card">
+  <div class="detail-card-header">
+    <div>
+      <div class="detail-card-title">天赋领墅（合租套）</div>
+      <div class="text-muted" style="font-size:12px">朝阳区 · 北京店 1组 · 合计 3 间 已租 0 未租 3</div>
+    </div>
+    <div class="summary-row" style="margin:0">
+      <span class="summary-chip">总租客租金<strong>¥0</strong></span>
+      <span class="summary-chip">总押金<strong>¥0</strong></span>
+      <span class="summary-chip">本套利润<strong style="color:var(--danger)">-¥5,000</strong></span>
+    </div>
+  </div>
+  <div class="detail-card-body">
+    <div class="field-grid">
+      <div class="field-item"><span class="field-label">房东</span><div class="field-value">李四 ￥5,000</div></div>
+      <div class="field-item"><span class="field-label">户型</span><div class="field-value">3室2厅</div></div>
+      <div class="field-item"><span class="field-label">合同到期</span><div class="field-value">2031-08-13</div></div>
+      <div class="field-item"><span class="field-label">合同期限</span><div class="field-value">5年</div></div>
+      <div class="field-item"><span class="field-label">免租期</span><div class="field-value">30天</div></div>
+    </div>
+    <ul class="room-list">
+      <li class="room-item">
+        <div><span class="field-label">状态</span><div class="field-value"><span class="tag tag-orange">空 1天</span></div></div>
+        <div><span class="field-label">定价</span><div class="field-value">¥2,300</div></div>
+        <div><span class="field-label">房间编号</span><div class="field-value">1号房</div></div>
+        <div><span class="field-label">房型</span><div class="field-value">主卧独卫</div></div>
+      </li>
+      <!-- 2号房、3号房... -->
+    </ul>
+  </div>
+</div>
+```
+
+---
+
+### 🔴 P0-8：售房管理 SubTab 错误
+
+**位置：** `codex/pages/sale.html:61-67`
+
+**现状：** `全部 / 私盘 / 公盘 / 速销 / 议价`
+
+**需求（§5.2.2）：** `售房房源 / 成交房源 / 我的房源 / 我的预录入房源 / 我的收藏`
+
+**修复：**
+```html
+<div class="tabs">
+  <div class="tab active">售房房源</div>
+  <div class="tab">成交房源</div>
+  <div class="tab">我的房源</div>
+  <div class="tab">我的预录入房源</div>
+  <div class="tab">我的收藏</div>
+</div>
+```
+
+---
+
+### 🔴 P0-9：售房管理筛选字段严重不足
+
+**位置：** `codex/pages/sale.html:68-73`
+
+**需求（§5.2.3）：** 快速筛选 4 项（城市/范围/用途/更多查询）+ 详细筛选 ≥40 项
+
+**修复：**
+```html
+<!-- 快速筛选 -->
+<div class="filter-bar">
+  <div class="filter-group"><span class="filter-label">城市</span>
+    <select class="select"><option>北京</option><option>上海</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">范围</span>
+    <select class="select"><option>全部</option><option>门店</option><option>我的</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">用途</span>
+    <select class="select">
+      <option>全部</option><option>普通住宅</option><option>别墅</option><option>商住两用</option>
+      <option>车位</option><option>商铺</option><option>写字楼</option><option>厂房</option><option>土地</option>
+    </select>
+  </div>
+  <button class="btn btn-link text-primary">更多查询 ▾</button>
+  <span style="flex:1"></span>
+  <button class="btn btn-ghost btn-sm"><i data-lucide="image-off"></i> 删图模式</button>
+</div>
+
+<!-- 详细筛选（默认折叠，含小区级联） -->
+<div class="filter-bar hidden" id="detail-filter">
+  <div class="filter-group"><span class="filter-label">小区</span><input class="input" placeholder="小区名称/别名/地址"></div>
+  <div class="filter-group"><span class="filter-label">楼栋</span><select class="select"><option>选择小区后加载</option></select></div>
+  <div class="filter-group"><span class="filter-label">单元</span><select class="select"><option>选择楼栋后加载</option></select></div>
+  <div class="filter-group"><span class="filter-label">房号</span><select class="select"><option>选择单元后加载</option></select></div>
+  <div class="filter-group"><span class="filter-label">房源码</span><input class="input input-sm"></div>
+  <div class="filter-group"><span class="filter-label">维护人</span><input class="input input-sm" placeholder="姓名/手机号"></div>
+  <div class="filter-group"><span class="filter-label">门店支队</span><select class="select"><option>全部</option></select></div>
+  <div class="filter-group"><span class="filter-label">上架</span><select class="select"><option>上架</option><option>下架</option></select></div>
+  <div class="filter-group"><span class="filter-label">房源状态</span><select class="select"><option>今日新上</option><option>3日新上</option></select></div>
+  <div class="filter-group"><span class="filter-label">验真状态</span><select class="select"><option>已验真</option><option>待验真</option><option>无需验真</option></select></div>
+  <div class="filter-group"><span class="filter-label">首付(万)</span>
+    <input class="input input-sm" placeholder="最低"> - <input class="input input-sm" placeholder="最高">
+  </div>
+  <div class="filter-group"><span class="filter-label">底价(万)</span>
+    <input class="input input-sm" placeholder="最低"> - <input class="input input-sm" placeholder="最高">
+  </div>
+  <div class="filter-group"><span class="filter-label">质量分</span>
+    <input class="input input-sm" placeholder="最低"> - <input class="input input-sm" placeholder="最高">
+  </div>
+  <div class="filter-group"><span class="filter-label">未跟进(天)</span>
+    <input class="input input-sm" placeholder="最低"> - <input class="input input-sm" placeholder="最高">
+  </div>
+  <div class="filter-group"><span class="filter-label">售价(万)</span>
+    <input class="input input-sm" placeholder="最低"> - <input class="input input-sm" placeholder="最高">
+  </div>
+  <div class="filter-group"><span class="filter-label">面积(㎡)</span>
+    <input class="input input-sm" placeholder="最小"> - <input class="input input-sm" placeholder="最大">
+  </div>
+  <div class="filter-group"><span class="filter-label">质量等级</span>
+    <select class="select"><option>S</option><option>A</option><option>B</option><option>C</option><option>D</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">全城联卖</span>
+    <select class="select"><option>全部</option><option>是</option><option>否</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">朝向</span>
+    <select class="select"><option>南</option><option>北</option><option>南北</option><option>东南</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">业主行为</span>
+    <select class="select"><option>在售</option><option>出租</option><option>自住</option><option>闲置</option></select>
+  </div>
+</div>
+
+<!-- 排序区 -->
+<div class="toolbar-row">
+  <span class="toolbar-label">排序：</span>
+  <button class="btn btn-ghost btn-sm">发布时间 ▾</button>
+  <button class="btn btn-ghost btn-sm">新增时间</button>
+  <button class="btn btn-ghost btn-sm">总价</button>
+  <button class="btn btn-ghost btn-sm">单价</button>
+  <button class="btn btn-ghost btn-sm">面积</button>
+  <button class="btn btn-ghost btn-sm">楼层</button>
+  <button class="btn btn-ghost btn-sm">跟进时间</button>
+  <button class="btn btn-ghost btn-sm">房源质量</button>
+</div>
+```
+
+---
+
+### 🔴 P0-10：售房卡片字段不全 + 缺少 28 个动态标签
+
+**位置：** `codex/pages/sale.html:74-105`
+
+**需求（§5.2.5）：** 卡片需包含「基本信息（小区/户型+面积+朝向+装修+楼层/总价+单价/28个动态标签）+ 房屋用途 + 房源状态 + 房源质量分 + 跟进 + 发布时间 + 维护人 + 操作（10 个按钮）」
+
+**修复：**
+```html
+<div class="detail-card">
+  <div class="detail-card-header">
+    <div style="flex:1">
+      <div class="detail-card-title">三槐家园 · 2室1厅1卫1阳 81.18㎡ 南北 精装 5/10F</div>
+      <div class="house-tags" style="margin-top:6px">
+        <span class="tag tag-blue">全城联卖</span>
+        <span class="tag tag-orange">满五唯一</span>
+        <span class="tag tag-green">验真</span>
+        <span class="tag tag-blue">近地铁</span>
+        <span class="tag tag-purple">VR房勘</span>
+        <span class="tag tag-orange">议价</span>
+        <span class="tag tag-gray">满二</span>
+      </div>
+    </div>
+    <div class="house-price" style="margin:0">
+      <span class="price-value">296</span><span class="price-unit">万</span>
+      <span class="text-muted" style="margin-left:8px;font-size:12px">36,462 元/㎡</span>
+    </div>
+  </div>
+  <div class="detail-card-body">
+    <div class="field-grid">
+      <div class="field-item"><span class="field-label">房屋用途</span><div class="field-value">普通住宅</div></div>
+      <div class="field-item"><span class="field-label">房源状态</span><div class="field-value"><span class="tag tag-green">今日新上</span></div></div>
+      <div class="field-item"><span class="field-label">房源质量</span><div class="field-value">5分 <span class="tag tag-orange">C级</span></div></div>
+      <div class="field-item"><span class="field-label">跟进</span><div class="field-value">今天 15:23 <a class="text-primary">查看跟进</a></div></div>
+      <div class="field-item"><span class="field-label">发布时间</span><div class="field-value">08-15 15:23</div></div>
+      <div class="field-item"><span class="field-label">维护人</span><div class="field-value">李忠雪</div></div>
+    </div>
+    <div class="house-actions" style="margin-top:12px">
+      <button class="btn btn-sm btn-primary">详情</button>
+      <button class="btn btn-sm btn-default">查看房号</button>
+      <button class="btn btn-sm btn-default">修改</button>
+      <button class="btn btn-sm btn-default">跟进</button>
+      <button class="btn btn-sm btn-default">验真</button>
+      <button class="btn btn-sm btn-default">上架/下架</button>
+      <button class="btn btn-sm btn-default">议价/调价</button>
+      <button class="btn btn-sm btn-default">转维护人</button>
+      <button class="btn btn-sm btn-ghost">标记</button>
+    </div>
+  </div>
+</div>
+```
+
+---
+
+### 🔴 P0-11：储备房源视图 Tab 错误
+
+**位置：** `codex/pages/reserve-house.html:61-67`
+
+**现状：** `全部 / 待跟进 / 已签约 / 私盘 / 公盘`
+
+**需求（§5.3.2）：** `全部房源 / 我的房源 / 录入房源`
+
+**修复：**
+```html
+<div class="tabs">
+  <div class="tab active">全部房源</div>
+  <div class="tab">我的房源</div>
+  <div class="tab">录入房源</div>
+</div>
+
+<!-- 工具栏 -->
+<div class="toolbar-row">
+  <button class="btn btn-default btn-sm"><i data-lucide="settings-2"></i> 偏好设置</button>
+  <button class="btn btn-default btn-sm"><i data-lucide="columns"></i> 列表自定义</button>
+  <button class="btn btn-default btn-sm"><i data-lucide="history"></i> 操作日志</button>
+  <button class="btn btn-ghost btn-sm"><i data-lucide="circle-help"></i> 使用说明</button>
+  <span style="flex:1"></span>
+  <button class="btn btn-default btn-sm"><i data-lucide="download"></i> 导出房源</button>
+</div>
+
+<!-- 筛选区 -->
+<div class="filter-bar">
+  <div class="filter-group"><span class="filter-label">店面</span>
+    <select class="select"><option>总部店</option><option>北京店</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">分组</span>
+    <select class="select"><option>1组</option><option>2组</option><option>转移1</option><option>转移2</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">房源状态</span>
+    <select class="select">
+      <option>未租</option><option>已租</option><option>已售</option><option>暂不租</option>
+      <option>已拿房成交</option><option>已签约</option><option>已交定</option>
+    </select>
+  </div>
+  <div class="filter-group"><span class="filter-label">门牌号</span><input class="input input-sm"></div>
+  <div class="filter-group" style="flex:1"><input class="input w-full" placeholder="综合查询"></div>
+  <button class="btn btn-primary">搜索</button>
+  <button class="btn btn-ghost">重置</button>
+</div>
+```
+
+---
+
+### 🔴 P0-12：储备客源子 Tab 错误
+
+**位置：** `codex/pages/reserve-client.html:61-67`
+
+**现状：** `全部 / 租房 / 售房 / 今日新增 / 7日未跟进`
+
+**需求（§5.4.2）：** `求租 / 求购 / 我的客源 / 录入求租`
+
+**修复：**
+```html
+<div class="tabs">
+  <div class="tab active">求租</div>
+  <div class="tab">求购</div>
+  <div class="tab">我的客源</div>
+  <div class="tab">录入求租</div>
+</div>
+
+<!-- 工具栏 -->
+<div class="toolbar-row">
+  <button class="btn btn-default btn-sm"><i data-lucide="settings-2"></i> 偏好设置</button>
+  <button class="btn btn-default btn-sm"><i data-lucide="columns"></i> 列表自定义</button>
+  <button class="btn btn-ghost btn-sm"><i data-lucide="circle-help"></i> 使用说明</button>
+  <span style="flex:1"></span>
+  <button class="btn btn-default btn-sm"><i data-lucide="download"></i> 导出客源</button>
+</div>
+
+<!-- 筛选区 -->
+<div class="filter-bar">
+  <div class="filter-group"><span class="filter-label">店面</span>
+    <select class="select"><option>北京店</option></select>
+  </div>
+  <div class="filter-group"><span class="filter-label">客户姓氏</span><input class="input input-sm"></div>
+  <div class="filter-group"><span class="filter-label">租赁用途</span>
+    <select class="select">
+      <option>自住</option><option>办公</option><option>宿舍</option>
+      <option>库房</option><option>开麻将馆</option><option>开饭店</option>
+    </select>
+  </div>
+  <div class="filter-group"><span class="filter-label">客户状态</span>
+    <select class="select">
+      <option>未租</option><option>已租</option><option>暂不租</option><option>电话未接听</option>
+      <option>转到合租</option><option>转到整租</option><option>已定</option><option>转到集中</option>
+    </select>
+  </div>
+  <div class="filter-group"><span class="filter-label">客户性质</span>
+    <select class="select"><option>公客</option><option>私客</option></select>
+  </div>
+</div>
+```
+
+---
+
+## 三、财务管理模块的精确问题
+
+### 🔴 P0-13：账单缺少「汇总/明细」切换 + 状态 Tab 错误
+
+**位置：** `codex/pages/finance-bill.html:61-67`
+
+**现状：** `应收 / 应付 / 已收 / 已付 / 欠款`（5 个，且命名错误）
+
+**需求（§6.1.1 + §6.1.2）：** 9 个状态 Tab + 汇总/明细切换
+
+**修复：**
+```html
+<!-- 顶部 Tab -->
+<div class="tabs">
+  <div class="tab active">工作台</div>
+  <div class="tab">账单</div>
+</div>
+
+<!-- 查看方式 + 筛选 -->
+<div class="toolbar-row">
+  <div class="view-switch">
+    <button class="active">汇总</button>
+    <button>明细</button>
+  </div>
+  <span style="flex:1"></span>
+  <button class="btn btn-default btn-sm"><i data-lucide="download"></i> 导出汇总</button>
+</div>
+
+<!-- 状态 Tab（9 个） -->
+<div class="status-tabs">
+  <button class="status-tab active">全部</button>
+  <button class="status-tab">应收</button>
+  <button class="status-tab">应付</button>
+  <button class="status-tab">待收</button>
+  <button class="status-tab">待付</button>
+  <button class="status-tab">逾期</button>
+  <button class="status-tab">已收</button>
+  <button class="status-tab">已付</button>
+  <button class="status-tab">待平账</button>
+</div>
+```
+
+---
+
+### 🔴 P0-14：账单表格列严重不足
+
+**位置：** `codex/pages/finance-bill.html:82-90`
+
+**现状：** 10 列（缺店面/区域/业务类型/账单来源/缴费次数/账单周期/逾期费用/业务员/管家/房源编号/添加催收过程）
+
+**需求（§6.1.1）：** 17 列
+
+**修复：** 替换表头为 17 列：
+```html
+<thead><tr>
+  <th><input type="checkbox"></th>
+  <th>店面</th><th>区域</th><th>业务类型</th><th>物业地址</th><th>账单来源</th>
+  <th>收付款人</th><th>应收付日</th><th>缴费次数</th><th>账单周期</th>
+  <th>逾期费用</th><th>应收付金额</th><th>实收付金额</th><th>收付状态</th>
+  <th>业务员</th><th>管家</th><th>房源编号</th><th>操作</th>
+</tr></thead>
+```
+
+行级操作（§6.1.1）应为：`查看 / 修改 / 删除 / 更多 / 添加催收过程`
+
+---
+
+### 🔴 P0-15：流水账缺失 4 个子 Tab
+
+**位置：** `codex/pages/finance-flow.html:33`
+
+**需求（§6.2.1 + §6.2.2）：** `账单 / 未出纳财务 / 流水账 / 冲红流水` + 工具栏（记账/使用帮助/批量导入/更新日志 + 汇总/明细）
+
+**修复：** 在 `<main class="content">` 顶部加入
+```html
+<div class="tabs">
+  <div class="tab active">账单</div>
+  <div class="tab">未出纳财务</div>
+  <div class="tab">流水账</div>
+  <div class="tab">冲红流水</div>
+</div>
+
+<div class="toolbar-row">
+  <button class="btn btn-primary btn-sm"><i data-lucide="plus"></i> 记账</button>
+  <button class="btn btn-ghost btn-sm"><i data-lucide="circle-help"></i> 使用帮助</button>
+  <button class="btn btn-default btn-sm"><i data-lucide="import"></i> 批量导入</button>
+  <button class="btn btn-ghost btn-sm"><i data-lucide="history"></i> 更新日志</button>
+  <span style="flex:1"></span>
+  <div class="view-switch">
+    <button class="active">汇总</button>
+    <button>明细</button>
+  </div>
+  <button class="btn btn-default btn-sm"><i data-lucide="download"></i> 导出汇总</button>
+</div>
+```
+
+---
+
+## 四、系统管理模块的精确问题
+
+### 🔴 P0-16：角色管理缺少权限配置区 + 数据范围枚举错误
+
+**位置：** `codex/pages/system-role.html:67-90`
+
+**现状问题：**
+1. 字段不全：缺「角色编码/员工数/默认数据范围/状态」分行
+2. 数据范围枚举错误：现状 `本店/本组/本人`，需求 `self/group/store/company/assigned/custom`（6 项）
+3. 缺少右侧权限配置区（菜单权限树 + 操作权限按模块分组 + 数据范围 + DSL）
+4. 缺少「角色继承」「角色复制」「权限预览」操作
+
+**修复（§7.1.1）：** 改为左右分栏布局
+```html
+<div class="split-layout">
+  <div class="split-main">
+    <!-- 角色列表 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">角色列表</div>
+        <div class="page-actions">
+          <select class="select"><option>全部</option><option>启用</option><option>停用</option></select>
+          <button class="btn btn-primary btn-sm"><i data-lucide="plus"></i> 新建角色</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th>角色名</th><th>角色编码</th><th>默认数据范围</th><th>员工数</th><th>状态</th><th>操作</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td>超级管理员</td><td>super_admin</td><td>company</td><td>1</td>
+              <td><span class="status-dot" style="background:#16a34a"></span>启用</td>
+              <td><button class="btn btn-sm btn-default">编辑</button></td>
+            </tr>
+            <tr>
+              <td>店长</td><td>store_manager</td><td>store</td><td>5</td>
+              <td><span class="status-dot" style="background:#16a34a"></span>启用</td>
+              <td>
+                <button class="btn btn-sm btn-default">编辑</button>
+                <button class="btn btn-sm btn-default">复制</button>
+                <button class="btn btn-sm btn-danger">删除</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 权限配置 -->
+  <div class="tree-panel">
+    <h4 style="margin-top:0">菜单权限</h4>
+    <ul class="tree">
+      <li><label><input type="checkbox" checked> 首页</label></li>
+      <li>
+        <label><input type="checkbox" checked> 房屋管理</label>
+        <ul>
+          <li><label><input type="checkbox" checked> 租房管理</label></li>
+          <li><label><input type="checkbox" checked> 售房管理</label></li>
+          <li><label><input type="checkbox" checked> 储备房源</label></li>
+          <li><label><input type="checkbox" checked> 储备客源</label></li>
+          <li><label><input type="checkbox"> 客户管理</label></li>
+          <li><label><input type="checkbox"> 小区管理</label></li>
+        </ul>
+      </li>
+      <li>
+        <label><input type="checkbox" checked> 财务管理</label>
+        <ul>
+          <li><label><input type="checkbox"> 账单</label></li>
+          <li><label><input type="checkbox"> 流水账</label></li>
+          <li><label><input type="checkbox"> 开票管理</label></li>
+        </ul>
+      </li>
+      <li><label><input type="checkbox"> 系统管理（仅超管）</label></li>
+    </ul>
+
+    <h4>操作权限</h4>
+    <div class="permission-block">
+      <h4>租房管理</h4>
+      <ul class="check-list">
+        <li><label><input type="checkbox" checked> 新建</label></li>
+        <li><label><input type="checkbox" checked> 编辑</label></li>
+        <li><label><input type="checkbox" checked> 退房</label></li>
+        <li><label><input type="checkbox" checked> 导出</label></li>
+        <li><label><input type="checkbox"> 审批</label></li>
+      </ul>
+    </div>
+
+    <h4>默认数据范围</h4>
+    <select class="select w-full">
+      <option>self（仅自己）</option>
+      <option>group（本组）</option>
+      <option selected>store（本店）</option>
+      <option>company（全公司）</option>
+      <option>assigned（指定店面）</option>
+      <option>custom（自定义 DSL）</option>
+    </select>
+
+    <h4>自定义范围 DSL</h4>
+    <div class="code-block">{
+  "logic": "AND",
+  "conditions": [
+    { "field": "housekeeper_id", "op": "=", "value": "${self.id}" }
+  ]
+}</div>
+
+    <h4>父角色（继承）</h4>
+    <select class="select w-full"><option>无</option><option>业务员</option></select>
+
+    <button class="btn btn-primary w-full mt-4">保存</button>
+    <button class="btn btn-default w-full mt-4">权限预览</button>
+  </div>
+</div>
+```
+
+---
+
+### 🔴 P0-17：人员管理 Tab 错误 + 缺少组织树
+
+**位置：** `codex/pages/system-employee.html:34`
+
+**现状：** `员工 / 部门 / 分组 / 店面`（4 个）
+
+**需求（§7.4.1）：** 6 个 Tab + 左侧组织树（公司→城市→店面→部门→员工）
+
+**修复：**
+```html
+<div class="tabs">
+  <div class="tab active">员工/部门</div>
+  <div class="tab">职位/权限</div>
+  <div class="tab">待分配员工</div>
+  <div class="tab">核心字段设置</div>
+  <div class="tab">人脸识别设置</div>
+  <div class="tab">操作日志</div>
+</div>
+
+<div class="split-layout">
+  <div class="tree-panel">
+    <ul class="tree">
+      <li>📍 北京市
+        <ul>
+          <li>🏢 优居北京 <span class="text-muted">(38人)</span>
+            <ul>
+              <li>业务部</li>
+              <li>财务部</li>
+              <li class="active"><span>🏪 北辛安店</span>
+                <ul>
+                  <li>1组</li>
+                  <li>2组</li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+  <div class="split-main">
+    <div class="toolbar-row">
+      <button class="btn btn-primary btn-sm"><i data-lucide="plus"></i> 添加员工</button>
+      <button class="btn btn-default btn-sm"><i data-lucide="qr-code"></i> 二维码邀请</button>
+      <button class="btn btn-default btn-sm">批量操作 ▾</button>
+      <button class="btn btn-default btn-sm"><i data-lucide="plus"></i> 添加店面</button>
+      <span style="flex:1"></span>
+      <input class="input" placeholder="搜索部门/姓名/手机号">
+    </div>
+    <!-- 员工表格 -->
+  </div>
+</div>
+```
+
+---
+
+## 五、其他重要缺失
+
+### 🔴 P0-18：缺失统一房源录入 4 步向导
+
+**需求（§8）：** 租房/售房/储备房源共用 4 步向导（楼盘选择 → 基本信息 → 特色信息 → 完成）
+
+**修复：** 新建 `codex/pages/house-wizard.html`，含：
+- Step 1：租售类型 + 房屋用途 + 小区自动补全 + 楼栋/单元/楼层/房号四级级联
+- Step 2：按 transType 显示不同必填字段
+- Step 3：28 个房源标签 + 富文本（选择模板/保存模板/AI 生成）+ 图片上传
+- Step 4：业主姓名/电话（业主校验+黑名单联动）+ 首选带看时间 + 跟进内容（500字）
+
+---
+
+### 🔴 P0-19：缺失数据脱敏 / 黑名单联动 / 审计日志可视化
+
+**需求（§9、§10.6、§13）：**
+- 手机号 `138****1234`、身份证 `110***********1234`、银行卡 `**** **** **** 1234`
+- 录入业主电话时实时黑名单校验 + 弹窗预警
+- 所有操作写入日志（操作人/时间/IP/操作内容）
+
+**修复：** 在所有显示手机号/身份证/银行卡的位置应用脱敏格式，并在录入页加黑名单校验弹窗。
+
+---
+
+## 六、修复优先级矩阵
+
+| 优先级 | 任务 | 涉及文件 | 工作量 |
+|---|---|---|---|
+| **P0-1** | 修复菜单结构（9 个 HTML 侧边栏） | 全部 HTML | 0.5 天 |
+| **P0-2** | 首页看板重构（30 张卡片 + 顶部工具栏） | index.html | 1.5 天 |
+| **P0-3** | 租房管理三层 Tab + 筛选 + 合租结构 | rent.html | 1.5 天 |
+| **P0-4** | 售房管理 5 SubTab + 详细筛选 + 卡片 | sale.html | 1.5 天 |
+| **P0-5** | 储备房源视图 Tab + 筛选 | reserve-house.html | 0.5 天 |
+| **P0-6** | 储备客源子 Tab + 筛选 | reserve-client.html | 0.5 天 |
+| **P0-7** | 账单 9 状态 + 17 列 + 汇总/明细 | finance-bill.html | 1 天 |
+| **P0-8** | 流水账 4 子 Tab + 工具栏 | finance-flow.html | 0.5 天 |
+| **P0-9** | 角色管理左右分栏 + 权限配置 | system-role.html | 1 天 |
+| **P0-10** | 人员管理 6 Tab + 组织树 | system-employee.html | 0.5 天 |
+| **P0-11** | 新建客户管理 + 小区管理 | customer.html / community.html | 1.5 天 |
+| **P0-12** | 新建 10 个财务模块 | 10 个 finance-*.html | 4 天 |
+| **P0-13** | 新建权限管理 + 字典管理 | system-permission.html / system-dictionary.html | 1 天 |
+| **P0-14** | 新建统一录入向导（4 步） | house-wizard.html | 1.5 天 |
+| **P1** | 数据脱敏 + 黑名单联动 | 全部相关页 | 1 天 |
+| **合计** | | | **约 18 天** |
+
+---
+
+## 七、执行选项
+
+请选择执行方式：
+
+| 选项 | 说明 |
+|---|---|
+| **A. 完整修复全部** | 我立即按上述清单重构所有 9 个 HTML + 新建 14 个 HTML |
+| **B. 仅修复菜单 + 首页 + 三大房源页** | 优先修复 P0-1 ~ P0-6（约 5.5 天工作量） |
+| **C. 仅修复财务模块** | 优先修复 P0-7、P0-8、P0-12（约 5.5 天工作量） |
+| **D. 仅修复系统管理** | 优先修复 P0-9、P0-10、P0-13（约 2.5 天工作量） |
+| **E. 导出修复清单文档** | 将本审查报告导出为 `修复清单.md`，由你或团队手动执行 |
+| **F. 仅修复某一个具体页面** | 你指定一个页面（如「只修复租房管理」） |
+
+请告知选择哪种方式，我立即开始。
