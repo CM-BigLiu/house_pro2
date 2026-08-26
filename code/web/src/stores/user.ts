@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { login as loginApi, getMe, getMenus, type LoginForm, type UserInfo, type MenuItem } from '@/api/auth';
+import { connectSocket, disconnectSocket } from '@/utils/socket';
 
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('house_token') || '');
@@ -24,6 +25,7 @@ export const useUserStore = defineStore('user', () => {
       setToken(res.token);
       await fetchUserInfo();
       await fetchMenus();
+      connectSocket();
       return true;
     } finally {
       loading.value = false;
@@ -39,6 +41,7 @@ export const useUserStore = defineStore('user', () => {
   };
 
   const logout = () => {
+    disconnectSocket();
     token.value = '';
     userInfo.value = null;
     menus.value = [];

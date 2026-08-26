@@ -9,6 +9,7 @@ import { SystemModule } from './modules/system/system.module';
 import { HouseModule } from './modules/house/house.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { EventsModule } from './modules/events/events.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionGuard } from './common/guards/permission.guard';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -30,6 +31,7 @@ import { UploadController } from './common/controllers/upload.controller';
     HouseModule,
     FinanceModule,
     DashboardModule,
+    EventsModule,
   ],
   controllers: [UploadController],
   providers: [

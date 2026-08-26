@@ -15,6 +15,7 @@ import { RequirePermission } from '../../../common/decorators/require-permission
 import { Audit } from '../../../common/decorators/audit.decorator';
 import { StateMachineService } from '../../../common/services/state-machine.service';
 import { ApprovalService } from '../services/approval.service';
+import { EventsGateway } from '../../events/events.gateway';
 import { SaleProperty } from '../../house/entities/sale-property.entity';
 import { RentalRoom } from '../../house/entities/rental-room.entity';
 import { Bill } from '../../finance/entities/bill.entity';
@@ -43,6 +44,7 @@ export class StatusController {
     private invoiceRepo: Repository<Invoice>,
     private stateMachine: StateMachineService,
     private approvalService: ApprovalService,
+    private eventsGateway: EventsGateway,
   ) {}
 
   @Post('house/sale-properties/:id/change-status')
@@ -143,6 +145,8 @@ export class StatusController {
       operatorId: user.employeeId,
       remark,
     });
+    this.eventsGateway.broadcastStatusChange({ entityType, entityId: id, status: toStatus });
+    this.eventsGateway.broadcastDashboardUpdate({ type: 'status_change', entityType, entityId: id, status: toStatus });
     return saved;
   }
 }
