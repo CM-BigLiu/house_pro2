@@ -19,15 +19,33 @@ export class OperationLogService {
     return qb.orderBy('l.createdAt', 'DESC').getMany();
   }
 
-  async log(user: CurrentUserPayload, module: string, action: string, bizType?: string, bizId?: string, detail?: string) {
+  async log(
+    user: CurrentUserPayload,
+    module: string,
+    action: string,
+    options: {
+      objectType?: string;
+      objectId?: string;
+      beforeSnapshot?: any;
+      afterSnapshot?: any;
+      ip?: string;
+      userAgent?: string;
+      result?: string;
+      detail?: string;
+    } = {},
+  ) {
     const item = this.logRepo.create({
       employeeId: user.employeeId,
       module,
       action,
-      objectType: bizType,
-      objectId: bizId,
-    } as any);
-    (item as any).detail = detail;
+      objectType: options.objectType || '',
+      objectId: options.objectId || '',
+      beforeSnapshot: options.beforeSnapshot || null,
+      afterSnapshot: options.afterSnapshot || null,
+      ip: options.ip || '',
+      userAgent: options.userAgent || '',
+      result: options.result || 'success',
+    });
     return this.logRepo.save(item);
   }
 }

@@ -47,6 +47,12 @@ export class RentalSet {
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   buildingArea: number;
 
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  interiorArea: number;
+
+  @Column({ length: 100, nullable: true })
+  businessCircle: string;
+
   @Column({ length: 20, nullable: true })
   decoration: string;
 

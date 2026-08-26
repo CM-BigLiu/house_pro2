@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { RoleService } from '../services/role.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
+import { Audit } from '../../../common/decorators/audit.decorator';
 
 class CreateRoleDto {
   @IsString()
@@ -53,12 +54,14 @@ export class RoleController {
 
   @Post()
   @RequirePermission('system:role:create')
+  @Audit('system', 'role:create', { objectType: 'role' })
   async create(@Body() data: CreateRoleDto) {
     return this.roleService.create(data);
   }
 
   @Put(':id')
   @RequirePermission('system:role:edit')
+  @Audit('system', 'role:update', { objectType: 'role' })
   async update(@Param('id') id: string, @Body() data: UpdateRoleDto) {
     return this.roleService.update(+id, data);
   }

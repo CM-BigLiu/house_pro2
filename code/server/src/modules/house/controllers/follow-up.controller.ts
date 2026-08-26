@@ -55,7 +55,11 @@ export class FollowUpController {
   @RequirePermission('reserve:client:add')
   async create(@Body() data: CreateFollowUpDto, @CurrentUser() user: any) {
     const item = await this.followUpService.create(data, user);
-    await this.operationLogService.log(user, 'house', 'follow_up_create', data.bizType, String(data.bizId), data.content);
+    await this.operationLogService.log(user, 'house', 'follow_up_create', {
+      objectType: data.bizType,
+      objectId: String(data.bizId),
+      afterSnapshot: data,
+    });
     return item;
   }
 }

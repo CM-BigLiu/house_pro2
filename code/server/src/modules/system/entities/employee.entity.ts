@@ -7,6 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { encryptedTransformer } from '../../../common/transformers/encrypted.transformer';
 import { Store } from './store.entity';
 import { Department } from './department.entity';
 import { Position } from './position.entity';
@@ -36,10 +37,10 @@ export class Employee {
   @Column({ type: 'date', nullable: true })
   leaveDate: string;
 
-  @Column({ length: 50, nullable: true })
+  @Column({ length: 255, nullable: true, transformer: encryptedTransformer })
   idCard: string;
 
-  @Column({ length: 50, nullable: true })
+  @Column({ length: 255, nullable: true, transformer: encryptedTransformer })
   bankCard: string;
 
   @Column({ length: 100, nullable: true })

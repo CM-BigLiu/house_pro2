@@ -3,6 +3,7 @@ import { IsString, IsNotEmpty, IsOptional, IsArray, IsNumber } from 'class-valid
 import { Type } from 'class-transformer';
 import { EmployeeService } from '../services/employee.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { Audit } from '../../../common/decorators/audit.decorator';
 
 class CreateEmployeeDto {
   @IsString()
@@ -75,11 +76,13 @@ export class EmployeeController {
   }
 
   @Post()
+  @Audit('system', 'employee:create', { objectType: 'employee' })
   async create(@Body() data: CreateEmployeeDto) {
     return this.employeeService.create(data);
   }
 
   @Put(':id')
+  @Audit('system', 'employee:update', { objectType: 'employee' })
   async update(@Param('id') id: string, @Body() data: UpdateEmployeeDto) {
     return this.employeeService.update(+id, data);
   }

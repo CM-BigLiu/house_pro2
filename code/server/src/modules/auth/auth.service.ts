@@ -8,6 +8,8 @@ import { Role } from '../system/entities/role.entity';
 import { Permission } from '../system/entities/permission.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
+import { maskPhone } from '../../common/utils/mask.util';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -37,7 +39,7 @@ export class AuthService {
       user: {
         id: employee.id,
         name: employee.name,
-        mobile: employee.mobile,
+        mobile: maskPhone(employee.mobile),
         avatar: employee.avatar,
       },
     };

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Invoice } from '../entities/invoice.entity';
+import { CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 
 @Injectable()
 export class InvoiceService {
@@ -20,13 +21,18 @@ export class InvoiceService {
     return { list, total };
   }
 
-  async create(data: Partial<Invoice>) {
-    const item = this.invoiceRepo.create(data);
+  async create(data: Partial<Invoice>, user?: CurrentUserPayload) {
+    const item = this.invoiceRepo.create({
+      ...data,
+      creatorId: data.creatorId ?? user?.employeeId,
+    });
     return this.invoiceRepo.save(item);
   }
 
-  async update(id: number, data: Partial<Invoice>) {
-    await this.invoiceRepo.update(id, data);
-    return this.invoiceRepo.findOne({ where: { id } });
+  async update(id: number, data: Partial<Invoice>, user?: CurrentUserPayload) {
+    const existing = await this.invoiceRepo.findOne({ where: { id } });
+    if (!existing) return null;
+    const updated = await this.invoiceRepo.save({ ...existing, ...data, id });
+    return updated;
   }
 }

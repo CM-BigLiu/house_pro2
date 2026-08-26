@@ -5,6 +5,7 @@ import { SaleService } from '../services/sale.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
+import { Audit } from '../../../common/decorators/audit.decorator';
 
 class CreateSalePropertyDto {
   @IsString()
@@ -79,6 +80,89 @@ class CreateSalePropertyDto {
   buildYear?: number;
 
   @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  interiorArea?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  totalFloor?: number;
+
+  @IsString()
+  @IsOptional()
+  propertyStatus?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isRentSaleCoexist?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isFusion?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isPublic?: boolean;
+
+  @IsString()
+  @IsOptional()
+  govVerifyCode?: string;
+
+  @IsString()
+  @IsOptional()
+  govVerifyStatus?: string;
+
+  @IsString()
+  @IsOptional()
+  quickSaleStart?: string;
+
+  @IsString()
+  @IsOptional()
+  quickSaleEnd?: string;
+
+  @IsString()
+  @IsOptional()
+  publishedAt?: string;
+
+  @IsString()
+  @IsOptional()
+  offShelfAt?: string;
+
+  @IsString()
+  @IsOptional()
+  bargainAt?: string;
+
+  @IsString()
+  @IsOptional()
+  verifiedAt?: string;
+
+  @IsString()
+  @IsOptional()
+  lastFollowAt?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  daysWithoutFollow?: number;
+
+  @IsString()
+  @IsOptional()
+  viewingTime?: string;
+
+  @IsString()
+  @IsOptional()
+  viewingTimeAlt?: string;
+
+  @IsString()
+  @IsOptional()
+  vrUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  videoUrl?: string;
+
+  @IsNumber()
   @IsNotEmpty()
   @Type(() => Number)
   salePrice: number;
@@ -141,9 +225,9 @@ class CreateSalePropertyDto {
   maintainerId?: number;
 
   @IsNumber()
-  @IsNotEmpty()
+  @IsOptional()
   @Type(() => Number)
-  storeId: number;
+  storeId?: number;
 
   @IsNumber()
   @IsOptional()
@@ -177,6 +261,89 @@ class UpdateSalePropertyDto {
   @IsOptional()
   @Type(() => Number)
   salePrice?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  interiorArea?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  totalFloor?: number;
+
+  @IsString()
+  @IsOptional()
+  propertyStatus?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isRentSaleCoexist?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isFusion?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isPublic?: boolean;
+
+  @IsString()
+  @IsOptional()
+  govVerifyCode?: string;
+
+  @IsString()
+  @IsOptional()
+  govVerifyStatus?: string;
+
+  @IsString()
+  @IsOptional()
+  quickSaleStart?: string;
+
+  @IsString()
+  @IsOptional()
+  quickSaleEnd?: string;
+
+  @IsString()
+  @IsOptional()
+  publishedAt?: string;
+
+  @IsString()
+  @IsOptional()
+  offShelfAt?: string;
+
+  @IsString()
+  @IsOptional()
+  bargainAt?: string;
+
+  @IsString()
+  @IsOptional()
+  verifiedAt?: string;
+
+  @IsString()
+  @IsOptional()
+  lastFollowAt?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  daysWithoutFollow?: number;
+
+  @IsString()
+  @IsOptional()
+  viewingTime?: string;
+
+  @IsString()
+  @IsOptional()
+  viewingTimeAlt?: string;
+
+  @IsString()
+  @IsOptional()
+  vrUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  videoUrl?: string;
 
   @IsString()
   @IsOptional()
@@ -248,12 +415,14 @@ export class SaleController {
 
   @Post()
   @RequirePermission('sale:add')
+  @Audit('house', 'sale:create', { objectType: 'sale_property' })
   async create(@Body() data: CreateSalePropertyDto, @CurrentUser() user: any) {
     return this.saleService.create(data, user);
   }
 
   @Put(':id')
   @RequirePermission('sale:edit')
+  @Audit('house', 'sale:update', { objectType: 'sale_property' })
   async update(@Param('id') id: string, @Body() data: UpdateSalePropertyDto, @CurrentUser() user: any) {
     return this.saleService.update(+id, data, user);
   }

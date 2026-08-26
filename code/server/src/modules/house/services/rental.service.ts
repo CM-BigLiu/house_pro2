@@ -44,8 +44,12 @@ export class RentalService {
     return { list: mapped, total };
   }
 
-  async createSet(data: Partial<RentalSet> & { rooms?: Partial<RentalRoom>[] }) {
-    const set = this.setRepo.create(data);
+  async createSet(data: Partial<RentalSet> & { rooms?: Partial<RentalRoom>[] }, user?: CurrentUserPayload) {
+    const set = this.setRepo.create({
+      ...data,
+      storeId: data.storeId ?? user?.storeIds?.[0],
+      creatorId: data.creatorId ?? user?.employeeId,
+    });
     const saved = await this.setRepo.save(set);
     if (data.rooms?.length) {
       const rooms = data.rooms.map((r) => this.roomRepo.create({ ...r, setId: saved.id }));

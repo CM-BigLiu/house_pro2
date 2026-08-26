@@ -2,6 +2,7 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  UnauthorizedException,
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -21,7 +22,7 @@ export class PermissionGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const user: CurrentUserPayload = request.user;
-    if (!user) throw new ForbiddenException('未登录');
+    if (!user) throw new UnauthorizedException('未登录');
 
     const has = required.some((p) => user.permissions.includes(p) || user.permissions.includes('*'));
     if (!has) throw new ForbiddenException('无操作权限');

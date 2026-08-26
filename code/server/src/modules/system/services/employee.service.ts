@@ -37,7 +37,9 @@ export class EmployeeService {
     if (data.password) {
       data.password = await bcrypt.hash(data.password, 10);
     }
-    await this.employeeRepo.update(id, data);
-    return this.employeeRepo.findOne({ where: { id } });
+    const existing = await this.employeeRepo.findOne({ where: { id } });
+    if (!existing) return null;
+    const updated = await this.employeeRepo.save({ ...existing, ...data, id });
+    return updated;
   }
 }

@@ -7,6 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { encryptedTransformer } from '../../../common/transformers/encrypted.transformer';
 import { Community } from './community.entity';
 import { Employee } from '../../system/entities/employee.entity';
 
@@ -55,6 +56,66 @@ export class SaleProperty {
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   buildingArea: number;
 
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  interiorArea: number;
+
+  @Column({ type: 'int', nullable: true })
+  totalFloor: number;
+
+  @Column({ length: 20, nullable: true })
+  propertyStatus: string;
+
+  @Column({ default: false })
+  isRentSaleCoexist: boolean;
+
+  @Column({ default: false })
+  isFusion: boolean;
+
+  @Column({ default: false })
+  isPublic: boolean;
+
+  @Column({ length: 100, nullable: true })
+  govVerifyCode: string;
+
+  @Column({ length: 20, nullable: true })
+  govVerifyStatus: string;
+
+  @Column({ type: 'date', nullable: true })
+  quickSaleStart: string;
+
+  @Column({ type: 'date', nullable: true })
+  quickSaleEnd: string;
+
+  @Column({ type: 'date', nullable: true })
+  publishedAt: string;
+
+  @Column({ type: 'date', nullable: true })
+  offShelfAt: string;
+
+  @Column({ type: 'date', nullable: true })
+  bargainAt: string;
+
+  @Column({ type: 'date', nullable: true })
+  verifiedAt: string;
+
+  @Column({ type: 'date', nullable: true })
+  lastFollowAt: string;
+
+  @Column({ type: 'int', nullable: true })
+  daysWithoutFollow: number;
+
+  @Column({ length: 50, nullable: true })
+  viewingTime: string;
+
+  @Column({ length: 50, nullable: true })
+  viewingTimeAlt: string;
+
+  @Column({ length: 255, nullable: true })
+  vrUrl: string;
+
+  @Column({ length: 255, nullable: true })
+  videoUrl: string;
+
   @Column({ length: 20 })
   orientation: string;
 
@@ -100,10 +161,10 @@ export class SaleProperty {
   @Column({ length: 50 })
   ownerName: string;
 
-  @Column({ length: 20 })
+  @Column({ length: 255, transformer: encryptedTransformer })
   ownerPhone: string;
 
-  @Column({ length: 20, nullable: true })
+  @Column({ length: 255, nullable: true, transformer: encryptedTransformer })
   ownerPhoneBackup: string;
 
   @ManyToOne(() => Employee, { nullable: true })

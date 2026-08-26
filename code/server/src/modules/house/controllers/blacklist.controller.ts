@@ -5,6 +5,7 @@ import { BlacklistService } from '../services/blacklist.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
+import { Audit } from '../../../common/decorators/audit.decorator';
 
 class CreateBlacklistDto {
   @IsString()
@@ -83,18 +84,21 @@ export class BlacklistController {
   }
 
   @Post()
-  async create(@Body() data: CreateBlacklistDto) {
-    return this.blacklistService.create(data);
+  @Audit('house', 'blacklist:create', { objectType: 'blacklist' })
+  async create(@Body() data: CreateBlacklistDto, @CurrentUser() user: any) {
+    return this.blacklistService.create(data, user);
   }
 
   @Put(':id')
   @RequirePermission('system:employee:edit')
+  @Audit('house', 'blacklist:update', { objectType: 'blacklist' })
   async update(@Param('id') id: string, @Body() data: UpdateBlacklistDto, @CurrentUser() user: any) {
     return this.blacklistService.update(+id, data, user);
   }
 
   @Delete(':id')
   @RequirePermission('house:blacklist:delete')
+  @Audit('house', 'blacklist:delete', { objectType: 'blacklist' })
   async remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.blacklistService.remove(+id, user);
   }

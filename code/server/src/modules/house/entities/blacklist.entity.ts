@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { encryptedTransformer } from '../../../common/transformers/encrypted.transformer';
 
 @Entity('house_blacklist')
 export class Blacklist {
@@ -17,7 +18,7 @@ export class Blacklist {
   @Column({ length: 20, nullable: true })
   mobile: string;
 
-  @Column({ length: 50, nullable: true })
+  @Column({ length: 255, nullable: true, transformer: encryptedTransformer })
   idCard: string;
 
   @Column({ length: 20 })

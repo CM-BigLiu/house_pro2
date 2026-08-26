@@ -3,6 +3,8 @@ import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { InvoiceService } from '../services/invoice.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Audit } from '../../../common/decorators/audit.decorator';
 
 class CreateInvoiceDto {
   @IsString()
@@ -93,12 +95,14 @@ export class InvoiceController {
   }
 
   @Post()
-  async create(@Body() data: CreateInvoiceDto) {
-    return this.invoiceService.create(data);
+  @Audit('finance', 'invoice:create', { objectType: 'invoice' })
+  async create(@Body() data: CreateInvoiceDto, @CurrentUser() user: any) {
+    return this.invoiceService.create(data, user);
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() data: UpdateInvoiceDto) {
-    return this.invoiceService.update(+id, data);
+  @Audit('finance', 'invoice:update', { objectType: 'invoice' })
+  async update(@Param('id') id: string, @Body() data: UpdateInvoiceDto, @CurrentUser() user: any) {
+    return this.invoiceService.update(+id, data, user);
   }
 }

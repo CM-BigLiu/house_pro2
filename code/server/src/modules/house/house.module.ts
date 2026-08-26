@@ -26,7 +26,7 @@ import { ReserveClient } from './entities/reserve-client.entity';
 import { Customer } from './entities/customer.entity';
 import { Blacklist } from './entities/blacklist.entity';
 import { FollowUp } from './entities/follow-up.entity';
-import { FollowUpController } from './controllers/follow-up.controller';
+import { FollowUpController, OperationLogController } from './controllers/follow-up.controller';
 import { FollowUpService } from './services/follow-up.service';
 import { OperationLogService } from './services/operation-log.service';
 import { OperationLog } from '../system/entities/operation-log.entity';
@@ -40,7 +40,7 @@ import { OperationLog } from '../system/entities/operation-log.entity';
       OperationLog,
     ]),
   ],
-  controllers: [CommunityController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController],
+  controllers: [CommunityController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController, OperationLogController],
   providers: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService],
   exports: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService],
 })

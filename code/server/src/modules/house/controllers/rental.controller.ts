@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { RentalService } from '../services/rental.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Audit } from '../../../common/decorators/audit.decorator';
 
 class CreateRentalRoomDto {
   @IsString()
@@ -39,6 +40,25 @@ class CreateRentalRoomDto {
   @IsString()
   @IsOptional()
   leaseTerm?: string;
+
+  @IsString()
+  @IsOptional()
+  renovationProgress?: string;
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsOptional()
+  @Type(() => Number)
+  cohabitantIds?: number[];
+
+  @IsString()
+  @IsOptional()
+  leaseDuration?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  arrearDays?: number;
 
   @IsNumber()
   @IsOptional()
@@ -84,6 +104,15 @@ class CreateRentalSetDto {
   @IsOptional()
   @Type(() => Number)
   buildingArea?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  interiorArea?: number;
+
+  @IsString()
+  @IsOptional()
+  businessCircle?: string;
 
   @IsString()
   @IsOptional()
@@ -147,7 +176,8 @@ export class RentalController {
   }
 
   @Post()
-  async create(@Body() data: any) {
-    return this.rentalService.createSet(data);
+  @Audit('house', 'rental:create', { objectType: 'rental_set' })
+  async create(@Body() data: any, @CurrentUser() user: any) {
+    return this.rentalService.createSet(data, user);
   }
 }

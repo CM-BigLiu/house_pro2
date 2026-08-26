@@ -2,7 +2,7 @@ import {
   Injectable,
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
@@ -27,14 +27,14 @@ export class JwtAuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const token = this.extractTokenFromHeader(request);
-    if (!token) throw new ForbiddenException('缺少 Token');
+    if (!token) throw new UnauthorizedException('缺少 Token');
 
     try {
       const payload = this.jwtService.verify(token);
       request.user = payload;
       return true;
     } catch (err) {
-      throw new ForbiddenException('Token 无效');
+      throw new UnauthorizedException('Token 无效或已过期');
     }
   }
 

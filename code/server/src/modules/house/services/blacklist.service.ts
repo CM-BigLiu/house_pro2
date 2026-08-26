@@ -16,23 +16,26 @@ export class BlacklistService {
     const qb = this.blacklistRepo.createQueryBuilder('b');
     if (query.type) qb.where('b.type = :type', { type: query.type });
     if (query.status) qb.andWhere('b.status = :status', { status: query.status });
-    if (query.keyword) {
-      qb.andWhere('b.name LIKE :kw OR b.mobile LIKE :kw OR b.idCard LIKE :kw', { kw: `%${query.keyword}%` });
-    }
     applyDataScope(qb, user, 'b', { ownerField: 'createdBy' });
     const [list, total] = await qb
       .skip(((query.page || 1) - 1) * (query.pageSize || 20))
       .take(query.pageSize || 20)
       .getManyAndCount();
-    return { list, total };
+    const filtered = query.keyword
+      ? list.filter((b) =>
+          [b.name, b.mobile].some((v) => v && v.includes(query.keyword)) ||
+          (b.idCard && b.idCard.includes(query.keyword)),
+        )
+      : list;
+    return { list: filtered, total };
   }
 
   async check(mobile?: string, idCard?: string) {
-    const qb = this.blacklistRepo.createQueryBuilder('b').where('b.status = :status', { status: 'active' });
-    if (mobile) qb.andWhere('b.mobile = :mobile', { mobile });
-    if (idCard) qb.andWhere('b.idCard = :idCard', { idCard });
-    if (!mobile && !idCard) return null;
-    return qb.getOne();
+    const records = await this.blacklistRepo.find({ where: { status: 'active' } });
+    return records.find(
+      (b) =>
+        (mobile && b.mobile === mobile) || (idCard && b.idCard === idCard),
+    ) || null;
   }
 
   async create(data: Partial<Blacklist>, user?: CurrentUserPayload) {
@@ -49,8 +52,8 @@ export class BlacklistService {
     applyDataScope(qb, user, 'b', { ownerField: 'createdBy' });
     const existing = await qb.getOne();
     if (!existing) throw new ForbiddenException('无权修改或记录不存在');
-    await this.blacklistRepo.update(id, data);
-    return this.blacklistRepo.findOne({ where: { id } });
+    const updated = await this.blacklistRepo.save({ ...existing, ...data, id });
+    return updated;
   }
 
   async remove(id: number, user: CurrentUserPayload) {

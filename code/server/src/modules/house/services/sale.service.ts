@@ -56,7 +56,7 @@ export class SaleService {
     applyDataScope(qb, user, 's', { ownerField: 'creatorId' });
     const existing = await qb.getOne();
     if (!existing) throw new ForbiddenException('无权修改或记录不存在');
-    await this.saleRepo.update(id, data);
-    return this.saleRepo.findOne({ where: { id } });
+    const updated = await this.saleRepo.save({ ...existing, ...data, id });
+    return updated;
   }
 }

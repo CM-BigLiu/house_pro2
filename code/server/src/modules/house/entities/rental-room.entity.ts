@@ -38,6 +38,18 @@ export class RentalRoom {
   @Column({ length: 50, nullable: true })
   leaseTerm: string;
 
+  @Column({ length: 50, nullable: true })
+  renovationProgress: string;
+
+  @Column('simple-json', { nullable: true })
+  cohabitantIds: number[];
+
+  @Column({ length: 50, nullable: true })
+  leaseDuration: string;
+
+  @Column({ type: 'int', nullable: true })
+  arrearDays: number;
+
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   depositAmount: number;
 

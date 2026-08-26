@@ -44,8 +44,12 @@ export class BillService {
     return map[status] || status;
   }
 
-  async create(data: Partial<Bill>) {
-    const item = this.billRepo.create(data);
+  async create(data: Partial<Bill>, user?: CurrentUserPayload) {
+    const item = this.billRepo.create({
+      ...data,
+      storeId: data.storeId ?? user?.storeIds?.[0],
+      creatorId: data.creatorId ?? user?.employeeId,
+    });
     return this.billRepo.save(item);
   }
 }

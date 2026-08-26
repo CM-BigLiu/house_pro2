@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { BillService } from '../services/bill.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Audit } from '../../../common/decorators/audit.decorator';
 
 class CreateBillDto {
   @IsString()
@@ -52,7 +53,8 @@ export class BillController {
   }
 
   @Post()
-  async create(@Body() data: CreateBillDto) {
-    return this.billService.create(data);
+  @Audit('finance', 'bill:create', { objectType: 'bill' })
+  async create(@Body() data: CreateBillDto, @CurrentUser() user: any) {
+    return this.billService.create(data, user);
   }
 }
