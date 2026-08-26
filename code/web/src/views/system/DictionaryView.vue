@@ -1,17 +1,36 @@
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
-import { getDicts, getDictItems, createDict, updateDict, createDictItem, deleteDictItem, type Dict, type DictItem } from '@/api/system';
+import { ref, onMounted, reactive, computed } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import {
+  getDicts,
+  getDictItems,
+  createDict,
+  updateDict,
+  createDictItem,
+  updateDictItem,
+  deleteDictItem,
+  type Dict,
+  type DictItem,
+} from '@/api/system';
 
 const dicts = ref<Dict[]>([]);
-const items = ref<DictItem[]>([]);
+const treeData = ref<DictItem[]>([]);
+const flatItems = ref<DictItem[]>([]);
 const loading = ref(false);
 const activeDict = ref<Dict | null>(null);
 const dialogVisible = ref(false);
 const itemDialogVisible = ref(false);
 const isEdit = ref(false);
+const isItemEdit = ref(false);
 const form = reactive<Partial<Dict>>({ code: '', name: '', description: '' });
-const itemForm = reactive<Partial<DictItem>>({ value: '', label: '', sort: 1, enabled: true });
+const itemForm = reactive<Partial<DictItem>>({
+  value: '',
+  label: '',
+  parentValue: '',
+  sort: 1,
+  enabled: true,
+  dictCode: '',
+});
 
 onMounted(loadDicts);
 
@@ -29,8 +48,45 @@ async function loadDicts() {
 
 async function selectDict(dict: Dict) {
   activeDict.value = dict;
-  items.value = await getDictItems(dict.code);
+  const data = await getDictItems(dict.code, true);
+  treeData.value = data;
+  flatItems.value = buildFlat(data);
 }
+
+function buildFlat(nodes: DictItem[]): DictItem[] {
+  const list: DictItem[] = [];
+  for (const node of nodes) {
+    list.push(node);
+    if (node.children?.length) {
+      list.push(...buildFlat(node.children));
+    }
+  }
+  return list;
+}
+
+function collectDescendantValues(node: DictItem): string[] {
+  const values: string[] = [];
+  if (node.children?.length) {
+    for (const child of node.children) {
+      values.push(child.value);
+      values.push(...collectDescendantValues(child));
+    }
+  }
+  return values;
+}
+
+const parentValueOptions = computed(() => {
+  const editingValue = isItemEdit.value ? itemForm.value : undefined;
+  const exclude = new Set<string>();
+  if (editingValue) {
+    exclude.add(editingValue);
+    const node = flatItems.value.find((i) => i.value === editingValue);
+    if (node) {
+      collectDescendantValues(node).forEach((v) => exclude.add(v));
+    }
+  }
+  return flatItems.value.filter((i) => !exclude.has(i.value));
+});
 
 function openCreate() {
   isEdit.value = false;
@@ -55,22 +111,62 @@ async function submit() {
   await loadDicts();
 }
 
-function openCreateItem() {
-  Object.assign(itemForm, { value: '', label: '', sort: items.value.length + 1, enabled: true, dictCode: activeDict.value?.code });
+function openCreateItem(parentValue?: string) {
+  isItemEdit.value = false;
+  Object.assign(itemForm, {
+    id: undefined,
+    value: '',
+    label: '',
+    parentValue: parentValue || '',
+    sort: (flatItems.value.length || 0) + 1,
+    enabled: true,
+    dictCode: activeDict.value?.code,
+  });
+  itemDialogVisible.value = true;
+}
+
+function openEditItem(row: DictItem) {
+  isItemEdit.value = true;
+  Object.assign(itemForm, { ...row });
   itemDialogVisible.value = true;
 }
 
 async function submitItem() {
-  await createDictItem(itemForm);
+  const payload = { ...itemForm };
+  if (!payload.parentValue) delete payload.parentValue;
+  if (isItemEdit.value) {
+    await updateDictItem(payload.id!, payload);
+  } else {
+    await createDictItem(payload);
+  }
   ElMessage.success('保存成功');
   itemDialogVisible.value = false;
   if (activeDict.value) await selectDict(activeDict.value);
 }
 
-async function removeItem(item: DictItem) {
-  await deleteDictItem(item.id);
-  ElMessage.success('删除成功');
-  if (activeDict.value) await selectDict(activeDict.value);
+async function toggleEnabled(row: DictItem) {
+  try {
+    await updateDictItem(row.id, { enabled: !row.enabled });
+    ElMessage.success('状态已更新');
+    if (activeDict.value) await selectDict(activeDict.value);
+  } catch (e) {
+    // reload keeps consistency
+  }
+}
+
+async function removeItem(data: DictItem) {
+  if (data.children?.length) {
+    ElMessage.warning('请先删除下级字典项');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm('确定删除该字典项吗？', '提示', { type: 'warning' });
+    await deleteDictItem(data.id);
+    ElMessage.success('删除成功');
+    if (activeDict.value) await selectDict(activeDict.value);
+  } catch (e) {
+    // cancel
+  }
 }
 </script>
 
@@ -79,7 +175,7 @@ async function removeItem(item: DictItem) {
     <div class="page-header">
       <div>
         <div class="page-title">字典管理</div>
-        <div class="page-desc">维护业务枚举值，字段驱动无需改代码</div>
+        <div class="page-desc">维护业务枚举值与级联树形结构</div>
       </div>
       <div class="page-actions">
         <el-button v-permission="['system:dictionary:edit']" type="primary" @click="openCreate">新增字典</el-button>
@@ -108,25 +204,36 @@ async function removeItem(item: DictItem) {
             <div class="detail-code">{{ activeDict?.code }}</div>
           </div>
           <div class="detail-actions">
-            <el-button v-permission="['system:dictionary:edit']" size="small" type="primary" plain @click="openCreateItem">新增字典项</el-button>
+            <el-button v-permission="['system:dictionary:edit']" size="small" type="primary" plain @click="openCreateItem()">新增字典项</el-button>
             <el-button v-permission="['system:dictionary:edit']" size="small" @click="openEdit(activeDict!)">编辑</el-button>
           </div>
         </div>
-        <el-table :data="items" size="small">
-          <el-table-column prop="value" label="值" />
-          <el-table-column prop="label" label="显示名" />
-          <el-table-column prop="sort" label="排序" width="80" />
-          <el-table-column label="状态" width="90">
-            <template #default="{ row }">
-              <span :class="['pill', row.enabled ? 'pill-green' : 'pill-gray']">{{ row.enabled ? '启用' : '禁用' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="100">
-            <template #default="{ row }">
-              <el-button link type="danger" size="small" @click="removeItem(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+
+        <el-tree :data="treeData" node-key="value" default-expand-all class="dict-tree">
+          <template #default="{ data }">
+            <div class="tree-node">
+              <div class="tree-label">
+                <span class="label-text">{{ data.label }}</span>
+                <span class="value-text">{{ data.value }}</span>
+              </div>
+              <div class="tree-meta">
+                <span class="sort-text">排序 {{ data.sort }}</span>
+                <el-switch
+                  v-permission="['system:dictionary:edit']"
+                  :model-value="data.enabled"
+                  inline-prompt
+                  active-text="启"
+                  inactive-text="禁"
+                  size="small"
+                  @change="toggleEnabled(data)"
+                />
+                <el-button v-permission="['system:dictionary:edit']" link type="primary" size="small" @click.stop="openCreateItem(data.value)">新增子项</el-button>
+                <el-button v-permission="['system:dictionary:edit']" link size="small" @click.stop="openEditItem(data)">编辑</el-button>
+                <el-button v-permission="['system:dictionary:edit']" link type="danger" size="small" @click.stop="removeItem(data)">删除</el-button>
+              </div>
+            </div>
+          </template>
+        </el-tree>
       </div>
     </div>
 
@@ -148,16 +255,24 @@ async function removeItem(item: DictItem) {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="itemDialogVisible" title="新增字典项" width="480px">
+    <el-dialog v-model="itemDialogVisible" :title="isItemEdit ? '编辑字典项' : '新增字典项'" width="480px">
       <el-form :model="itemForm" label-width="80px">
         <el-form-item label="值" required>
-          <el-input v-model="itemForm.value" />
+          <el-input v-model="itemForm.value" :disabled="isItemEdit" />
         </el-form-item>
         <el-form-item label="显示名" required>
           <el-input v-model="itemForm.label" />
         </el-form-item>
+        <el-form-item label="上级项">
+          <el-select v-model="itemForm.parentValue" clearable style="width: 100%;" placeholder="无（作为根节点）">
+            <el-option v-for="i in parentValueOptions" :key="i.value" :label="`${i.label} (${i.value})`" :value="i.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="itemForm.sort" :min="1" controls-position="right" style="width: 100%;" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-switch v-model="itemForm.enabled" active-text="启用" inactive-text="禁用" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -204,7 +319,31 @@ async function removeItem(item: DictItem) {
 }
 .detail-code { font-size: 12px; color: var(--ink-400); margin-top: 2px; }
 .detail-actions { display: flex; gap: 8px; }
+.dict-tree {
+  .tree-node {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
+    min-width: 0;
+  }
+  .tree-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .label-text { font-size: 13px; color: var(--ink-800); }
+  .value-text { font-size: 11px; color: var(--ink-400); }
+  .tree-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .sort-text { font-size: 11px; color: var(--ink-400); }
+}
 @media (max-width: 768px) {
   .dict-layout { grid-template-columns: 1fr; }
+  .tree-meta { display: none; }
 }
 </style>

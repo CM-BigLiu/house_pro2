@@ -13,17 +13,19 @@ export interface DictItem {
   dictCode: string;
   value: string;
   label: string;
+  parentValue?: string;
   sort: number;
   enabled: boolean;
   isBuiltin: boolean;
+  children?: DictItem[];
 }
 
 export function getDicts(params?: { keyword?: string }) {
   return get<Dict[]>('/system/dicts', { params });
 }
 
-export function getDictItems(code: string) {
-  return get<DictItem[]>(`/system/dicts/${code}/items`);
+export function getDictItems(code: string, tree = false) {
+  return get<DictItem[]>(`/system/dicts/${code}/items`, { params: { tree: String(tree) } });
 }
 
 export function createDict(data: Partial<Dict>) {

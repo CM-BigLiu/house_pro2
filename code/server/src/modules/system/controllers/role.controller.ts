@@ -23,6 +23,16 @@ class CreateRoleDto {
   @IsNumber({}, { each: true })
   @IsOptional()
   @Type(() => Number)
+  assignedStores?: number[];
+
+  @IsString()
+  @IsOptional()
+  customScope?: string;
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsOptional()
+  @Type(() => Number)
   permissionIds?: number[];
 }
 
@@ -34,6 +44,16 @@ class UpdateRoleDto {
   @IsString()
   @IsOptional()
   dataScope?: string;
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsOptional()
+  @Type(() => Number)
+  assignedStores?: number[];
+
+  @IsString()
+  @IsOptional()
+  customScope?: string;
 
   @IsArray()
   @IsNumber({}, { each: true })

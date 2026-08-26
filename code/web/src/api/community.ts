@@ -26,25 +26,25 @@ export interface Building {
 }
 
 export function getCommunities(params?: { keyword?: string; cityId?: number; page?: number; pageSize?: number }) {
-  return get<{ list: Community[]; total: number }>('/house/communities', { params });
+  return get<{ list: Community[]; total: number }>('/community', { params });
 }
 
 export function createCommunity(data: Partial<Community>) {
-  return post<Community>('/house/communities', data);
+  return post<Community>('/community', data);
 }
 
 export function getCommunityBuildings(id: number) {
-  return get<{ id: number; name: string }[]>(`/house/communities/${id}/buildings`);
+  return get<{ id: number; name: string }[]>(`/community/${id}/buildings`);
 }
 
 export function getCommunityUnits(buildingId: number) {
-  return get<{ id: number; name: string }[]>('/house/communities/units', { params: { buildingId } });
+  return get<{ id: number; name: string }[]>('/community/units', { params: { buildingId } });
 }
 
 export function getCommunityFloors(unitId: number) {
-  return get<{ id: number; name: string }[]>('/house/communities/floors', { params: { unitId } });
+  return get<{ id: number; name: string }[]>('/community/floors', { params: { unitId } });
 }
 
 export function getCommunityRooms(floorId: number) {
-  return get<{ id: number; name: string }[]>('/house/communities/rooms', { params: { floorId } });
+  return get<{ id: number; name: string }[]>('/community/rooms', { params: { floorId } });
 }

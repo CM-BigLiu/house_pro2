@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, ArrowRight, Check, MapPin, Home, User, FileText } from 'lucide-vue-next';
 import { getCommunities, getCommunityBuildings, getCommunityUnits, getCommunityFloors, getCommunityRooms, type Community } from '@/api/community';
-import { createRentalSet, createSaleProperty, createReserveProperty } from '@/api/wizard';
+import { createRentalSet, createSaleProperty, createReserveProperty, uploadImage } from '@/api/wizard';
 import { checkBlacklist } from '@/api/blacklist';
 import { useDictStore } from '@/stores/dict';
 import { useUserStore } from '@/stores/user';
@@ -38,6 +38,8 @@ const form = reactive({
   layoutBathrooms: 1,
   layoutBalconies: 0,
   buildingArea: undefined as number | undefined,
+  interiorArea: undefined as number | undefined,
+  totalFloor: undefined as number | undefined,
   decoration: '',
   orientation: '',
   elevator: 'yes',
@@ -51,12 +53,19 @@ const form = reactive({
   unitPrice: undefined as number | undefined,
   expectedPrice: undefined as number | undefined,
   ownerName: '',
+  ownerIdCard: '',
   ownerPhone: '',
+  ownerPhoneBackup: '',
   sourceChannel: '',
   diskType: 'public',
   title: '',
   remark: '',
   tags: [] as string[],
+  viewingTime: '',
+  viewingTimeAlt: '',
+  vrUrl: '',
+  videoUrl: '',
+  images: [] as string[],
 });
 
 const steps = [
@@ -72,9 +81,47 @@ const currentAddress = computed(() => {
   return parts.join(' ') || '';
 });
 
+async function handleImageUpload(options: any) {
+  try {
+    const res = await uploadImage(options.file);
+    form.images.push(res.url);
+    ElMessage.success('上传成功');
+  } catch {
+    ElMessage.error('上传失败');
+  }
+}
+
+function removeImage(index: number) {
+  form.images.splice(index, 1);
+}
+
+const TEMPLATE_KEY = 'house_wizard_templates';
+const savedTemplates = ref<string[]>([]);
+
+function loadTemplates() {
+  const raw = localStorage.getItem(TEMPLATE_KEY);
+  savedTemplates.value = raw ? JSON.parse(raw) : [];
+}
+
+function saveTemplate() {
+  if (!form.remark.trim()) return;
+  const list = [...savedTemplates.value];
+  if (!list.includes(form.remark)) {
+    list.unshift(form.remark);
+    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(list.slice(0, 10)));
+    savedTemplates.value = list.slice(0, 10);
+    ElMessage.success('模板已保存');
+  }
+}
+
+function applyTemplate(text: string) {
+  form.remark = text;
+}
+
 onMounted(async () => {
   await dictStore.ensureLoaded(['decoration_level', 'orientation', 'source_channel', 'disk_type', 'house_tag']);
   await loadCommunities();
+  loadTemplates();
 });
 
 async function loadCommunities(keyword = '') {
@@ -238,6 +285,8 @@ async function submit() {
         layoutBathrooms: form.layoutBathrooms,
         layoutBalconies: form.layoutBalconies,
         buildingArea: form.buildingArea,
+        interiorArea: form.interiorArea,
+        totalFloor: form.totalFloor,
         orientation: form.orientation,
         decoration: form.decoration,
         elevator: form.elevator,
@@ -246,9 +295,17 @@ async function submit() {
         sourceChannel: form.sourceChannel,
         title: form.title || currentAddress.value,
         ownerName: form.ownerName,
+        ownerIdCard: form.ownerIdCard,
         ownerPhone: form.ownerPhone,
+        ownerPhoneBackup: form.ownerPhoneBackup,
+        viewingTime: form.viewingTime,
+        viewingTimeAlt: form.viewingTimeAlt,
+        vrUrl: form.vrUrl,
+        videoUrl: form.videoUrl,
+        images: form.images,
         storeId,
         tags: form.tags,
+        description: form.remark,
       });
     } else {
       await createReserveProperty({
@@ -384,6 +441,19 @@ function generateCode(prefix: string) {
                 </el-form-item>
               </el-col>
               <el-col :span="12">
+                <el-form-item label="套内面积">
+                  <el-input-number v-model="form.interiorArea" :min="0" :precision="2" style="width: 100%;" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="16">
+              <el-col :span="12">
+                <el-form-item label="总楼层">
+                  <el-input-number v-model="form.totalFloor" :min="0" :precision="0" style="width: 100%;" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
                 <el-form-item label="装修" required>
                   <el-select v-model="form.decoration" placeholder="装修" style="width: 100%;">
                     <el-option v-for="item in dictStore.getItems('decoration_level')" :key="item.value" :label="item.label" :value="item.value" />
@@ -510,8 +580,20 @@ function generateCode(prefix: string) {
                 </el-form-item>
               </el-col>
               <el-col :span="12">
+                <el-form-item label="业主身份证">
+                  <el-input v-model="form.ownerIdCard" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="16">
+              <el-col :span="12">
                 <el-form-item label="业主电话" required>
                   <el-input v-model="form.ownerPhone" @blur="checkOwnerBlacklist" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="备用电话">
+                  <el-input v-model="form.ownerPhoneBackup" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -523,8 +605,60 @@ function generateCode(prefix: string) {
             <el-form-item v-if="form.type === 'sale'" label="房源标题">
               <el-input v-model="form.title" :placeholder="currentAddress" />
             </el-form-item>
-            <el-form-item label="备注">
-              <el-input v-model="form.remark" type="textarea" :rows="3" />
+            <el-row :gutter="16" v-if="form.type === 'sale'">
+              <el-col :span="12">
+                <el-form-item label="首选带看时间">
+                  <el-input v-model="form.viewingTime" placeholder="如 2026-08-30 10:00" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="备选带看时间">
+                  <el-input v-model="form.viewingTimeAlt" placeholder="如 2026-08-30 14:00" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="16" v-if="form.type === 'sale'">
+              <el-col :span="12">
+                <el-form-item label="VR 链接">
+                  <el-input v-model="form.vrUrl" placeholder="https://..." />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="视频链接">
+                  <el-input v-model="form.videoUrl" placeholder="https://..." />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item v-if="form.type === 'sale'" label="房源图片">
+              <el-upload
+                action="#"
+                :http-request="handleImageUpload"
+                :show-file-list="false"
+                accept="image/*"
+                multiple
+              >
+                <el-button type="primary" plain>上传图片</el-button>
+              </el-upload>
+              <div class="image-preview-list" v-if="form.images.length">
+                <div v-for="(url, idx) in form.images" :key="idx" class="image-preview-item">
+                  <img :src="url" class="image-preview-img" />
+                  <span class="image-preview-del" @click="removeImage(idx)">×</span>
+                </div>
+              </div>
+            </el-form-item>
+            <el-form-item label="备注/模板">
+              <div class="template-bar">
+                <el-button type="primary" link @click="saveTemplate">保存为模板</el-button>
+                <el-dropdown v-if="savedTemplates.length" @command="applyTemplate">
+                  <el-button type="primary" link>应用模板</el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item v-for="(t, i) in savedTemplates" :key="i" :command="t">{{ t.slice(0, 20) }}...</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+              <el-input v-model="form.remark" type="textarea" :rows="4" />
             </el-form-item>
           </el-form>
         </div>
@@ -624,6 +758,40 @@ function generateCode(prefix: string) {
     background: var(--primary-soft);
     color: var(--primary);
   }
+}
+.template-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.image-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.image-preview-item {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--ink-200);
+}
+.image-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.image-preview-del {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
 @media (max-width: 768px) {
   .type-options {

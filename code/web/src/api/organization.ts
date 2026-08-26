@@ -22,6 +22,8 @@ export interface Role {
   code: string;
   name: string;
   dataScope: string;
+  assignedStores?: number[];
+  customScope?: string;
   isBuiltin: boolean;
   status: string;
   permissions?: { id: number; name: string; code: string }[];

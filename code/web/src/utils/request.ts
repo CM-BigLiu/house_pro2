@@ -69,6 +69,16 @@ export function put<T = unknown>(url: string, data?: unknown, config?: AxiosRequ
   return request.put<any, T>(url, data, config);
 }
 
+export function upload<T = unknown>(url: string, data: FormData, config?: AxiosRequestConfig) {
+  return request.post<any, T>(url, data, {
+    ...config,
+    headers: {
+      ...config?.headers,
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+}
+
 export function del<T = unknown>(url: string, config?: AxiosRequestConfig) {
   return request.delete<any, T>(url, config);
 }

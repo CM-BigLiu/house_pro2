@@ -54,3 +54,12 @@ export function getRentalSets(params?: { keyword?: string; status?: string; bizT
 export function createRentalSet(data: Partial<RentalSet>) {
   return post<RentalSet>('/house/rental-sets', data);
 }
+
+// PRD 11 章统一房源接口（transType=1 租房）
+export function getRentalPropertyPage(params?: { keyword?: string; status?: string; bizType?: string }) {
+  return get<{ list: RentalSet[]; total: number }>('/property/page', { params: { ...params, transType: 1 } });
+}
+
+export function createRentalProperty(data: Partial<RentalSet>) {
+  return post<RentalSet>('/property/add', { ...data, transType: 1 });
+}

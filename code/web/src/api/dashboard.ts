@@ -65,3 +65,24 @@ export function getRankings() {
 export function getTodos() {
   return get<TodoItem[]>('/dashboard/todos');
 }
+
+// PRD 11 章看板接口别名
+export function getStatsOverview() {
+  return get<OverviewData>('/stats/overview/circle');
+}
+
+export function getWorkflowTodoCountLists() {
+  return get<{ list: TodoItem[]; total: number }>('/workflow/employeeToDoCountLists');
+}
+
+export function getWorkflowInstanceList() {
+  return get<{ list: TodoItem[]; total: number }>('/workflow/getInstanceList');
+}
+
+export function getNoticeHomePage() {
+  return get<{ list: any[]; total: number }>('/notice/list/homePageV1');
+}
+
+export function getEmployeeHomePage() {
+  return get<OverviewData>('/employee/homePage');
+}

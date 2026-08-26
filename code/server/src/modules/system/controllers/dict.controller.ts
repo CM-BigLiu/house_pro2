@@ -17,6 +17,10 @@ class CreateDictItemDto {
   @IsNotEmpty()
   label: string;
 
+  @IsString()
+  @IsOptional()
+  parentValue?: string;
+
   @IsNumber()
   @IsOptional()
   @Type(() => Number)
@@ -35,6 +39,10 @@ class UpdateDictItemDto {
   @IsString()
   @IsOptional()
   label?: string;
+
+  @IsString()
+  @IsOptional()
+  parentValue?: string;
 
   @IsNumber()
   @IsOptional()

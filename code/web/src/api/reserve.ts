@@ -40,3 +40,20 @@ export function getReserveClients(params?: { keyword?: string; status?: string }
 export function createReserveClient(data: Partial<ReserveClient>) {
   return post<ReserveClient>('/house/reserves/clients', data);
 }
+
+// PRD 11 章储备接口（/api/reserve/*）
+export function getReserveHousePage(params?: { keyword?: string; status?: string }) {
+  return get<{ list: ReserveProperty[]; total: number }>('/reserve/house/page', { params });
+}
+
+export function createReserveHouse(data: Partial<ReserveProperty>) {
+  return post<ReserveProperty>('/reserve/house/add', data);
+}
+
+export function getReserveClientPage(params?: { keyword?: string; status?: string }) {
+  return get<{ list: ReserveClient[]; total: number }>('/reserve/client/page', { params });
+}
+
+export function createReserveClientAlias(data: Partial<ReserveClient>) {
+  return post<ReserveClient>('/reserve/client/add', data);
+}

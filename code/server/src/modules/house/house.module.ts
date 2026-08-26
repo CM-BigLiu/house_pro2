@@ -7,6 +7,8 @@ import { ReserveController } from './controllers/reserve.controller';
 import { CustomerController } from './controllers/customer.controller';
 import { ReservePropertyController } from './controllers/reserve-property.controller';
 import { ReserveClientController } from './controllers/reserve-client.controller';
+import { PropertyController } from './controllers/property.controller';
+import { ReserveAliasController } from './controllers/reserve-alias.controller';
 import { BlacklistController } from './controllers/blacklist.controller';
 import { CommunityService } from './services/community.service';
 import { SaleService } from './services/sale.service';
@@ -40,7 +42,7 @@ import { OperationLog } from '../system/entities/operation-log.entity';
       OperationLog,
     ]),
   ],
-  controllers: [CommunityController, CommunityAliasController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController, OperationLogController],
+  controllers: [CommunityController, CommunityAliasController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController, OperationLogController, PropertyController, ReserveAliasController],
   providers: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService],
   exports: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService],
 })

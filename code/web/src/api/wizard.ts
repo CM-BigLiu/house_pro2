@@ -1,4 +1,10 @@
-import { post } from '@/utils/request';
+import { post, upload } from '@/utils/request';
+
+export function uploadImage(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return upload<{ url: string }>('/upload/image', formData);
+}
 
 export interface WizardRentalSet {
   code: string;
@@ -48,6 +54,9 @@ export interface WizardSaleProperty {
   layoutBathrooms: number;
   layoutBalconies: number;
   buildingArea: number;
+  interiorArea?: number;
+  totalFloor?: number;
+  propertyStatus?: string;
   orientation: string;
   decoration: string;
   elevator: string;
@@ -63,8 +72,14 @@ export interface WizardSaleProperty {
   tags?: string[];
   description?: string;
   ownerName: string;
+  ownerIdCard?: string;
   ownerPhone: string;
   ownerPhoneBackup?: string;
+  viewingTime?: string;
+  viewingTimeAlt?: string;
+  vrUrl?: string;
+  videoUrl?: string;
+  images?: string[];
   maintainerId?: number;
   storeId: number;
 }

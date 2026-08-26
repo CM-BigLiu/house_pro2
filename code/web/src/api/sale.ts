@@ -54,3 +54,20 @@ export function createSaleProperty(data: Partial<SaleProperty>) {
 export function updateSaleProperty(id: number, data: Partial<SaleProperty>) {
   return put<SaleProperty>(`/house/sale-properties/${id}`, data);
 }
+
+// PRD 11 章统一房源接口（/api/property/*）
+export function getPropertyPage(params?: { transType?: number; keyword?: string; status?: string }) {
+  return get<{ list: SaleProperty[]; total: number }>('/property/page', { params });
+}
+
+export function createProperty(data: Partial<SaleProperty> & { transType?: number }) {
+  return post<SaleProperty>('/property/add', data);
+}
+
+export function getPropertyDetail(id: number, transType = 2) {
+  return get<SaleProperty>(`/property/detail/${id}`, { params: { transType } });
+}
+
+export function updateProperty(id: number, data: Partial<SaleProperty> & { transType?: number }) {
+  return put<SaleProperty>(`/property/update/${id}`, data);
+}

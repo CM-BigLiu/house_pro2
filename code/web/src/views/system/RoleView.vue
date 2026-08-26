@@ -1,23 +1,28 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
-import { getRoles, createRole, updateRole, deleteRole, type Role } from '@/api/organization';
-import { getPermissions, type Permission } from '@/api/organization';
+import { getRoles, createRole, updateRole, deleteRole, getStores, type Role, type Store, type Permission } from '@/api/organization';
+import { getPermissions } from '@/api/organization';
 
 type RoleForm = Partial<Role> & { permissionIds?: number[] };
 
 const roles = ref<Role[]>([]);
 const permissions = ref<Permission[]>([]);
+const stores = ref<Store[]>([]);
 const loading = ref(false);
 const dialogVisible = ref(false);
 const isEdit = ref(false);
 const form = reactive<RoleForm>({
-  code: '', name: '', dataScope: 'self', status: 'enabled', permissionIds: [],
+  code: '', name: '', dataScope: 'self', status: 'enabled', permissionIds: [], assignedStores: [], customScope: '',
 });
 
 onMounted(async () => {
-  await Promise.all([loadRoles(), loadPermissions()]);
+  await Promise.all([loadRoles(), loadPermissions(), loadStores()]);
 });
+
+async function loadStores() {
+  stores.value = await getStores();
+}
 
 async function loadRoles() {
   loading.value = true;
@@ -34,21 +39,28 @@ async function loadPermissions() {
 
 function openCreate() {
   isEdit.value = false;
-  Object.assign(form, { code: '', name: '', dataScope: 'self', status: 'enabled', permissionIds: [] });
+  Object.assign(form, { code: '', name: '', dataScope: 'self', status: 'enabled', permissionIds: [], assignedStores: [], customScope: '' });
   dialogVisible.value = true;
 }
 
 function openEdit(row: Role) {
   isEdit.value = true;
-  Object.assign(form, { ...row, permissionIds: row.permissions?.map((p) => p.id) || [] });
+  Object.assign(form, {
+    ...row,
+    permissionIds: row.permissions?.map((p) => p.id) || [],
+    assignedStores: row.assignedStores || [],
+    customScope: row.customScope || '',
+  });
   dialogVisible.value = true;
 }
 
 async function submit() {
+  const payload = { ...form };
+  if (!payload.customScope) delete payload.customScope;
   if (isEdit.value) {
-    await updateRole(form.id!, form);
+    await updateRole(form.id!, payload);
   } else {
-    await createRole(form);
+    await createRole(payload);
   }
   ElMessage.success(isEdit.value ? '更新成功' : '创建成功');
   dialogVisible.value = false;
@@ -117,7 +129,21 @@ function scopeLabel(scope: string) {
             <el-option label="本店" value="store" />
             <el-option label="全公司" value="company" />
             <el-option label="指定店面" value="assigned" />
+            <el-option label="自定义" value="custom" />
           </el-select>
+        </el-form-item>
+        <el-form-item v-if="form.dataScope === 'assigned'" label="指定店面">
+          <el-select v-model="form.assignedStores" multiple style="width: 100%;">
+            <el-option v-for="s in stores" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="form.dataScope === 'custom'" label="自定义规则">
+          <el-input
+            v-model="form.customScope"
+            type="textarea"
+            :rows="3"
+            placeholder='{"store_id": [1,2]} 或 {"creator_id": "@me"}'
+          />
         </el-form-item>
         <el-form-item label="权限">
           <el-tree-select
