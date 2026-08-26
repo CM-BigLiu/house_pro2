@@ -47,14 +47,26 @@ export class AuthService {
 
   async buildPayload(employee: Employee): Promise<CurrentUserPayload> {
     const permissionCodes = new Set<string>();
-    const scopePriority = ['self', 'group', 'store', 'company'];
+    const scopePriority = ['self', 'group', 'store', 'assigned', 'custom', 'company'];
     let dataScopeIndex = 0;
     const storeIds = (employee.stores || []).map((s: any) => s.id);
     const groupIds = (employee.groups || []).map((g: any) => g.id);
+    let assignedStoreIds: number[] = [];
+    let customScope: Record<string, any> | undefined;
 
     for (const role of employee.roles || []) {
       const idx = scopePriority.indexOf(role.dataScope);
-      if (idx > dataScopeIndex) dataScopeIndex = idx;
+      if (idx > dataScopeIndex) {
+        dataScopeIndex = idx;
+        if (role.dataScope === 'assigned') {
+          assignedStoreIds = role.assignedStores || [];
+        }
+        if (role.dataScope === 'custom') {
+          customScope = role.customScope
+            ? (typeof role.customScope === 'string' ? JSON.parse(role.customScope) : role.customScope)
+            : undefined;
+        }
+      }
       const perms = (role.permissions || []).map((p: Permission) => p.code);
       perms.forEach((code) => permissionCodes.add(code));
     }
@@ -64,8 +76,10 @@ export class AuthService {
       mobile: employee.mobile,
       name: employee.name,
       storeIds,
+      assignedStoreIds,
       groupIds,
       dataScope: scopePriority[dataScopeIndex],
+      customScope,
       permissions: Array.from(permissionCodes),
     };
   }

@@ -28,8 +28,30 @@ export interface TodoItem {
   date?: string;
 }
 
+export interface SmallCard {
+  group: string;
+  title: string;
+  value: number;
+}
+
+export interface BigCard {
+  title: string;
+  value: string | number;
+  label?: string;
+  color?: string;
+}
+
+export interface OverviewData {
+  greetingName?: string;
+  role?: string;
+  kpis: KpiItem[];
+  charts: { monthly: { month: string; income: number; expense: number }[] };
+  smallCards: SmallCard[];
+  bigCards: BigCard[];
+}
+
 export function getOverview() {
-  return get<{ greetingName?: string; role?: string; kpis: KpiItem[]; charts: { monthly: { month: string; income: number; expense: number }[] } }>('/dashboard/overview');
+  return get<OverviewData>('/dashboard/overview');
 }
 
 export function getWarnings() {

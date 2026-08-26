@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Put, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SaleService } from '../services/sale.service';
+import { BlacklistService } from '../services/blacklist.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
@@ -212,6 +213,10 @@ class CreateSalePropertyDto {
   ownerName: string;
 
   @IsString()
+  @IsOptional()
+  ownerIdCard?: string;
+
+  @IsString()
   @IsNotEmpty()
   ownerPhone: string;
 
@@ -359,6 +364,10 @@ class UpdateSalePropertyDto {
 
   @IsString()
   @IsOptional()
+  ownerIdCard?: string;
+
+  @IsString()
+  @IsOptional()
   ownerPhone?: string;
 
   @IsNumber()
@@ -401,7 +410,10 @@ class UpdateSalePropertyDto {
 @Controller('house/sale-properties')
 @UseGuards(JwtAuthGuard)
 export class SaleController {
-  constructor(private saleService: SaleService) {}
+  constructor(
+    private saleService: SaleService,
+    private blacklistService: BlacklistService,
+  ) {}
 
   @Get()
   async findAll(@Query() query: any, @CurrentUser() user: any) {
@@ -417,6 +429,16 @@ export class SaleController {
   @RequirePermission('sale:add')
   @Audit('house', 'sale:create', { objectType: 'sale_property' })
   async create(@Body() data: CreateSalePropertyDto, @CurrentUser() user: any) {
+    const hits = await this.blacklistService.check(
+      data.ownerPhone,
+      data.ownerIdCard,
+      data.ownerName,
+    );
+    if (hits.length) {
+      throw new BadRequestException(
+        `命中黑名单：${hits.map((h) => `${h.name}(${h.mobile})`).join(', ')}`,
+      );
+    }
     return this.saleService.create(data, user);
   }
 

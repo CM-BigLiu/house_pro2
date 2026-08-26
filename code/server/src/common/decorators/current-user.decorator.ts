@@ -5,8 +5,10 @@ export interface CurrentUserPayload {
   mobile: string;
   name: string;
   storeIds: number[];
+  assignedStoreIds: number[];
   groupIds: number[];
   dataScope: string;
+  customScope?: Record<string, any>;
   permissions: string[];
 }
 

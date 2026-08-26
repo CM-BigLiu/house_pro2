@@ -14,6 +14,8 @@ import {
   type WarningCard,
   type RankItem,
   type TodoItem,
+  type SmallCard,
+  type BigCard,
 } from '@/api/dashboard';
 import KpiCard from '@/components/Dashboard/KpiCard.vue';
 import WarningCardCmp from '@/components/Dashboard/WarningCard.vue';
@@ -32,6 +34,8 @@ const kpis = ref<KpiItem[]>([]);
 const warnings = ref<WarningCard[]>([]);
 const rankings = ref<Record<string, RankItem[]>>({});
 const todos = ref<TodoItem[]>([]);
+const smallCards = ref<SmallCard[]>([]);
+const bigCards = ref<BigCard[]>([]);
 const monthly = ref<{ month: string; income: number; expense: number }[]>([]);
 const loading = ref(false);
 const userName = ref('');
@@ -49,6 +53,8 @@ onMounted(async () => {
     ]);
     kpis.value = overviewRes.kpis || [];
     monthly.value = overviewRes.charts?.monthly || [];
+    smallCards.value = overviewRes.smallCards || [];
+    bigCards.value = overviewRes.bigCards || [];
     warnings.value = warningsRes || [];
     rankings.value = rankingsRes || {};
     todos.value = todosRes || [];
@@ -141,6 +147,29 @@ const todoColor = (priority: string) => ({
           :color="w.color"
         />
       </div>
+    </div>
+
+    <div v-if="smallCards.length" class="dashboard-row small-card-row">
+      <div class="card small-card-group" v-for="group in ['租客', '房东']" :key="group">
+        <div class="card-title">{{ group }}到期预警</div>
+        <div class="small-card-list">
+          <div v-for="card in smallCards.filter(c => c.group === group)" :key="card.title" class="small-card-item">
+            <div class="small-card-value">{{ card.value }}</div>
+            <div class="small-card-title">{{ card.title }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="bigCards.length" class="dashboard-row">
+      <LargeCard
+        v-for="(card, idx) in bigCards"
+        :key="idx"
+        :title="card.title"
+        :value="card.value"
+        :label="card.label"
+        :color="card.color"
+      />
     </div>
 
     <div class="dashboard-row">
@@ -244,12 +273,42 @@ const todoColor = (priority: string) => ({
   color: var(--ink-400);
   font-size: 12px;
 }
+.small-card-row {
+  grid-template-columns: repeat(2, 1fr);
+}
+.small-card-group {
+  padding: 18px;
+}
+.small-card-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.small-card-item {
+  text-align: center;
+  padding: 12px;
+  background: var(--ink-50);
+  border-radius: var(--radius);
+}
+.small-card-value {
+  font-family: var(--font-num);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+.small-card-title {
+  font-size: 12px;
+  color: var(--ink-500);
+  margin-top: 4px;
+}
 @media (max-width: 1400px) {
   .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+  .small-card-list { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 1200px) {
   .dashboard-row,
-  .dashboard-row:last-child {
+  .dashboard-row:last-child,
+  .small-card-row {
     grid-template-columns: repeat(2, 1fr);
   }
   .chart-card { grid-column: span 2; }
@@ -257,9 +316,11 @@ const todoColor = (priority: string) => ({
 @media (max-width: 768px) {
   .kpi-grid,
   .dashboard-row,
-  .dashboard-row:last-child {
+  .dashboard-row:last-child,
+  .small-card-row {
     grid-template-columns: 1fr;
   }
   .chart-card { grid-column: span 1; }
+  .small-card-list { grid-template-columns: 1fr; }
 }
 </style>

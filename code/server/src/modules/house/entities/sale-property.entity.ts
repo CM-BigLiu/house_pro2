@@ -161,6 +161,9 @@ export class SaleProperty {
   @Column({ length: 50 })
   ownerName: string;
 
+  @Column({ length: 255, nullable: true, transformer: encryptedTransformer })
+  ownerIdCard: string;
+
   @Column({ length: 255, transformer: encryptedTransformer })
   ownerPhone: string;
 

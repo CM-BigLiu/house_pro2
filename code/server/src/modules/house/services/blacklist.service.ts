@@ -30,12 +30,21 @@ export class BlacklistService {
     return { list: filtered, total };
   }
 
-  async check(mobile?: string, idCard?: string) {
+  async check(mobile?: string, idCard?: string, name?: string) {
     const records = await this.blacklistRepo.find({ where: { status: 'active' } });
-    return records.find(
-      (b) =>
-        (mobile && b.mobile === mobile) || (idCard && b.idCard === idCard),
-    ) || null;
+    const hits: Blacklist[] = [];
+    for (const b of records) {
+      let hit = false;
+      if (mobile && b.mobile === mobile) hit = true;
+      if (idCard && b.idCard && b.idCard === idCard) hit = true;
+      if (name && b.name && b.name.includes(name)) hit = true;
+      // 换号拦截：传入身份证时，若黑名单记录有同一身份证且不同手机号，也命中
+      if (idCard && b.idCard && b.idCard === idCard && (!mobile || b.mobile !== mobile)) {
+        hit = true;
+      }
+      if (hit) hits.push(b);
+    }
+    return hits;
   }
 
   async create(data: Partial<Blacklist>, user?: CurrentUserPayload) {

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, LessThan, Between } from 'typeorm';
 import { SaleProperty } from '../house/entities/sale-property.entity';
 import { RentalSet } from '../house/entities/rental-set.entity';
 import { RentalRoom } from '../house/entities/rental-room.entity';
@@ -8,6 +8,7 @@ import { ReserveClient } from '../house/entities/reserve-client.entity';
 import { Customer } from '../house/entities/customer.entity';
 import { Bill } from '../finance/entities/bill.entity';
 import { FinanceFlow } from '../finance/entities/finance-flow.entity';
+import { ApprovalRecord } from '../system/entities/approval-record.entity';
 import { applyDataScope } from '../../common/data-scope/data-scope.util';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
@@ -21,6 +22,7 @@ export class DashboardService {
     @InjectRepository(Customer) private customerRepo: Repository<Customer>,
     @InjectRepository(Bill) private billRepo: Repository<Bill>,
     @InjectRepository(FinanceFlow) private flowRepo: Repository<FinanceFlow>,
+    @InjectRepository(ApprovalRecord) private approvalRepo: Repository<ApprovalRecord>,
   ) {}
 
   async getOverview(user: CurrentUserPayload) {
@@ -62,6 +64,8 @@ export class DashboardService {
     const received = +(await receivedQb.getRawOne()).total;
 
     const monthly = await this.monthlyTrend(user);
+    const smallCards = await this.getSmallCards(user);
+    const bigCards = await this.getBigCards(user);
 
     return {
       greetingName: user.name,
@@ -75,6 +79,8 @@ export class DashboardService {
         { label: '本月实收', value: (received / 10000).toFixed(2), unit: '万', color: 'green' },
       ],
       charts: { monthly },
+      smallCards,
+      bigCards,
     };
   }
 
@@ -234,5 +240,114 @@ export class DashboardService {
       .where('b.status = :status', { status: 'active' });
     applyDataScope(qb, user, 'b', { ownerField: 'createdBy' });
     return qb.getCount();
+  }
+
+  async getSmallCards(user: CurrentUserPayload) {
+    const today = new Date().toISOString().split('T')[0];
+    const future30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const tenantDueToday = await this.countRoomLeaseEnd(user, today, today);
+    const tenantDue30 = await this.countRoomLeaseEnd(user, today, future30);
+    const tenantOverdue = await this.countOverdueBills(user, 'pending_receive');
+
+    const landlordDueToday = await this.countLandlordLeaseEnd(user, today, today);
+    const landlordDue30 = await this.countLandlordLeaseEnd(user, today, future30);
+    const landlordOverdue = await this.countOverduePayable(user);
+
+    return [
+      { group: '租客', title: '今日到期租客', value: tenantDueToday },
+      { group: '租客', title: '未来30天到期租客', value: tenantDue30 },
+      { group: '租客', title: '已逾期租客欠款', value: tenantOverdue },
+      { group: '房东', title: '今日房东到期', value: landlordDueToday },
+      { group: '房东', title: '未来30天到期房东', value: landlordDue30 },
+      { group: '房东', title: '已逾期房东欠款', value: landlordOverdue },
+    ];
+  }
+
+  async getBigCards(user: CurrentUserPayload) {
+    const saleQb = this.saleRepo.createQueryBuilder('s');
+    applyDataScope(saleQb, user, 's', { ownerField: 'creatorId' });
+    const saleCount = await saleQb.getCount();
+
+    const roomQb = this.rentalRoomRepo.createQueryBuilder('rr').innerJoin('rr.set', 'set');
+    applyDataScope(roomQb, user, 'set', { ownerField: 'creatorId', groupField: 'groupId' });
+    const roomCount = await roomQb.getCount();
+
+    const vacantCount = await this.countRoomStatus(user, 'vacant');
+    const rentedCount = await this.countRoomStatus(user, 'rented');
+    const occupancyRate = roomCount ? Math.round((rentedCount / roomCount) * 100) : 0;
+
+    const depositIncome = await this.sumDeposit(user, 'income');
+    const depositExpense = await this.sumDeposit(user, 'expense');
+
+    const pendingApproval = await this.approvalRepo.count({ where: { result: 'pending' } });
+    const todoCount = (await this.getTodos(user)).length;
+
+    return [
+      { title: '在售房源', value: saleCount, label: '套', color: 'blue' },
+      { title: '在租房间', value: roomCount, label: '间', color: 'green' },
+      { title: '空置房间', value: vacantCount, label: '间', color: 'orange' },
+      { title: '出租率', value: `${occupancyRate}%`, label: '占比', color: 'purple' },
+      { title: '押金收入', value: depositIncome, label: '元', color: 'green' },
+      { title: '押金支出', value: depositExpense, label: '元', color: 'red' },
+      { title: '待审批', value: pendingApproval, label: '条', color: 'orange' },
+      { title: '我的待办', value: todoCount, label: '条', color: 'blue' },
+    ];
+  }
+
+  private async countRoomLeaseEnd(user: CurrentUserPayload, start: string, end: string) {
+    const qb = this.rentalRoomRepo.createQueryBuilder('rr')
+      .innerJoin('rr.set', 'set')
+      .where('rr.status = :status', { status: 'rented' })
+      .andWhere('rr.leaseEnd BETWEEN :start AND :end', { start, end });
+    applyDataScope(qb, user, 'set', { ownerField: 'creatorId', groupField: 'groupId' });
+    return qb.getCount();
+  }
+
+  private async countLandlordLeaseEnd(user: CurrentUserPayload, start: string, end: string) {
+    const qb = this.rentalSetRepo.createQueryBuilder('rs')
+      .where('rs.leaseEnd BETWEEN :start AND :end', { start, end });
+    applyDataScope(qb, user, 'rs', { ownerField: 'creatorId', groupField: 'groupId' });
+    return qb.getCount();
+  }
+
+  private async countOverdueBills(user: CurrentUserPayload, status: string) {
+    const today = new Date().toISOString().split('T')[0];
+    const qb = this.billRepo.createQueryBuilder('b')
+      .select('COALESCE(SUM(b.amount - b.actualAmount), 0)', 'total')
+      .where('b.dueDate < :today', { today })
+      .andWhere('b.status = :status', { status });
+    applyDataScope(qb, user, 'b', { ownerField: 'creatorId' });
+    return +(await qb.getRawOne()).total;
+  }
+
+  private async countOverduePayable(user: CurrentUserPayload) {
+    const today = new Date().toISOString().split('T')[0];
+    const qb = this.billRepo.createQueryBuilder('b')
+      .select('COALESCE(SUM(b.amount), 0)', 'total')
+      .where('b.dueDate < :today', { today })
+      .andWhere('b.status = :status', { status: 'pending_pay' });
+    applyDataScope(qb, user, 'b', { ownerField: 'creatorId' });
+    return +(await qb.getRawOne()).total;
+  }
+
+  private async countRoomStatus(user: CurrentUserPayload, status: string) {
+    const qb = this.rentalRoomRepo.createQueryBuilder('rr')
+      .innerJoin('rr.set', 'set')
+      .where('rr.status = :status', { status });
+    applyDataScope(qb, user, 'set', { ownerField: 'creatorId', groupField: 'groupId' });
+    return qb.getCount();
+  }
+
+  private async sumDeposit(user: CurrentUserPayload, direction: string) {
+    const { start, end } = this.currentMonthRange();
+    const qb = this.flowRepo.createQueryBuilder('f')
+      .select('COALESCE(SUM(f.amount), 0)', 'total')
+      .where('f.direction = :direction', { direction })
+      .andWhere('f.status = :status', { status: 'completed' })
+      .andWhere('f.bizType = :bizType', { bizType: 'deposit' })
+      .andWhere('f.createdAt BETWEEN :start AND :end', { start: `${start}T00:00:00`, end: `${end}T23:59:59` });
+    applyDataScope(qb, user, 'f', { ownerField: 'creatorId' });
+    return +(await qb.getRawOne()).total;
   }
 }

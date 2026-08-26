@@ -10,9 +10,10 @@ import { Customer } from '../house/entities/customer.entity';
 import { Bill } from '../finance/entities/bill.entity';
 
 import { FinanceFlow } from '../finance/entities/finance-flow.entity';
+import { ApprovalRecord } from '../system/entities/approval-record.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SaleProperty, RentalSet, RentalRoom, ReserveClient, Customer, Bill, FinanceFlow])],
+  imports: [TypeOrmModule.forFeature([SaleProperty, RentalSet, RentalRoom, ReserveClient, Customer, Bill, FinanceFlow, ApprovalRecord])],
   controllers: [DashboardController],
   providers: [DashboardService],
 })
