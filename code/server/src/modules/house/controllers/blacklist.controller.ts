@@ -79,8 +79,12 @@ export class BlacklistController {
   }
 
   @Get('check')
-  async check(@Query('mobile') mobile?: string, @Query('idCard') idCard?: string) {
-    return this.blacklistService.check(mobile, idCard);
+  async check(
+    @Query('mobile') mobile?: string,
+    @Query('idCard') idCard?: string,
+    @Query('name') name?: string,
+  ) {
+    return this.blacklistService.check(mobile, idCard, name);
   }
 
   @Post()

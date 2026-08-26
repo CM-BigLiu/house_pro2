@@ -24,9 +24,12 @@ request.interceptors.request.use(
 request.interceptors.response.use(
   (response) => {
     const data = response.data;
-    if (data && typeof data === 'object' && 'code' in data && data.code !== 0 && data.code !== 200) {
-      ElMessage.error(data.message || '请求失败');
-      return Promise.reject(new Error(data.message || '请求失败'));
+    if (data && typeof data === 'object' && 'code' in data && 'data' in data) {
+      if (data.code !== 0 && data.code !== 200) {
+        ElMessage.error(data.message || '请求失败');
+        return Promise.reject(new Error(data.message || '请求失败'));
+      }
+      return data.data;
     }
     return data;
   },
