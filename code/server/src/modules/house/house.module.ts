@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { CommunityController } from './controllers/community.controller';
+import { CommunityController, CommunityAliasController } from './controllers/community.controller';
 import { SaleController } from './controllers/sale.controller';
 import { RentalController } from './controllers/rental.controller';
 import { ReserveController } from './controllers/reserve.controller';
@@ -40,7 +40,7 @@ import { OperationLog } from '../system/entities/operation-log.entity';
       OperationLog,
     ]),
   ],
-  controllers: [CommunityController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController, OperationLogController],
+  controllers: [CommunityController, CommunityAliasController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController, OperationLogController],
   providers: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService],
   exports: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService],
 })

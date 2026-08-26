@@ -17,11 +17,33 @@ export class DictService {
     return this.dictRepo.find({ order: { code: 'ASC' } });
   }
 
-  async findItems(dictCode: string) {
-    return this.itemRepo.find({
+  async findItems(dictCode: string, tree = false) {
+    const items = await this.itemRepo.find({
       where: { dictCode, enabled: true },
       order: { sort: 'ASC' },
     });
+    if (!tree) return items;
+    return this.buildTree(items);
+  }
+
+  private buildTree(items: DictItem[]): any[] {
+    const roots: any[] = [];
+    const map = new Map<string, any>();
+    for (const item of items) {
+      const node = { ...item, children: [] };
+      map.set(item.value, node);
+    }
+    for (const item of items) {
+      const node = map.get(item.value);
+      if (!node) continue;
+      if (item.parentValue && map.has(item.parentValue)) {
+        const parent = map.get(item.parentValue);
+        parent.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+    return roots;
   }
 
   async createItem(data: Partial<DictItem>) {

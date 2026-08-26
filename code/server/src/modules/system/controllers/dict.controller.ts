@@ -57,8 +57,8 @@ export class DictController {
   }
 
   @Get(':code/items')
-  async findItems(@Param('code') code: string) {
-    return this.dictService.findItems(code);
+  async findItems(@Param('code') code: string, @Query('tree') tree?: string) {
+    return this.dictService.findItems(code, tree === 'true');
   }
 
   @Post('items')

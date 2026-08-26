@@ -78,3 +78,39 @@ export class CommunityController {
     return this.communityService.findRooms(+floorId);
   }
 }
+
+@Controller('community')
+@UseGuards(JwtAuthGuard)
+export class CommunityAliasController {
+  constructor(private communityService: CommunityService) {}
+
+  @Get()
+  async findAll(@Query() query: any) {
+    return this.communityService.findAll(query);
+  }
+
+  @Post()
+  async create(@Body() data: CreateCommunityDto) {
+    return this.communityService.create(data);
+  }
+
+  @Get(':id/buildings')
+  async buildings(@Param('id') id: string) {
+    return this.communityService.findBuildings(+id);
+  }
+
+  @Get('units')
+  async units(@Query('buildingId') buildingId: string) {
+    return this.communityService.findUnits(+buildingId);
+  }
+
+  @Get('floors')
+  async floors(@Query('unitId') unitId: string) {
+    return this.communityService.findFloors(+unitId);
+  }
+
+  @Get('rooms')
+  async rooms(@Query('floorId') floorId: string) {
+    return this.communityService.findRooms(+floorId);
+  }
+}
