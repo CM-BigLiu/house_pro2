@@ -80,7 +80,7 @@ onMounted(async () => {
 async function loadCommunities(keyword = '') {
   communitiesLoading.value = true;
   try {
-    communityOptions.value = await getCommunities({ keyword });
+    communityOptions.value = (await getCommunities({ keyword })).list;
   } finally {
     communitiesLoading.value = false;
   }

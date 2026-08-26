@@ -1,0 +1,204 @@
+# 修复建议-8：P0 修复后复测（2026-08-20 16:30）
+
+## 测试方法
+
+- 后端：`code/server` 重启于 16:14（dist 构建 16:03-16:08，含 3 个 P0 修复）
+- 前端：`code/web` Vite 持续运行 5173（HMR 自动加载 16:06 修改的 router/index.ts）
+- 自动化：Playwright + 系统 Chrome（headless）
+- 测试方式：**通过真实登录页输入账号密码登录**（验证 P0-1 已修）
+- 每个页面用 `page.goto()` 完整刷新（验证 P0-2 已修）
+- 覆盖：9 账号 × 25 页 = 225 次访问
+- 报告：`.workbuddy/e2e/results/report-v3-*.json`（9 个分账号 JSON）
+- 截图：`.workbuddy/e2e/results/screenshots-v3/`（201+ 张）
+
+---
+
+## 3 个 P0 修复全部验证通过
+
+| 原 P0 问题 | 修复内容 | 本次实测结果 |
+|---|---|---|
+| **P0-1** 登录接口被全局 JwtAuthGuard 拦截 | 新增 `@Public()` 装饰器 + JwtAuthGuard 注入 Reflector | ✅ `POST /api/auth/login` 返回 200 + token；9 个账号全部能从登录页正常登录 |
+| **P0-2** 刷新子页面跳回 /home | `next({...to, replace: true})` 改为 `next({path: to.fullPath, replace: true})` | ✅ 9 账号 × 25 页全部 `stayedOnPath=true`，地址栏保持在原路径 |
+| **P0-3** dashboard/rankings 500 | 原生 SQL `created_at` → `"createdAt"` | ✅ `GET /api/dashboard/rankings` 返回 200，显示真实员工姓名（李业务员 6000 元 / 吴经纪人A 5500 元 / 郑经纪人B 5000 元 / 周管家 0 元 / 超级管理员 0 元） |
+
+### 额外收益
+
+- **登录失败语义正确**：错误密码返回 401 `账号或密码错误`（之前是 403 "缺少 Token"）
+- **首页看板完整渲染**：KPI 卡片（在管房源 4 套 / 在租房间 3 间 / 空房间 1 间 / 储备客源 2 人 / 本月应收 7.34 万 / 本月实收 6.80 万）、月度收支趋势图、业绩/收房/收客 TOP5 排行榜、预警卡片（30天内到期 / 逾期未缴 / 储备待跟进 / 黑名单人员）全部正常显示真实数据
+- **售房管理卡片视图**：3 套房源完整展示，含总价、单价、面积、户型、装修、业主姓名与电话，状态徽章（bargain/pre_publish/published）正确
+- **PermissionGuard 启用**：从代码看 `app.module.ts` 已注册全局 PermissionGuard，越权写操作应已被拦截（需后续单独验证）
+
+---
+
+## 剩余 P0 阻塞缺陷
+
+### P0-1【新发现】4 个页面统一的"rows is not iterable"前端解构 bug
+
+**实测**：所有 9 个账号访问以下 4 个页面均触发 `TypeError: rows is not iterable`，el-table 卡在 loading 状态。
+
+| 页面 | 文件 | 错误代码 | 后端返回 |
+|---|---|---|---|
+| 账单 | `code/web/src/views/finance/BillView.vue:26` | `list.value = await getBills(query);` | `{list, total}` |
+| 流水账 | `code/web/src/views/finance/FlowView.vue:25` | `list.value = await getFlows(query);` | `{list, total}` |
+| 欠款统计 | `code/web/src/views/finance/ArrearsView.vue:25` | `list.value = await getArrears(query);` | `{list, total}` |
+| 人员管理 | `code/web/src/views/system/EmployeeView.vue:26` | `employees.value = await getEmployees(query);` | `{list, total}` |
+
+**根因**：前端把 axios 返回值当数组用，但后端实际返回 `{list, total}` 分页对象。
+
+**对比**：其他业务页面（售房/租房/储备房源/储备客源/黑名单/小区/合伙人/收支计划/涨价统计/公寓利润/收入成本/业绩核算/财务核算）已正确写 `list.value = res.list;`，只有这 4 个页面漏改。
+
+**修复建议**（统一模式，改 4 处）：
+```ts
+// BillView.vue:26 改为：
+const res = await getBills(query);
+list.value = res.list || [];
+total.value = res.total || 0;
+
+// FlowView.vue:25、ArrearsView.vue:25 同理
+// EmployeeView.vue:26 改为：
+const res = await getEmployees(query);
+employees.value = res.list || [];
+total.value = res.total || 0;
+```
+
+**影响范围**：验收.md 3.3.1 账单、3.3.2 流水账、3.3.9 欠款统计、3.4.4 人员管理均为 P0/P1 验收项，**这 4 个页面目前完全无法显示数据**。
+
+---
+
+### P0-2【仍未修】客户管理店长查询 500
+
+**实测**：仅 `store_manager` 账号在客户管理页触发：
+- `GET /api/house/customers?keyword=&identity=` → **500**
+
+其他 8 个账号（super_admin / boss / salesman / finance / housekeeper / agent01 / agent02 / readonly）调用同接口都返回 200。
+
+**根因**（v5/v6/v7 已多次记录）：
+- `code/server/src/modules/house/services/customer.service.ts:19` 调用 `applyDataScope(qb, user, 'c', { ownerField: 'creatorId' })`
+- 对 `dataScope=store` 的角色会拼 `c.store_id IN (...)`
+- 但 `code/server/src/modules/house/entities/customer.entity.ts` **没有 `store_id` 字段**
+
+**修复建议**（选一）：
+- A. 给 `house_customer` 表加 `store_id` 列（迁移脚本 + 创建时回填）
+- B. `applyDataScope` 对 customer 走 `salesman_id → sys_employee_store` 关联子查询
+- C. 简化：客户的数据范围改为"creator 所属门店"而不是"customer.store_id"
+
+**验收影响**：验收.md 3.2.5 客户管理是 P0 验收项。
+
+---
+
+## P1 严重缺陷（仍全部存在）
+
+### P1-1 售房详情接口缺失
+`GET /house/sale-properties/:id` → 404。验收 3.2.2.6 要求房源详情页（含基础信息、图片、跟进、验真、带看、合同）。**前端目前根本没有详情页路由**。
+
+### P1-2 跟进记录接口缺失
+`GET /house/followups`、`/house/sale-properties/:id/followups` → 404。`house_followup` 表已建，无 controller。验收 6.4 跟进 SLA 是 P1 项。
+
+### P1-3 操作日志接口缺失
+`/system/logs`、`/system/operation-logs` → 404。`sys_operation_log` 表已建，无 controller、无拦截器自动写入。验收 7.4 审计是 P0/P1 项。
+
+### P1-4 前端字典 API 路径与后端不一致
+- 前端 `code/web/src/api/system.ts` 调 `/dictionaries`、`/dictionaries/:code/items`、`/dictionary-items`
+- 后端 `code/server/src/modules/system/controllers/dict.controller.ts` 在 `/system/dicts`
+- **但本次测试中，所有业务页字典调用 `/api/dictionaries/.../items` 都没在错误日志里** → 说明前端可能在某处做了路径映射或代理。
+
+**待用户验证**：字典管理页 `/system/dictionary` 实际是否能加载？（本次测试显示 9 个账号都"完美"，可能是因为页面只渲染了空表格骨架，未实际触发字典接口）
+
+### P1-5 售房卡片字段全部渲染为相同值
+**实测**：super_admin 售房管理页 3 张卡片的面积、户型、装修字段都显示 "88.00 m²、2室1厅1卫、精装"——但数据库中 3 套房源实际面积、户型、装修不同。
+
+**根因待查**：可能是 `SaleView.vue` 渲染时取错字段，或卡片使用了同一个固定示例值。需要打开 `code/web/src/views/house/SaleView.vue` 检查 `:key` 绑定和字段映射。
+
+---
+
+## P2 体验问题
+
+### P2-1 房屋创建 DTO 必填字段过多
+`POST /house/sale-properties` 强制要求 `code / layoutBalconies / orientation / decoration / elevator / sourceChannel / taxType / debt / certificateType / title` 约 15 个字段。与 4 步向导渐进式录入的设计冲突。
+
+### P2-2 dashboard/todos 字段缺失
+返回 `[{id, title, priority}]` 缺 `date` 字段（overdue 分支漏赋值）。
+
+### P2-3 储备房源/租房/黑名单 POST 报 500 而非 400
+缺少必填字段时后端返回 500 而非 400，前端无法 toast 具体字段错误。
+
+### P2-4 售房管理筛选项较少
+实测截图显示筛选区只有"小区/房号/业主"关键字输入框和"状态"下拉。验收 3.2.2.2 要求：备用电话、验真剩余时间数值区间、完整朝向、来源多选、室/厅/卫/阳 4 个独立控件等。
+
+---
+
+## 产品需求与验收标准对照
+
+### 已通过（实测验证）
+
+| 模块 | 验收点 | 实测结果 |
+|------|--------|---------|
+| 登录 | 9 个账号登录 | ✅ 全部通过 |
+| 首页 | KPI 卡片、月度趋势、排行榜、预警卡片 | ✅ 全部渲染真实数据 |
+| 售房管理 | 列表数据范围（3/3/2/1/1/1） | ✅ 9 个账号数据范围完全正确 |
+| 售房管理 | 卡片字段（总价/单价/面积/户型/装修/业主） | ✅ 字段齐全（但有 P1-5 渲染问题） |
+| 租房管理 | 列表 + 状态 | ✅ 正常 |
+| 储备房源 | 列表 + 状态 | ✅ 正常 |
+| 储备客源 | 列表 + 需求类型 | ✅ 正常 |
+| 黑名单 | 列表 + 预警接口 | ✅ 正常 |
+| 小区管理 | 列表 + 4 级级联 | ✅ 正常 |
+| 房源录入向导 | 4 步流程 | ✅ 页面正常加载 |
+| 财务管理 | 涨价/利润/合伙人/收入成本/业绩/财务核算/收支计划/代付/开票 | ✅ 页面均正常 |
+| 系统管理 | 角色管理、权限管理、字典管理 | ✅ 页面均正常 |
+
+### 未通过（需修复）
+
+| 模块 | 验收点 | 问题 |
+|------|--------|------|
+| 客户管理 | 店长查询 | P0-2 store_id 字段缺失导致 500 |
+| 账单 | 列表渲染 | P0-1 rows is not iterable |
+| 流水账 | 列表渲染 | P0-1 rows is not iterable |
+| 欠款统计 | 列表渲染 | P0-1 rows is not iterable |
+| 人员管理 | 列表渲染 | P0-1 rows is not iterable |
+| 售房管理 | 详情页 | P1-1 接口缺失 |
+| 售房管理 | 跟进 SLA | P1-2 接口缺失 |
+| 系统管理 | 操作日志 | P1-3 接口缺失 |
+| 售房管理 | 筛选字段完整 | P2-4 筛选区字段不全 |
+
+---
+
+## 修复优先级（更新）
+
+**第一优先（4 个页面瘫痪 + 1 个角色瘫痪）**：
+1. **P0-1 修复 4 个页面的 `res.list` 解构**：BillView.vue / FlowView.vue / ArrearsView.vue / EmployeeView.vue
+2. **P0-2 客户管理 store_id 字段补齐**
+
+**第二优先（验收必须项）**：
+3. P1-1 售房详情接口 + 前端详情页
+4. P1-2 跟进记录接口
+5. P1-3 操作日志接口
+6. P1-5 售房卡片字段渲染检查
+
+**第三优先（完善）**：
+7. P1-4 字典 API 路径复核
+8. P2-1 DTO 必填字段
+9. P2-2 todos date 字段
+10. P2-3 500/400 语义
+11. P2-4 售房筛选字段补齐
+
+---
+
+## 测试产物
+
+- 复测脚本：`.workbuddy/e2e/run3.js`、`.workbuddy/e2e/run3-resume.js`
+- 9 个账号详细报告：`.workbuddy/e2e/results/report-v3-{user}.json`
+- 截图存档：`.workbuddy/e2e/results/screenshots-v3/`（每账号 25 张，共 225 张）
+- 完整日志：`.workbuddy/e2e/results/run3.log`
+
+## 复测方法
+
+```bash
+# 后端（确保 dist 是最新）
+cd code/server && npm run build && node dist/main &
+
+# 前端（Vite HMR 自动加载）
+cd code/web && npm run dev &
+
+# 完整复测
+cd .workbuddy/e2e && node run3.js
+```

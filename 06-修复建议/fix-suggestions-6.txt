@@ -1,0 +1,206 @@
+# 修复建议-6：浏览器自动化逐页点击实测（2026-08-20 11:00）
+
+## 测试方法
+
+使用 **Playwright + 系统 Chrome** headless 模式，模拟真实用户操作：
+1. 依次登录 9 个测试账号（super_admin / boss / store_manager / salesman / finance / housekeeper / agent01 / agent02 / readonly）
+2. 每个账号登录后通过 SPA 路由跳转访问 25 个页面（首页 + 房屋 7 + 财务 12 + 系统 4 + 向导）
+3. 全程监听 HTTP 响应码、console 错误、JS 异常，并截图存档
+4. 共执行 **9 账号 × 25 页 = 225 次页面访问**
+
+测试脚本与结果存于 `.workbuddy/e2e/run.js` 和 `.workbuddy/e2e/results/`。
+
+---
+
+## 总体结论
+
+**9 个账号全部存在完全相同的 16 个问题页面**，错误接口分布完全一致，说明这是**前端代码层面的系统性缺陷**，与角色权限无关。
+
+| 类别 | 数量 | 影响 |
+|------|------|------|
+| P0 阻塞缺陷 | 5 | 首页看板崩溃、小区管理白屏、字典/角色/权限/人员管理完全不可用 |
+| P1 严重缺陷 | 6 | 各业务页字典下拉框全部失效、刷新页面丢失动态路由 |
+| P2 体验问题 | 3 | 登录失败无感知、登出后重定向混乱、部分接口语义错误 |
+
+---
+
+## P0 阻塞缺陷
+
+### P0-1 前后端 API 路径前缀不一致（字典、角色、权限、人员、门店）
+
+**实测证据**（9 账号 × 多页面，共 144 次 404）：
+
+| 前端调用 | 后端实际 | 出现次数 |
+|---------|---------|---------|
+| `GET /api/dictionaries` | `GET /api/system/dicts` | 9 |
+| `GET /api/dictionaries/:code/items` | `GET /api/system/dicts/:code/items` | 126 |
+| `GET /api/permissions` | `GET /api/system/permissions` | 18 |
+| `GET /api/roles` | `GET /api/system/roles` | 18 |
+| `GET /api/employees` | `GET /api/system/employees` | 9 |
+| `GET /api/stores` | `GET /api/system/stores` | 9 |
+
+**根因**：前端 `code/web/src/api/system.ts`、`organization.ts` 全部使用无前缀路径，后端统一挂载在 `/system/*` 下。
+
+**直接影响**：
+- 字典管理页打开即白屏，所有下拉框无数据
+- 角色管理、权限管理、人员管理页完全无法加载
+- 业务页（租房/售房/储备/客户/黑名单/账单/流水账等）所有状态下拉、来源渠道、户型、装修、朝向等字典项全部失效
+
+**修复建议**（选一）：
+- A. 前端 baseURL 改为 `/api/system` 并把所有 `/dictionaries` 改为 `/dicts`，`/permissions` 不动（推荐，改动小）
+- B. 后端在 `app.use('/api', systemRoutes)` 再加一层无前缀 alias（兼容老前端）
+
+---
+
+### P0-2 首页看板 rankings / overview 500
+
+**实测**：所有 9 个账号登录后访问 `/home` 均触发：
+- `GET /api/dashboard/rankings` → 500
+- `GET /api/dashboard/overview` → 500
+
+**根因**（后端代码定位）：
+1. `code/server/src/modules/dashboard/dashboard.service.ts:198` 原生 SQL 使用 `created_at`，但 TypeORM 实体 `@CreateDateColumn()` 映射到 PostgreSQL 的列名是 `createdAt`（驼峰），导致 `column "created_at" does not exist`
+2. `getOverview` 中 `vacantCount` 查询错误地把 `applyDataScope` 的返回值当 sub-expression 用，触发 `TypeError: Cannot read properties of undefined (reading 'operator')`
+
+**修复建议**：
+1. 原生 SQL 改为 `createdAt` 或加双引号 `"createdAt"`
+2. `vacantCount` 改为：
+   ```ts
+   const vacantQb = this.rentalRoomRepo.createQueryBuilder('rr')
+     .innerJoin('rr.set', 'set')
+     .where('rr.status = :status', { status: 'vacant' });
+   applyDataScope(vacantQb, user, 'set', { ownerField: 'creatorId', groupField: 'groupId' });
+   const vacantCount = await vacantQb.getCount();
+   ```
+
+---
+
+### P0-3 小区管理页 JS 崩溃 `rows is not iterable`
+
+**实测**：9 个账号访问 `/house/community` 均触发 `TypeError: rows is not iterable`，页面白屏。
+
+**根因**：
+- 前端 `code/web/src/views/house/CommunityView.vue:20` 调用 `getCommunities(query)` 期望返回 `Community[]`
+- 后端 `GET /house/communities` 返回 `{list: [...], total: 1}`
+- 前端 `list.value = res` 把对象赋给数组，`<el-table :data="list">` 收到非数组
+
+**修复建议**：
+- 前端改：`const res = await getCommunities(query); list.value = res.list; total.value = res.total;`
+- 同时更新 `api/community.ts` 返回类型为 `{list: Community[], total: number}`
+
+---
+
+### P0-4 刷新页面后所有动态路由丢失（vue-router 缺陷）
+
+**实测**：Playwright 用 `page.goto()` 完整加载任意非登录页（如 `/house/sale`），最终都会被重定向到登录页（实际是 404 兜底到 LoginView）。
+
+**根因**：`code/web/src/router/index.ts:30-54` 的 `router.beforeEach` 依赖 `userStore.permissions` 判断动态路由，但**刷新页面后 userInfo 为空**，`permissions = []`，所有 asyncRoutes 被过滤掉，`dynamicAdded = true` 后目标路由不存在，落入 NotFound。
+
+**修复建议**：
+- 在 `router.beforeEach` 中，如果 `isLoggedIn && !userInfo`，先 `await userStore.fetchUserInfo()` 再判断权限
+- 或把 `permissions` 也持久化到 localStorage（登录时写入，刷新时直接读）
+
+---
+
+### P0-5 权限点（Permission Guard）后端完全未启用
+
+**实测**：只读账号 `readonly` 可调用所有 POST/PUT/DELETE 接口，越权写无任何拦截。
+
+**证据**：
+- 全工程 grep `PermissionsGuard|RequirePermissions` → 0 匹配
+- `POST /house/sale-properties` 用 readonly token 返回 400（参数错误）而非 403（无权限）
+- `salesman` 可 `PUT /house/sale-properties/2` 把别人房源价格改成 1（已实测）
+
+**修复建议**：见 fix-suggestions-5 P0-1/P0-2，必须补 `PermissionsGuard` 并在所有写接口加 `@RequirePermissions`。
+
+---
+
+## P1 严重缺陷
+
+### P1-1 售房详情接口缺失
+
+`GET /house/sale-properties/:id` 404，验收 3.2.2.6 要求有详情页。前端 `api/sale.ts` 也未调用此接口，说明**前端根本没有详情页**。
+
+### P1-2 跟进记录接口完全缺失
+
+`GET /house/followups`、`/house/sale-properties/:id/followups` 均 404。`house_followup` 表已建，但无 controller。验收 6.4 跟进 SLA 是 P1 项。
+
+### P1-3 操作日志接口缺失
+
+`GET /system/logs`、`/system/operation-logs` 均 404。验收 7.4 审计是 P0/P1 项，实体 `sys_operation_log` 已建表但未暴露查询接口，也无拦截器自动写入。
+
+### P1-4 客户管理店长查询 500
+
+`store_manager` 登录后 `GET /house/customers` 500。根因：`Customer` 实体缺 `store_id` 字段，`applyDataScope` 对 `dataScope=store` 的角色拼 `c.store_id IN (...)` 导致 SQL 报错。
+
+### P1-5 登录失败无用户提示
+
+Playwright 实测：输入错误密码点击登录，页面无任何 toast/loading 反馈，按钮恢复可点但用户不知道失败。`LoginView.vue` 的 `handleLogin` 只 `try/finally`，无 `catch` 提示。
+
+### P1-6 房屋创建 DTO 必填字段过多
+
+`POST /house/sale-properties` 强制要求 `code / layoutBalconies / orientation / decoration / elevator / sourceChannel / taxType / debt / certificateType / title` 等约 15 个字段，但 4 步向导是渐进式录入。Step1 只有小区和类型，Step4 才有业主信息。要么 DTO 放宽，要么提供 `POST /house/sale-properties/draft` 暂存接口。
+
+---
+
+## P2 体验问题
+
+### P2-1 未授权返回 403 而非 401
+
+无 token 访问业务接口返回 403，HTTP 语义错误。前端 axios 拦截器通常以 401 触发跳登录，403 会被当成"已登录但无权限"。
+
+### P2-2 储备房源/租房/黑名单 POST 报 500 而非 400
+
+缺少字段时后端返回 500 Internal Server Error 而非 400 Bad Request，前端无法 toast 出具体原因。
+
+### P2-3 dashboard/todos 字段缺失
+
+返回 `[{id, title, priority}]` 缺 `date` 字段（overdue 分支漏赋值），前端待办列表日期列空白。
+
+---
+
+## 已通过验证的功能（无需重复修）
+
+- 9 个测试账号全部能登录，密码 123456
+- 登录后 SPA 内部跳转各页面，路由守卫正常工作
+- 售房数据范围：super_admin/boss=3、store_manager=2、agent01/salesman=1、agent02=1（**完全符合预期**）
+- 黑名单预警接口 `GET /house/blacklist/check?mobile=` 工作正常
+- 小区 → 楼栋 → 单元 → 楼层 → 房号 4 级级联接口可用
+- 房源列表分页（page/pageSize）正确
+- 黑名单、储备房源、储备客源、账单、流水的 list 接口数据范围正确
+- `/auth/me`、`/auth/menus` 返回正确，权限点字符串与产品文档中的菜单编码一致
+
+---
+
+## 修复优先级
+
+**第一阶段（阻塞验收，必须立即修）**：
+1. P0-1 前后端 API 路径统一（字典/角色/权限/人员/门店）
+2. P0-2 首页看板 500（rankings/overview）
+3. P0-3 小区管理 `rows is not iterable`
+4. P0-4 刷新页面动态路由丢失
+
+**第二阶段（功能补全）**：
+5. P0-5 权限点 Guard + 越权写拦截
+6. P1-1 售房详情接口 + 前端详情页
+7. P1-2 跟进记录接口
+8. P1-3 操作日志接口
+9. P1-4 客户管理店长 500
+
+**第三阶段（完善体验）**：
+10. P1-5 登录失败提示、P1-6 DTO 必填字段、P2 系列
+
+---
+
+## 测试产物
+
+- 测试脚本：`.workbuddy/e2e/run.js`
+- 详细报告：`.workbuddy/e2e/results/report.json`
+- 页面截图：`.workbuddy/e2e/results/screenshots/`（9 账号 × 25 页 = 225 张 PNG）
+
+如需复测，运行：
+```bash
+cd .workbuddy/e2e
+npm install
+node run.js
+```

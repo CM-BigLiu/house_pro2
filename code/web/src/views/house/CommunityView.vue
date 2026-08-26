@@ -18,8 +18,8 @@ async function load() {
   loading.value = true;
   try {
     const res = await getCommunities(query);
-    list.value = res;
-    total.value = res.length;
+    list.value = res.list;
+    total.value = res.total;
   } finally {
     loading.value = false;
   }

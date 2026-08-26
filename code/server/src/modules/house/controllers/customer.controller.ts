@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { CustomerService } from '../services/customer.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreateCustomerDto {
   @IsString()
@@ -55,7 +56,8 @@ export class CustomerController {
   }
 
   @Post()
-  async create(@Body() data: CreateCustomerDto) {
-    return this.customerService.create(data);
+  @RequirePermission('house:customer:create')
+  async create(@Body() data: CreateCustomerDto, @CurrentUser() user: any) {
+    return this.customerService.create(data, user);
   }
 }

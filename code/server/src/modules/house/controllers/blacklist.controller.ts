@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { BlacklistService } from '../services/blacklist.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreateBlacklistDto {
   @IsString()
@@ -87,12 +88,14 @@ export class BlacklistController {
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() data: UpdateBlacklistDto) {
-    return this.blacklistService.update(+id, data);
+  @RequirePermission('system:employee:edit')
+  async update(@Param('id') id: string, @Body() data: UpdateBlacklistDto, @CurrentUser() user: any) {
+    return this.blacklistService.update(+id, data, user);
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    return this.blacklistService.remove(+id);
+  @RequirePermission('house:blacklist:delete')
+  async remove(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.blacklistService.remove(+id, user);
   }
 }

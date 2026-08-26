@@ -25,8 +25,8 @@ export interface Building {
   units: { id: number; name: string }[];
 }
 
-export function getCommunities(params?: { keyword?: string; cityId?: number }) {
-  return get<Community[]>('/house/communities', { params });
+export function getCommunities(params?: { keyword?: string; cityId?: number; page?: number; pageSize?: number }) {
+  return get<{ list: Community[]; total: number }>('/house/communities', { params });
 }
 
 export function createCommunity(data: Partial<Community>) {

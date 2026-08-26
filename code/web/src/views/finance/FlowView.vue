@@ -22,7 +22,8 @@ onMounted(async () => {
 async function load() {
   loading.value = true;
   try {
-    list.value = await getFlows(query);
+    const res = await getFlows(query);
+    list.value = res.list;
   } finally {
     loading.value = false;
   }

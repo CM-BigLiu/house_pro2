@@ -99,13 +99,17 @@ export class SeedService implements OnModuleInit {
       { code: 'reserve:house:transfer', name: '转业务员', type: 'action', module: 'house' },
       { code: 'reserve:client:add', name: '录入客源', type: 'action', module: 'house' },
       { code: 'reserve:client:transfer', name: '转签约', type: 'action', module: 'house' },
+      { code: 'house:customer:create', name: '新增客户', type: 'action', module: 'house' },
+      { code: 'house:blacklist:delete', name: '删除黑名单', type: 'action', module: 'house' },
       { code: 'finance:bill:modify', name: '修改账单', type: 'action', module: 'finance' },
       { code: 'finance:bill:cancel', name: '作废账单', type: 'action', module: 'finance' },
       { code: 'finance:ticket:apply', name: '开票申请', type: 'action', module: 'finance' },
       { code: 'finance:ticket:approve', name: '开票审批', type: 'action', module: 'finance' },
       { code: 'finance:payout:batch', name: '批量代付', type: 'action', module: 'finance' },
       { code: 'finance:export', name: '导出报表', type: 'action', module: 'finance' },
+      { code: 'system:role:create', name: '创建角色', type: 'action', module: 'system' },
       { code: 'system:role:edit', name: '编辑角色', type: 'action', module: 'system' },
+      { code: 'system:role:delete', name: '删除角色', type: 'action', module: 'system' },
       { code: 'system:permission:edit', name: '编辑权限', type: 'action', module: 'system' },
       { code: 'system:dictionary:edit', name: '编辑字典', type: 'action', module: 'system' },
       { code: 'system:employee:edit', name: '编辑员工', type: 'action', module: 'system' },
@@ -118,9 +122,9 @@ export class SeedService implements OnModuleInit {
 
   private async seedRoles() {
     const allPerms = await this.permissionRepo.find();
-    const permIds = allPerms.map((p) => p.id);
+    const menuCodes = new Set(allPerms.filter((p) => p.type === 'menu').map((p) => p.code));
     const existing = new Set((await this.roleRepo.find({ select: ['code'] })).map((r) => r.code));
-    const roleConfigs = [
+    const roleConfigs: { code: string; name: string; dataScope: string; isBuiltin: boolean }[] = [
       { code: 'super_admin', name: '超级管理员', dataScope: 'company', isBuiltin: true },
       { code: 'company_admin', name: '公司管理员', dataScope: 'company', isBuiltin: true },
       { code: 'store_manager', name: '店长', dataScope: 'store', isBuiltin: true },
@@ -129,11 +133,41 @@ export class SeedService implements OnModuleInit {
       { code: 'housekeeper', name: '管家', dataScope: 'group', isBuiltin: true },
       { code: 'salesman', name: '业务员', dataScope: 'self', isBuiltin: true },
       { code: 'agent', name: '综合经纪人', dataScope: 'self', isBuiltin: true },
-      { code: 'readonly', name: '只读账号', dataScope: 'assigned', isBuiltin: true },
+      { code: 'readonly', name: '只读账号', dataScope: 'store', isBuiltin: true },
     ];
+
+    const roleMenuAllowlist: Record<string, string[]> = {
+      super_admin: Array.from(menuCodes),
+      company_admin: Array.from(menuCodes),
+      store_manager: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:blacklist', 'house:community', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:rent_increase', 'finance:profit', 'finance:partner', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing'],
+      finance_manager: ['home', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:rent_increase', 'finance:profit', 'finance:partner', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing', 'house', 'house:rent', 'house:sale', 'house:customer'],
+      finance_clerk: ['home', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout'],
+      housekeeper: ['home', 'house', 'house:rent', 'house:reserve_house', 'house:customer', 'house:community'],
+      salesman: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:community'],
+      agent: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:community'],
+      readonly: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:blacklist', 'house:community', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:rent_increase', 'finance:profit', 'finance:partner', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing'],
+    };
+
+    const roleActionAllowlist: Record<string, string[]> = {
+      super_admin: allPerms.filter((p) => p.type === 'action').map((p) => p.code),
+      company_admin: allPerms.filter((p) => p.type === 'action').map((p) => p.code),
+      store_manager: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'renting:add', 'renting:edit', 'renting:checkout', 'renting:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:client:add', 'reserve:client:transfer', 'house:customer:create', 'finance:bill:modify', 'finance:bill:cancel', 'finance:payout:batch', 'finance:export', 'system:employee:edit'],
+      finance_manager: ['finance:bill:modify', 'finance:bill:cancel', 'finance:ticket:apply', 'finance:ticket:approve', 'finance:payout:batch', 'finance:export'],
+      finance_clerk: ['finance:bill:modify', 'finance:ticket:apply', 'finance:payout:batch'],
+      housekeeper: ['renting:add', 'renting:edit', 'renting:checkout', 'reserve:house:add', 'reserve:house:take'],
+      salesman: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:client:add', 'reserve:client:transfer', 'house:customer:create'],
+      agent: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:client:add', 'reserve:client:transfer', 'house:customer:create'],
+      readonly: [],
+    };
+
     for (const cfg of roleConfigs) {
       if (existing.has(cfg.code)) continue;
-      const role = this.roleRepo.create({ ...cfg, permissions: allPerms.filter((p) => cfg.code === 'super_admin' || p.type === 'menu') });
+      const allowedMenus = new Set(roleMenuAllowlist[cfg.code] || []);
+      const allowedActions = new Set(roleActionAllowlist[cfg.code] || []);
+      const rolePerms = allPerms.filter(
+        (p) => (p.type === 'menu' && allowedMenus.has(p.code)) || (p.type === 'action' && allowedActions.has(p.code)),
+      );
+      const role = this.roleRepo.create({ ...cfg, permissions: rolePerms });
       await this.roleRepo.save(role);
     }
   }
@@ -181,7 +215,7 @@ export class SeedService implements OnModuleInit {
       { name: '周管家', mobile: 'housekeeper', password, roles: [roleMap.housekeeper], stores: [stores[0]], departments: [depts[2]] },
       { name: '吴经纪人A', mobile: 'agent01', password, roles: [roleMap.agent], stores: [stores[0]], departments: [depts[0]] },
       { name: '郑经纪人B', mobile: 'agent02', password, roles: [roleMap.agent], stores: [stores[1]], departments: [depts[0]] },
-      { name: '孙只读', mobile: 'readonly', password, roles: [roleMap.readonly], stores: [stores[0]] },
+      { name: '孙只读', mobile: 'readonly', password, roles: [roleMap.readonly], stores },
     ].filter((e) => !existingEmployees.has(e.mobile));
     const employees = employeeData.length ? await this.employeeRepo.save(employeeData) : [];
   }

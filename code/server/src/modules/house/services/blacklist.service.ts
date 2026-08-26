@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Blacklist } from '../entities/blacklist.entity';
@@ -35,17 +35,29 @@ export class BlacklistService {
     return qb.getOne();
   }
 
-  async create(data: Partial<Blacklist>) {
-    const item = this.blacklistRepo.create(data);
+  async create(data: Partial<Blacklist>, user?: CurrentUserPayload) {
+    const item = this.blacklistRepo.create({
+      ...data,
+      storeId: data.storeId ?? user?.storeIds?.[0],
+      createdBy: data.createdBy ?? user?.employeeId,
+    });
     return this.blacklistRepo.save(item);
   }
 
-  async update(id: number, data: Partial<Blacklist>) {
+  async update(id: number, data: Partial<Blacklist>, user: CurrentUserPayload) {
+    const qb = this.blacklistRepo.createQueryBuilder('b').where('b.id = :id', { id });
+    applyDataScope(qb, user, 'b', { ownerField: 'createdBy' });
+    const existing = await qb.getOne();
+    if (!existing) throw new ForbiddenException('无权修改或记录不存在');
     await this.blacklistRepo.update(id, data);
     return this.blacklistRepo.findOne({ where: { id } });
   }
 
-  async remove(id: number) {
+  async remove(id: number, user: CurrentUserPayload) {
+    const qb = this.blacklistRepo.createQueryBuilder('b').where('b.id = :id', { id });
+    applyDataScope(qb, user, 'b', { ownerField: 'createdBy' });
+    const existing = await qb.getOne();
+    if (!existing) throw new ForbiddenException('无权删除或记录不存在');
     await this.blacklistRepo.delete(id);
     return { id };
   }

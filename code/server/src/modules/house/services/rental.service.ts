@@ -26,7 +26,22 @@ export class RentalService {
       .skip(((query.page || 1) - 1) * (query.pageSize || 20))
       .take(query.pageSize || 20)
       .getManyAndCount();
-    return { list, total };
+    const mapped = list.map((rs) => {
+      const rooms = rs.rooms || [];
+      const rent = rooms.reduce((sum, r) => sum + Number(r.rentPrice || 0), 0);
+      const deposit = rooms.reduce((sum, r) => sum + Number(r.depositAmount || 0), 0);
+      const roomCount = rooms.length;
+      const vacantCount = rooms.filter((r) => r.status === 'vacant').length;
+      return {
+        ...rs,
+        communityName: (rs as any).community?.name || '',
+        rent,
+        deposit,
+        roomCount,
+        vacantCount,
+      };
+    });
+    return { list: mapped, total };
   }
 
   async createSet(data: Partial<RentalSet> & { rooms?: Partial<RentalRoom>[] }) {

@@ -1,0 +1,222 @@
+# 修复建议-5：code/ 全功能联调测试（2026-08-20）
+
+## 测试范围
+
+- 后端：`code/server`（NestJS + TypeORM + PostgreSQL）
+- 前端：`code/web`（Vue 3 + Vite + Element Plus）
+- 测试账号：03-测试与账号 提供的 9 个账号全部覆盖
+- 测试方式：通过 HTTP API 模拟前端调用，覆盖登录、数据范围、增删改查、级联、权限点、看板、字典、审计等关键路径
+- 参照标准：`01-产品文档/产品文档-最终.md`、`02-验收与检查报告/验收.md`
+
+## 总体结论
+
+`code/` 当前**未达到产品需求和验收标准**，存在 **6 个 P0 阻塞缺陷**、**8 个 P1 严重缺陷**、若干 P2 体验问题。其中"权限点完全未生效"和"前后端字典/员工接口路径不匹配"是两个最关键的问题，会直接导致验收失败。
+
+---
+
+## P0 阻塞缺陷（必须修复）
+
+### P0-1 权限点（Permission Guard）完全未启用
+
+**现象**：后端只有 `JwtAuthGuard`，**没有任何 PermissionsGuard**；只读账号 `readonly` 可以调用所有 POST/PUT/DELETE 接口；`agent01` 可以访问财务模块；`salesman` 可以操作系统管理接口。
+
+**证据**：
+- 全工程 grep `PermissionsGuard|RequirePermissions|@Permissions` → 0 个匹配
+- `code/server/src/modules/house/controllers/customer.controller.ts:48` 只有 `@UseGuards(JwtAuthGuard)`
+- 测试：`POST /house/sale-properties` 用 `readonly` token 返回 400（参数错误），而不是 403（无权限）
+
+**影响**：与 [验收.md 7.3 数据权限](02-验收与检查报告/验收.md:1007) 和 [产品文档-最终.md 权限矩阵](01-产品文档/产品文档-最终.md:174) 完全不符；越权写操作可任意发生。
+
+**建议**：
+1. 在 `code/server/src/common/guards/` 新增 `permissions.guard.ts`
+2. 在 controller 方法上加 `@RequirePermissions('house:sale:create')` 等装饰器
+3. 在 `AppModule` 全局注册或按需 `UseGuards(JwtAuthGuard, PermissionsGuard)`
+
+---
+
+### P0-2 越权写：salesman 可修改他人房源
+
+**现象**：`PUT /house/sale-properties/:id` 不做数据范围校验。`salesman`（dataScope=self）成功把 `creatorId=7`（agent01）的房源 `salePrice` 改成 1，后端返回 200。
+
+**复现**：
+```bash
+curl -X PUT -H "Authorization: Bearer <salesman_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"salePrice":1}' \
+  http://localhost:3000/api/house/sale-properties/2
+# 返回 200，价格被改
+```
+
+**根因**：`code/server/src/modules/house/controllers/sale.controller.ts` 的 PUT 方法只校验登录，不校验记录归属。
+
+**建议**：所有 PUT/DELETE 必须在 service 层先用 `applyDataScope` 校验记录归属，越权返回 403。
+
+---
+
+### P0-3 前端字典接口路径完全错误
+
+**现象**：前端调用 `/dictionaries`、`/dictionaries/:code/items`、`/dictionary-items`；后端实际暴露 `/system/dicts`、`/system/dicts/:code/items`。
+
+**证据**：
+- 前端：`code/web/src/api/system.ts:22-50`
+- 后端：`code/server/src/modules/system/controllers/dict.controller.ts:49`
+- 测试：`GET /api/dictionaries` → 404；`GET /api/system/dicts` → 200
+
+**影响**：字典管理页完全无法加载，所有依赖字典的下拉框（户型、装修、来源、状态等）都无法工作。
+
+**建议**：统一为 `/system/dicts` 与 `/system/dict-items`，或在前端 baseURL 加路由映射。
+
+---
+
+### P0-4 前端员工接口路径完全错误
+
+**现象**：前端调用 `/employees`，后端实际 `/system/employees`。
+
+**证据**：
+- 前端：`code/web/src/api/organization.ts:45-57`
+- 后端：`code/server/src/modules/system/controllers/employee.controller.ts:67`
+
+**影响**：人员管理页 404，无法增删改查员工。
+
+---
+
+### P0-5 客户管理店长查询 500
+
+**现象**：`store_manager` 登录后 `GET /house/customers` 返回 500 Internal Server Error。
+
+**根因**：`code/server/src/modules/house/services/customer.service.ts:19` 调用 `applyDataScope(qb, user, 'c', { ownerField: 'creatorId' })`，对 `dataScope=store` 的角色会拼 `c.store_id IN (...)`，但 `Customer` 实体（`code/server/src/modules/house/entities/customer.entity.ts`）**没有 store_id 字段**。
+
+**建议**：
+- 方案 A：给 `house_customer` 表加 `store_id` 列并在创建时回填
+- 方案 B：客户的数据范围改为通过 `salesman_id → sys_employee_store` 关联查询所属店
+
+---
+
+### P0-6 看板 rankings / overview 500
+
+**现象**：
+- `GET /dashboard/rankings` 500
+- `GET /dashboard/overview` 500
+
+**根因**：
+1. `code/server/src/modules/dashboard/dashboard.service.ts:198-216` 的 `employeeRanking` 原生 SQL 用了 `created_at`，但 TypeORM 实体 `@CreateDateColumn()` 默认映射为 `createdAt`，PostgreSQL 实际列名是 `createdAt`（驼峰），导致 `column "created_at" does not exist`
+2. `getOverview` 中 `vacantCount` 使用 `.andWhere((qb) => applyDataScope(qb, ...))` 把 `applyDataScope` 的返回值当 sub-expression，TypeORM 抛 `Cannot read properties of undefined (reading 'operator')`
+
+**影响**：首页看板 KPI、排行榜完全无法显示，是验收 3.1 节的 P0 项。
+
+---
+
+## P1 严重缺陷
+
+### P1-1 售房详情接口缺失
+
+`GET /house/sale-properties/:id` 404，[验收.md 3.2.2.6](02-验收与检查报告/验收.md:336) 明确要求房源详情页。前端 `code/web/src/api/sale.ts` 也未调用此接口，说明前端**根本没有详情页**。
+
+### P1-2 跟进记录接口完全缺失
+
+`GET /house/followups` 404、`GET /house/sale-properties/:id/followups` 404。`house_followup` 表已在 migration 中创建，但没有 controller。[验收.md 6.4 跟进 SLA](02-验收与检查报告/验收.md:944) 是 P1 项。
+
+### P1-3 操作日志接口缺失
+
+`GET /system/logs`、`/system/operation-logs`、`/system/audit-logs` 全部 404。[验收.md 7.4 审计](02-验收与检查报告/验收.md:1015) 是 P0/P1 项，实体 `sys_operation_log` 已建表但未暴露查询接口，也没有拦截器自动写入。
+
+### P1-4 权限列表接口缺失
+
+前端 `code/web/src/api/organization.ts:77` 调用 `GET /permissions`，后端 `permission.controller.ts` 只有 `@Controller('system/permissions')` → `GET /system/permissions` 也存在，但前端**路径少了 `system/` 前缀**，仍然 404。需要在前端 baseURL 层或后端加 alias。
+
+### P1-5 未授权返回 403 而非 401
+
+无 token 访问 `GET /house/customers` 返回 403，应是 401（HTTP 语义错误）。前端 axios 拦截器通常以 401 触发跳登录，403 会被当成"已登录但无权限"，造成 UX 异常。
+
+### P1-6 房屋创建 DTO 必填字段过多
+
+`POST /house/sale-properties` 强制要求 `code / layoutBalconies / orientation / decoration / elevator / sourceChannel / taxType / debt / certificateType / title` 等约 15 个字段，但 4 步向导按 [产品文档-最终.md](01-产品文档/产品文档-最终.md) 设计是**渐进式录入**——Step1 只有小区和类型。要么 DTO 放宽（除 code/ownerName/ownerPhone 外都 optional），要么提供 `POST /house/sale-properties/draft` 暂存接口。
+
+### P1-7 字典接口未嵌套 items
+
+`GET /system/dicts` 返回 `[{id, code, name}]` 25 条平铺数据，但业务侧需要"字典分类 → 字典项"树。前端 `DictionaryView.vue` 期望分级，目前拿不到 items。需要 `GET /system/dicts?includeItems=true` 或 `GET /system/dicts/tree`。
+
+### P1-8 储备房源/租房 POST 报 500 而非 400
+
+- `POST /house/rental-sets`（缺少字段）→ 500 Internal Server Error
+- `POST /house/blacklist`（缺字段）→ 500
+
+应该返回 400 + 字段错误信息。500 让前端无法 toast 出具体原因。检查 service 层是否漏 try/catch 或 entity 字段非空约束。
+
+---
+
+## P2 体验/规范问题
+
+### P2-1 数据范围对财务模块未生效
+
+`finance/bills` 对 `salesman`（self）返回 0、`agent01` 返回 0 是正确的，但 `housekeeper`（group）返回 2 与 `store_manager` 返回 2 相同，看不出"按组过滤"的差异。建议补一组跨组数据验证 group 范围真正生效。
+
+### P2-2 登录失败提示过粗
+
+`POST /auth/login` 用错误密码或不存在用户都返回 `账号或密码错误`，没区分用户不存在/密码错。建议保留模糊提示（防账号枚举），但在日志中区分原因。
+
+### P2-3 黑名单预警接口未在向导中接入
+
+后端 `GET /house/blacklist/check?mobile=xxx` 工作正常，但前端 4 步向导 Step4（业主信息）的失焦事件是否调用待验证。建议手工走查 `code/web/src/views/wizard/HouseWizardView.vue` 的黑名单预警交互。
+
+### P2-4 dashboard/todos 字段缺失
+
+返回 `[{id, title, priority}]` 缺 `date` 字段（在 `getTodos` 中 overdue 分支漏了 date 赋值），导致前端待办列表日期列空白。
+
+### P2-5 /system/roles 返回数组而非分页对象
+
+与 `house/sale-properties` 返回 `{list, total}` 不一致，前端表格分页组件对接困难。建议统一为 `{list, total}` 格式。
+
+### P2-6 房源录入向导未提供草稿/暂存
+
+[产品文档-最终.md](01-产品文档/产品文档-最终.md) 要求向导 4 步可分步暂存，目前只能一次提交。
+
+---
+
+## 已通过验证的功能（避免重复修）
+
+- 9 个测试账号全部能登录，密码 123456
+- 售房数据范围：super_admin/boss=3、store_manager=2、agent01/salesman=1、agent02=1（**完全符合预期**）
+- 黑名单预警接口 `GET /house/blacklist/check?mobile=` 工作正常
+- 小区 → 楼栋 → 单元 → 楼层 → 房号 4 级级联接口可用
+- 房源列表分页（page/pageSize）正确
+- 黑名单、储备房源、储备客源、账单、流水的 list 接口数据范围正确
+- `/auth/me`、`/auth/menus` 返回正确，权限点字符串与 [产品文档](01-产品文档/产品文档-最终.md) 中的菜单编码一致
+
+---
+
+## 修复优先级建议
+
+**第一阶段（阻塞验收）**：P0-1 权限点 Guard、P0-3 字典路径、P0-4 员工路径、P0-5 客户 500、P0-6 看板 500
+
+**第二阶段（功能补全）**：P0-2 越权写、P1-1 详情接口、P1-2 跟进记录、P1-3 操作日志、P1-4 权限列表路径
+
+**第三阶段（完善）**：P1-5 401/403、P1-6 DTO 必填、P1-7 字典树、P1-8 500/400、P2 系列
+
+预计完成第一阶段后，可走通"登录 → 看板 → 各业务列表"主流程；完成第二阶段后，可通过验收.md 9.3 接口验收清单 68 项中除性能外的绝大部分。
+
+---
+
+## 附：测试方法
+
+```bash
+# 1. 启动依赖
+docker compose up -d  # PostgreSQL + Redis
+
+# 2. 启动后端（重要：如果之前已有进程占用 3000，先 kill）
+cd code/server
+npm run build
+node dist/main
+
+# 3. 前端
+cd code/web
+npm run dev
+
+# 4. 重新注入种子（如需重置）
+cd code/server && npm run seed
+
+# 5. 接口冒烟（本次测试脚本已留存于仓库根目录 test_api.py）
+python test_api.py
+```
+
+**注意**：测试过程中发现端口 3000 被另一个旧 node 进程（运行旧版本代码、返回硬编码假数据）占用，**重启服务前必须先确认旧进程已 kill**，否则会出现"代码改了但接口行为没变"的假象。

@@ -56,7 +56,7 @@ export interface Arrear {
 }
 
 export function getBills(params?: { keyword?: string; status?: string }) {
-  return get<Bill[]>('/finance/bills', { params });
+  return get<{ list: Bill[]; total: number }>('/finance/bills', { params });
 }
 
 export function createBill(data: Partial<Bill>) {
@@ -64,7 +64,7 @@ export function createBill(data: Partial<Bill>) {
 }
 
 export function getFlows(params?: { keyword?: string; type?: string }) {
-  return get<Flow[]>('/finance/flows', { params });
+  return get<{ list: Flow[]; total: number }>('/finance/flows', { params });
 }
 
 export function createFlow(data: Partial<Flow>) {
@@ -80,7 +80,7 @@ export function createPaymentPlan(data: Partial<PaymentPlan>) {
 }
 
 export function getArrears(params?: { keyword?: string; status?: string }) {
-  return get<Arrear[]>('/finance/arrears', { params });
+  return get<{ list: Arrear[]; total: number }>('/finance/arrears', { params });
 }
 
 export function createArrear(data: Partial<Arrear>) {

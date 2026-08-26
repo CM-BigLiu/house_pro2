@@ -1,0 +1,202 @@
+# 修复建议-7：本次复测结果（2026-08-20 15:00）
+
+## 测试方法
+
+- 后端：`code/server` NestJS 重启于 15:03（dist 构建时间 14:24，源码 app.module.ts 修改时间 14:25，本次构建含最新代码）
+- 前端：`code/web` Vite 持续运行于 5173
+- 自动化：Playwright + 系统 Chrome（headless）
+- 测试账号：9 个（super_admin / boss / store_manager / salesman / finance / housekeeper / agent01 / agent02 / readonly）
+- 覆盖页面：25 个（首页 + 房屋 7 + 向导 1 + 财务 12 + 系统 4）
+
+## 与上一轮的差异
+
+后端在 14:24 新增：
+- `code/server/src/common/guards/permission.guard.ts`（PermissionGuard）
+- `code/server/src/common/decorators/require-permission.decorator.ts`（@RequirePermission）
+- `code/server/src/app.module.ts` 注册了两个 **全局 APP_GUARD**：JwtAuthGuard + PermissionGuard
+
+这一改动**部分响应了 v5/v6 的"权限点缺失"问题**，但实现不完整，引入了新 P0 回归。
+
+---
+
+## 本次新发现的 P0 阻塞缺陷
+
+### P0-1【新】登录接口被全局 JwtAuthGuard 拦截，系统无法登录
+
+**实测**：
+- 打开 `http://localhost:5173/login`，输入 `super_admin / 123456`，点击登录
+- `POST /api/auth/login` → **403 "缺少 Token"**
+- 用户被卡在登录页，无法进入系统
+- 错误密码也是 403（应区分 401 密码错 vs 403 缺 token）
+
+**根因**：`code/server/src/app.module.ts:25` 把 `JwtAuthGuard` 注册为全局 `APP_GUARD`，但 `code/server/src/common/guards/jwt-auth.guard.ts` 没有 `@Public()` 豁免机制，登录、注册等公开接口全部被拦截。
+
+**证据**：
+```ts
+// code/server/src/common/guards/jwt-auth.guard.ts:19
+if (!token) throw new ForbiddenException('缺少 Token');
+// 整个文件没有 Reflector / @Public / isPublic 判断
+```
+
+**修复建议**（参照 NestJS 官方 RBAC 教程）：
+1. 新增 `code/server/src/common/decorators/public.decorator.ts`：
+   ```ts
+   import { SetMetadata } from '@nestjs/common';
+   export const IS_PUBLIC_KEY = 'isPublic';
+   export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+   ```
+2. 在 `JwtAuthGuard.canActivate` 开头加：
+   ```ts
+   const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+     context.getHandler(), context.getClass(),
+   ]);
+   if (isPublic) return true;
+   ```
+3. `JwtAuthGuard` 构造函数注入 `private reflector: Reflector`
+4. 在 `AuthController.login` 上加 `@Public()` 装饰器（替换现有 `@SetMetadata('permissions', [])`）
+
+---
+
+### P0-2【新】vue-router 路由守卫逻辑错误，刷新任何子页面都跳到首页
+
+**实测**：Playwright 注入有效 token 后 `page.goto('/house/sale')`，地址栏最终停在 `/home`。
+**所有 25 个路由全部表现一致**：dashboard 200 → menus 200 → 然后跳到 /home。
+
+**根因**：`code/web/src/router/index.ts:52-62`
+```ts
+if (!dynamicAdded) {
+  const perms = userStore.permissions;
+  const accessible = asyncRoutes.filter(...);
+  accessible.forEach((route) => router.addRoute(route));
+  dynamicAdded = true;
+  return next({ ...to, replace: true });  // ← 这里 to 已丢失原 path
+}
+```
+
+**问题分析**：在 `await userStore.fetchUserInfo()` 完成后，`to` 对象虽然保留了原 path，但 `next({...to, replace: true})` 是触发**第二次守卫调用**，此时 `dynamicAdded=true`，应直接 `next()`。但实际行为是：第一次 `next({...to})` 用 replace 替换历史，导致浏览器把 `/house/sale` 替换为 `/home`。
+
+**修复建议**：
+- 把 `return next({ ...to, replace: true })` 改为 `return next(to.fullPath)` 或 `return next({ path: to.path, query: to.query, replace: true })`
+- 或在 `next()` 前 `await router.isReady()`，确保动态路由已生效
+- 最佳做法：在 `fetchUserInfo` 完成后立即 `addRoute`，然后 `next(to.fullPath)`（仅传字符串路径，让 vue-router 重新匹配）
+
+---
+
+### P0-3【仍存在】首页看板 `/api/dashboard/rankings` 500
+
+**实测**：9 个账号登录后访问首页均触发：
+- `GET /api/dashboard/rankings` → 500
+- 同时伴随 `Uncaught (in promise) Request failed with status code 500`，导致 HomeView 在 mounted 抛错
+
+**根因**（v5/v6 已记录）：`dashboard.service.ts:198` 原生 SQL 用了 `created_at`，但 PostgreSQL 实际列名是 `createdAt`。
+
+**附：`/api/dashboard/overview` 本次返回 200**（v6 时是 500），说明 14:24 的构建已部分修复 `getOverview` 的 `applyDataScope` 误用问题。但 rankings 仍在 500。
+
+---
+
+### P0-4【仍存在】前端 API 路径与后端不一致（字典/角色/权限/员工/门店）
+
+**实测**：与 v6 完全一致，前端调 `/api/dictionaries`、`/api/roles`、`/api/permissions`、`/api/employees`、`/api/stores`，后端实际 `/api/system/*`。
+
+**影响**：字典管理、角色管理、权限管理、人员管理页面全部无法工作，所有下拉框（户型、装修、来源、状态等）全部失效。
+
+**附：因 P0-2 的存在，本次前端实际上看不到这些 404**（页面被强制跳到 /home 后，子页面组件未挂载），但 bug 仍然存在，待 P0-2 修复后会再次暴露。
+
+---
+
+### P0-5【仍存在】权限点 Guard 全局生效但登录接口未豁免，等于把整个系统锁死
+
+这是 P0-1 的直接后果。**虽然后端加了 PermissionGuard 响应了之前的"权限点缺失"问题，但因 JwtAuthGuard 没豁免登录接口，整个系统现在无法登录。**
+
+---
+
+## P1 严重缺陷（仍存在，未修）
+
+### P1-1 售房详情接口缺失
+`GET /house/sale-properties/:id` 404，验收 3.2.2.6 要求房源详情页。
+
+### P1-2 跟进记录接口缺失
+`GET /house/followups`、`/house/sale-properties/:id/followups` 均 404。`house_followup` 表已建，无 controller。
+
+### P1-3 操作日志接口缺失
+`/system/logs`、`/system/operation-logs` 均 404。实体 `sys_operation_log` 已建表，无 controller、无拦截器自动写入。
+
+### P1-4 客户管理店长查询 500
+`store_manager` 查询 `/house/customers` 500。根因：`Customer` 实体缺 `store_id` 字段，`applyDataScope` 对 store 范围角色拼 `c.store_id IN (...)` 报错。
+
+### P1-5 登录失败无用户提示
+错误密码登录，前端只看到 toast"没有权限执行该操作"（403 触发的 axios 拦截器提示），但实际上是用户名密码错。应区分：
+- 401 → "账号或密码错误"
+- 403 → "没有权限" / "登录已过期"
+
+---
+
+## P2 体验问题（仍存在）
+
+### P2-1 未授权返回 403 而非 401
+HTTP 语义错误。前端 axios 拦截器通常以 401 触发跳登录，403 被当作"已登录但无权限"。
+
+### P2-2 储备房源/租房/黑名单 POST 报 500 而非 400
+缺少必填字段时后端返回 500，前端无法 toast 出具体字段错误。
+
+### P2-3 dashboard/todos 字段缺失
+返回 `[{id, title, priority}]` 缺 `date` 字段（overdue 分支漏赋值）。
+
+### P2-4 小区管理前端 `rows is not iterable`
+前端 `CommunityView.vue` 期望 `Community[]`，后端返回 `{list, total}`，需要前端 `res.list` / `res.total` 解构。
+
+---
+
+## 已修复的问题（对比 v6）
+
+| 问题 | v6 状态 | 本次状态 |
+|------|---------|---------|
+| 权限点 Guard 未启用 | 完全未启用 | 已加全局 PermissionGuard（但被 P0-1 阻塞） |
+| `/dashboard/overview` 500 | 500 | **已修复，返回 200** |
+| `/dashboard/rankings` 500 | 500 | 仍 500（SQL 列名问题） |
+| 刷新页面动态路由丢失 | 丢失 | 路由守卫改了但**新引入 P0-2**，仍然全部跳到 /home |
+| 登录接口 401 vs 403 | 403（不规范） | 仍 403（且新增 P0-1 无法登录） |
+
+---
+
+## 修复优先级（更新）
+
+**第一优先（系统能跑起来）**：
+1. **P0-1 登录接口加 @Public 豁免** —— 不修这个，整个系统都用不了
+2. **P0-2 路由守卫 `next({...to, replace: true})` 改为 `next(to.fullPath)`** —— 不修这个，登录后只能看首页
+
+**第二优先（核心功能可用）**：
+3. P0-3 dashboard/rankings SQL 列名 `created_at` → `createdAt`
+4. P0-4 前端 API 路径统一加 `/system` 前缀（字典/角色/权限/员工/门店）
+5. P1-4 客户管理 store_id 字段补齐
+
+**第三优先（验收补全）**：
+6. P1-1 售房详情接口
+7. P1-2 跟进记录接口
+8. P1-3 操作日志接口
+9. P2-1 401/403 语义
+10. P2-4 小区管理 `res.list` 解构
+
+---
+
+## 本次测试产物
+
+- 测试脚本：`.workbuddy/e2e/run2.js`（含登录页测试 + 全页面 SPA 测试）
+- Token 生成：`.workbuddy/e2e/gen-tokens.js`（因 P0-1 登录接口被锁，绕过数据库直接签发 JWT）
+- 测试报告：`.workbuddy/e2e/results/report-super.json`（super_admin 单用户详细数据）
+- 截图存档：`.workbuddy/e2e/results/screenshots-v2/`（已生成 201 张，覆盖 8 个账号 × 25 页）
+- 完整日志：`.workbuddy/e2e/results/full.log`
+
+## 复测方法
+
+待 P0-1 修复后，直接运行：
+```bash
+# 后端
+cd code/server && npm run build && node dist/main &
+
+# 前端
+cd code/web && npm run dev &
+
+# 浏览器自动化测试（已含登录页与 25 个业务页）
+cd .workbuddy/e2e && node run2.js
+```

@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { SaleService } from '../services/sale.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreateSalePropertyDto {
   @IsString()
@@ -240,13 +241,20 @@ export class SaleController {
     return this.saleService.findAll(query, user);
   }
 
+  @Get(':id')
+  async findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.saleService.findOne(+id, user);
+  }
+
   @Post()
-  async create(@Body() data: CreateSalePropertyDto) {
-    return this.saleService.create(data);
+  @RequirePermission('sale:add')
+  async create(@Body() data: CreateSalePropertyDto, @CurrentUser() user: any) {
+    return this.saleService.create(data, user);
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() data: UpdateSalePropertyDto) {
-    return this.saleService.update(+id, data);
+  @RequirePermission('sale:edit')
+  async update(@Param('id') id: string, @Body() data: UpdateSalePropertyDto, @CurrentUser() user: any) {
+    return this.saleService.update(+id, data, user);
   }
 }

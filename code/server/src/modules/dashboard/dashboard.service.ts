@@ -36,13 +36,12 @@ export class DashboardService {
       .innerJoin('rr.set', 'set');
     applyDataScope(roomQb, user, 'set', { ownerField: 'creatorId', groupField: 'groupId' });
     const roomCount = await roomQb.getCount();
-    const vacantCount = await this.rentalRoomRepo.createQueryBuilder('rr')
+
+    const vacantQb = this.rentalRoomRepo.createQueryBuilder('rr')
       .innerJoin('rr.set', 'set')
-      .where('rr.status = :status', { status: 'vacant' })
-      .andWhere((qb) => {
-        applyDataScope(qb, user, 'set', { ownerField: 'creatorId', groupField: 'groupId' });
-      })
-      .getCount();
+      .where('rr.status = :status', { status: 'vacant' });
+    applyDataScope(vacantQb, user, 'set', { ownerField: 'creatorId', groupField: 'groupId' });
+    const vacantCount = await vacantQb.getCount();
 
     const clientQb = this.clientRepo.createQueryBuilder('c');
     applyDataScope(clientQb, user, 'c', { ownerField: 'creatorId' });
@@ -202,12 +201,12 @@ export class DashboardService {
       FROM sys_employee e
       LEFT JOIN (
         SELECT creator_id, COUNT(*) AS saleCount FROM house_sale
-        WHERE created_at >= date_trunc('month', now())
+        WHERE "createdAt" >= date_trunc('month', now())
         GROUP BY creator_id
       ) s ON s.creator_id = e.id
       LEFT JOIN (
         SELECT creator_id, COUNT(*) AS customerCount FROM house_customer
-        WHERE created_at >= date_trunc('month', now())
+        WHERE "createdAt" >= date_trunc('month', now())
         GROUP BY creator_id
       ) c ON c.creator_id = e.id
       WHERE e.status = 'normal'

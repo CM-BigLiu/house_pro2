@@ -42,55 +42,55 @@ export interface Permission {
 }
 
 export function getEmployees(params?: { keyword?: string; storeId?: number }) {
-  return get<Employee[]>('/employees', { params });
+  return get<{ list: Employee[]; total: number }>('/system/employees', { params });
 }
 
 export function createEmployee(data: Partial<Employee>) {
-  return post<Employee>('/employees', data);
+  return post<Employee>('/system/employees', data);
 }
 
 export function updateEmployee(id: number, data: Partial<Employee>) {
-  return put<Employee>(`/employees/${id}`, data);
+  return put<Employee>(`/system/employees/${id}`, data);
 }
 
 export function deleteEmployee(id: number) {
-  return del(`/employees/${id}`);
+  return del(`/system/employees/${id}`);
 }
 
 export function getRoles() {
-  return get<Role[]>('/roles');
+  return get<Role[]>('/system/roles');
 }
 
 export function createRole(data: Partial<Role>) {
-  return post<Role>('/roles', data);
+  return post<Role>('/system/roles', data);
 }
 
 export function updateRole(id: number, data: Partial<Role>) {
-  return put<Role>(`/roles/${id}`, data);
+  return put<Role>(`/system/roles/${id}`, data);
 }
 
 export function deleteRole(id: number) {
-  return del(`/roles/${id}`);
+  return del(`/system/roles/${id}`);
 }
 
 export function getPermissions() {
-  return get<Permission[]>('/permissions');
+  return get<Permission[]>('/system/permissions/tree');
 }
 
 export function getStores(params?: { cityId?: number }) {
-  return get<{ id: number; name: string; cityId?: number }[]>('/stores', { params });
+  return get<{ id: number; name: string; cityId?: number }[]>('/system/stores', { params });
 }
 
 export function getCities() {
-  return get<{ id: number; name: string }[]>('/cities');
+  return get<{ id: number; name: string }[]>('/system/cities');
 }
 
 export function getDepartments(params?: { storeId?: number }) {
-  return get<{ id: number; name: string }[]>('/departments', { params });
+  return get<{ id: number; name: string }[]>('/system/departments', { params });
 }
 
 export function getPositions() {
-  return get<{ id: number; name: string; code: string }[]>('/positions');
+  return get<{ id: number; name: string; code: string }[]>('/system/positions');
 }
 
 export interface Store {

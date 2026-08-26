@@ -19,33 +19,33 @@ export interface DictItem {
 }
 
 export function getDicts(params?: { keyword?: string }) {
-  return get<Dict[]>('/dictionaries', { params });
+  return get<Dict[]>('/system/dicts', { params });
 }
 
 export function getDictItems(code: string) {
-  return get<DictItem[]>(`/dictionaries/${code}/items`);
+  return get<DictItem[]>(`/system/dicts/${code}/items`);
 }
 
 export function createDict(data: Partial<Dict>) {
-  return post<Dict>('/dictionaries', data);
+  return post<Dict>('/system/dicts', data);
 }
 
 export function updateDict(id: number, data: Partial<Dict>) {
-  return put<Dict>(`/dictionaries/${id}`, data);
+  return put<Dict>(`/system/dicts/${id}`, data);
 }
 
 export function deleteDict(id: number) {
-  return del(`/dictionaries/${id}`);
+  return del(`/system/dicts/${id}`);
 }
 
 export function createDictItem(data: Partial<DictItem>) {
-  return post<DictItem>('/dictionary-items', data);
+  return post<DictItem>('/system/dicts/items', data);
 }
 
 export function updateDictItem(id: number, data: Partial<DictItem>) {
-  return put<DictItem>(`/dictionary-items/${id}`, data);
+  return put<DictItem>(`/system/dicts/items/${id}`, data);
 }
 
 export function deleteDictItem(id: number) {
-  return del(`/dictionary-items/${id}`);
+  return del(`/system/dicts/items/${id}`);
 }

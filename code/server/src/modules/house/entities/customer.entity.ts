@@ -41,6 +41,9 @@ export class Customer {
   @Column({ name: 'salesman_id', nullable: true })
   salesmanId: number;
 
+  @Column({ name: 'store_id', nullable: true })
+  storeId: number;
+
   @Column({ name: 'creator_id' })
   creatorId: number;
 

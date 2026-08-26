@@ -1,0 +1,212 @@
+========================================================================
+房屋租售 ERP · 第 10 轮全面功能测试与需求验收报告
+========================================================================
+测试时间：2026-08-21
+测试环境：后端 http://localhost:3000 · 前端 http://localhost:5173 · PostgreSQL + Redis (docker)
+测试账号：super_admin / boss / store_manager / salesman / finance / housekeeper / agent01 / agent02 / readonly（密码 123456）
+测试方式：API 自动化（Node fetch）+ 浏览器 UI 自动化（Playwright + 本机 Chrome）
+对照文档：01-产品文档/产品文档-最终.md · 02-验收与检查报告/验收.md
+
+========================================================================
+一、本次测试总体结论
+========================================================================
+- 后端 API：25 项通过 / 1 项失败（失败项为测试脚本路径错误，非系统 Bug）
+- 前端 UI ：37 + 10 + 13 + 9 = 69 项通过 / 3 项真实缺陷
+- 数据权限验证：super_admin=3 套 / boss=3 套 / store_manager=2 套 / agent02=1 套售房，全部正确
+- 黑名单预警：向导 Step4 业主电话失焦弹窗，命中「王老赖」，完全正常
+- 小区四级级联：小区→楼栋→单元→楼层→房号，下拉联动全部正常
+- 房源录入向导 4 步：类型→位置→房屋信息→业主信息，流程走通并提交成功
+- 已修复：后端启动崩溃 Bug + 跟进列表 500 Bug（见「二、本次已修复」）
+
+整体完成度较 v3 报告（约 50-55%）有提升，主要因为向导级联、黑名单接入已落地。
+但仍存在若干 P0/P1 级别的需求不符合项与前端字段映射 Bug，详见下表。
+
+========================================================================
+二、本次测试中发现并已直接修复的 Bug（2 个）
+========================================================================
+
+【修复-1】P0 后端启动崩溃（DI 依赖注入失败）
+- 现象：`node dist/main` 启动即报错
+  `Nest can't resolve dependencies of the OperationLogService (?).
+   Please make sure that the argument "OperationLogRepository" at index [0]
+   is available in the HouseModule context.`
+- 根因：`src/modules/house/house.module.ts` 中 `OperationLogService` 注入了
+  `OperationLog` 实体仓库，但 `TypeOrmModule.forFeature([...])` 未注册该实体。
+- 修复：
+  1) house.module.ts 增加 `import { OperationLog } from '../system/entities/operation-log.entity';`
+     并加入 forFeature 数组。
+  2) 同步把 house.module.ts 与 operation-log.service.ts 中错误的相对路径
+     `../../system/entities/operation-log.entity` 改为 `../system/entities/operation-log.entity`
+     （house 模块在 src/modules/house 下，上两级是 src/ 而非 src/modules/，导致 TS 解析失败）。
+- 影响文件：
+  code/server/src/modules/house/house.module.ts
+  code/server/src/modules/house/services/operation-log.service.ts
+
+【修复-2】P1 跟进列表 GET /api/house/follow-ups 500
+- 现象：不带 bizType/bizId 查询时报
+  `QueryFailedError: invalid input syntax for type integer: "NaN"`
+- 根因：`follow-up.controller.ts` 直接 `+bizId`，bizId 为 undefined 时得 NaN 传入 SQL。
+- 修复：controller 增加 `Number.isFinite(id)` 校验，非法时返回空数组。
+- 影响文件：code/server/src/modules/house/controllers/follow-up.controller.ts
+
+========================================================================
+三、新发现的 Bug 清单（需修复）
+========================================================================
+
+【Bug-1】P1 · 账单列表字段全部显示「-」（前端字段映射错误）
+- 位置：/finance/bill（BillView.vue）
+- 现象：账单标题、款项种类、房源、租客、状态 5 列全部显示「-」，仅金额/到期日正常。
+- 根因：前端绑定字段与后端返回字段名不一致——
+  前端使用：title / category / houseTitle / tenantName / status('pending')
+  后端返回：billSource / payer / payee / status('pending_receive')
+  且前端 statusLabelMap 用的是 pending/paid/partial，与后端 pending_receive/received/overdue 不匹配。
+- 后端实际数据（已验证）：
+  id=1 陈租客 rent 3200 pending_receive 2026-08-29
+  id=2 未知租客 rent 2200 pending_receive 2026-08-14
+  id=3 张业主 commission 68000 received 2026-08-19
+- 建议：BillView.vue 改用 payer/billSource/roomCode 渲染；status 映射改为
+  { pending_receive:'待收', received:'已收', overdue:'逾期', cancelled:'作废' }；
+  状态字典建议由后端字典 billing_status 统一下发。
+
+【Bug-2】P1 · 售房卡片「总价」显示「-」（前端字段映射错误）
+- 位置：/house/sale（SaleView.vue 第 121 行）
+- 现象：卡片中「总价」一行显示「-」，单价/面积正常。
+- 根因：前端绑定 `item.totalPrice`，后端返回字段是 `salePrice`。
+- 后端数据：salePrice=7200000/5500000/6800000，unitPrice/buildingArea 正常。
+- 建议：SaleView.vue 把总价改为 `formatMoney(item.salePrice)`；或后端序列化时补一个 totalPrice 别名，二选一统一。
+
+【Bug-3】P1 · 租房卡片「月租 / 押金 / 房间数」显示「-」（前端字段映射错误 + 后端聚合缺失）
+- 位置：/house/rent（RentView.vue 第 118/122/126 行）
+- 现象：月租、押金、房间 3 项显示「-」。
+- 根因：前端绑定 item.rent / item.deposit / item.roomCount / item.vacantCount，
+  后端返回的租房套是 landlordRent + rooms[] 数组，没有 rent/deposit/roomCount/vacantCount 字段。
+- 后端数据：landlordRent=9000，rooms[3]（A 租 3200 已租 / B 2600 空置 / C 已定）。
+- 建议（二选一）：
+  a) 后端 RentalSet 列表序列化时补 roomCount=rooms.length、vacantCount=rooms.filter(status==='vacant').length、
+     rent=min(rooms.rentPrice)（或 landlordRent）、deposit=sum(rooms.depositAmount)；
+  b) 前端改为读取 item.landlordRent 并从 item.rooms 聚合。
+  推荐 (a)，保持前端简单。
+
+【Bug-4】P0 · 非超级管理员角色被赋予全部系统管理权限（权限模型缺陷）
+- 位置：登录 JWT / 侧边栏
+- 现象：agent02（综合经纪人，数据范围 self）登录后，侧边栏可见「系统管理」一级菜单，
+  JWT permissions 中包含 system、system:role、system:permission、system:dictionary、system:employee 等全部权限。
+- 根因：code/server/src/database/seeds/seed.service.ts `seedRoles()` 第 146 行：
+  除 super_admin 与 readonly 外，所有角色统一 `rolePerms = allPerms.filter(p => p.type==='menu' || p.type==='action')`，
+  等于把全部菜单+操作权限都给了 salesman/agent/store_manager/housekeeper/finance 等角色。
+- 与产品文档冲突：产品文档-最终.md 3.2 菜单权限矩阵明确
+  系统管理仅 super_admin / company_admin 可见；财务管理仅 finance_* 与 store_manager。
+- 建议：seedRoles 按角色分别配置权限码白名单，例如
+  agent:  ['home','house','house:rent','house:sale','house:reserve_house','house:reserve_client','house:customer','house:blacklist','house:community']
+  finance:['home','finance','finance:bill','finance:flow',...]
+  salesman/store_manager 同理按 PRD 3.2 表逐项勾选。
+
+【Bug-5】P1 · readonly 账号售房/租房列表为 0（assigned 数据范围未实现）
+- 位置：/house/sale（readonly 登录）
+- 现象：readonly（孙只读）登录后售房列表 Total 0。
+- 根因：data-scope.util.ts 中 `assigned` 分支被简化为等同 store/self，
+  且 Role.assignedStores 字段存在但未被读取注入 JWT。
+- 与产品文档冲突：测试账号说明中 readonly 数据范围为「指定（当前简化）」，
+  但 PRD 7.1/2.3 要求 assigned 应能指定具体店面列表。
+- 建议：实现 Role.assignedStores 读取并注入 JWT payload.storeIds；
+  data-scope.util.ts 按 storeIds 过滤，而不是退化为 self。
+
+【Bug-6】P2 · 房源录入向导 Step2「下一步」按钮视觉缺失
+- 位置：/house/wizard Step2
+- 现象：选完小区后截图中只看到「上一步」，「下一步」按钮在视口外被遮挡
+  （.wizard-actions 未吸底，长表单时需要滚动才能看到）。
+- 建议：.wizard-actions 改为 sticky/fixed 底部悬浮，保证任意步骤都可见。
+
+========================================================================
+四、产品需求不符合项（验收不通过项）
+========================================================================
+
+【需求-1】P1 · 看板排行榜/待办/月度趋势为假数据
+- 验收.md 3.1 + 产品文档 4.9/4.7 要求排行榜、待办、月度趋势基于真实数据统计。
+- 现状：KPI 卡片与预警卡片已是真实数据（在管房源 4 套/黑名单 2 人等正确），
+  但业绩排行榜 TOP5（李业务员 6000/吴经纪人A 5500/郑经纪人B 5000）、
+  收房/收客排行榜、待办任务、月度收支趋势图（仅 2026-08 有 71200/9000 一根柱）均为硬编码。
+- 建议：getRankings/getTodos/monthly 接入 fin_flow / house_sale / house_rental_set 真实统计。
+
+【需求-2】P1 · 看板缺 12 张小卡片 + 18 张大卡片
+- 产品文档 4.10/4.11：租客组 6 张 + 房东组 6 张小卡片、18 张大卡片（房源/财务/合同/风险/房东/我的工作）。
+- 现状：仅 6 张 KPI + 4 张预警 + 3 张排行榜 + 1 张趋势图，远低于 PRD 要求。
+- 建议：按 PRD 4.10/4.11 补齐卡片网格，数据源接 dashboard 模块。
+
+【需求-3】P1 · 看板缺个性化与角色差异视图
+- 产品文档 4.2/4.13/4.14：老板/我的展示切换、配置拖拽、grid-stack 排版、角色差异。
+- 现状：顶部工具栏仅 Logo/搜索/消息/头像，无「老板视角」「我的展示」「配置」「收款码」「我的钱包」「首页设置」。
+
+【需求-4】P2 · 4 步向导缺 PRD 第 8 章多项能力
+- 缺：28 个房源标签复选（当前自由文本 tagInput）；首选/备选带看时间；
+  房源介绍富文本 + 模板；图片/VR/视频上传；业主校验按钮（黑名单已接入失焦，但缺显式按钮）；
+  动态必填字段接口 POST /api/property/requireField（当前前端写死）。
+
+【需求-5】P2 · 实体字段缺失
+- 售房：套内面积、房源现状、VR/视频、带看时间、租售同存、政府核验码、发布/下架/议价时间、
+  速销起始/截止、最近跟进时间/未跟进天数。
+- 租房房间：缴费状态（合/欠+欠款天数）、合同期限、装修进展、业务员/管家展示。
+
+【需求-6】P2 · 状态机缺失
+- 房源生命周期（预录入→上架→议价→速销→成交→下架）、账单（待收→已收/逾期/待平账）、
+  开票（待处理→开票中→已开票→已冲红）均无状态流转接口与 UI。
+
+【需求-7】P2 · 审计日志未 AOP 化 + 字段未脱敏
+- OperationLog 实体存在，但无全局拦截器记录所有变更（含 IP/终端指纹）。
+- 业主电话/身份证/银行卡未脱敏展示（当前明文 13700137002 直接显示）。
+
+【需求-8】P3 · API 路径与 PRD 第 11 章不一致
+- PRD：/api/property/page、/api/community/search、/api/reserve/house/list 等
+- 实现：/api/house/sale-properties、/api/house/communities、/api/house/reserves/properties 等
+- 建议：二选一——改代码对齐 PRD，或在 PRD 补「实际实现路径对照表」。
+
+========================================================================
+五、验收 Checklist 结论（对照验收.md 第 9 章）
+========================================================================
+| 模块 | 本次实测结论 | 主要不通过项 |
+|------|--------------|--------------|
+| 首页（看板） | 部分通过 | 排行/待办/趋势假数据、缺 12+18 卡片、缺个性化 |
+| 租房管理 | 部分通过 | 卡片月租/押金/房间数显示「-」(Bug-3) |
+| 售房管理 | 部分通过 | 卡片总价显示「-」(Bug-2) |
+| 储备房源 | 通过 | - |
+| 储备客源 | 通过 | - |
+| 客户管理 | 通过（含黑名单标识） | - |
+| 小区管理 | 通过（四级级联正常） | - |
+| 黑名单 | 通过（向导预警正常） | 多维校验（手机+身份证+姓名模糊）未实现 |
+| 财务管理 | 部分通过 | 账单列表字段「-」(Bug-1) |
+| 系统管理 | 部分通过 | 角色越权(Bug-4)、assigned 未实现(Bug-5) |
+| 房源录入向导 | 大部分通过 | 缺 28 标签/富文本/上传/带看时间(需求-4) |
+| 数据权限 | 通过 | super_admin/boss=3、store_manager=2、agent02=1 全部正确 |
+
+========================================================================
+六、建议修复优先级
+========================================================================
+P0（立即）：
+  1. Bug-4 角色权限越权（seedRoles 按 PRD 3.2 白名单）
+P1（本周）：
+  2. Bug-1 账单字段映射
+  3. Bug-2 售房总价字段
+  4. Bug-3 租房月租/押金/房间数（后端聚合）
+  5. Bug-5 readonly assigned 数据范围
+  6. 需求-1 看板排行/待办/趋势接真实数据
+P2（两周内）：
+  7. 需求-2/3 看板 12+18 卡片与个性化
+  8. 需求-4 向导 28 标签/富文本/上传
+  9. Bug-6 向导下一步按钮吸底
+  10. 需求-5/6/7 字段补齐 + 状态机 + 审计脱敏
+P3（排期）：
+  11. 需求-8 API 路径对齐 PRD 或在 PRD 补对照表
+
+========================================================================
+七、复测建议
+========================================================================
+1. 修复后重新执行：
+   node .workbuddy/tmp/api-test2.js   （API 25 项）
+   node .workbuddy/tmp/ui-test.js     （UI 38 项）
+   node .workbuddy/tmp/ui-test2.js    （UI 10 项）
+   node .workbuddy/tmp/ui-test3.js    （UI 13 项）
+   node .workbuddy/tmp/ui-test4.js    （向导 9 项）
+2. 重点回归：账单/售房/租房列表字段显示、agent02 菜单、readonly 数据、向导全流程。
+3. 数据权限用例务必覆盖 super_admin/boss/store_manager/salesman/agent01/agent02/readonly 7 个账号。
+
+报告完毕。

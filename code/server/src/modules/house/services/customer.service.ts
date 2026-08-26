@@ -24,8 +24,12 @@ export class CustomerService {
     return { list, total };
   }
 
-  async create(data: Partial<Customer>) {
-    const item = this.customerRepo.create(data);
+  async create(data: Partial<Customer>, user?: CurrentUserPayload) {
+    const item = this.customerRepo.create({
+      ...data,
+      storeId: data.storeId ?? user?.storeIds?.[0],
+      creatorId: data.creatorId ?? user?.employeeId,
+    });
     return this.customerRepo.save(item);
   }
 }

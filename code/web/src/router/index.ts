@@ -38,6 +38,17 @@ router.beforeEach(async (to, _from, next) => {
     return next('/login');
   }
 
+  // 刷新后 store 中 userInfo 为空，需要重新拉取
+  if (!userStore.userInfo && userStore.token) {
+    try {
+      await userStore.fetchUserInfo();
+      await userStore.fetchMenus();
+    } catch {
+      userStore.logout();
+      return next('/login');
+    }
+  }
+
   if (!dynamicAdded) {
     const perms = userStore.permissions;
     const accessible = asyncRoutes.filter((route) => {
@@ -47,7 +58,9 @@ router.beforeEach(async (to, _from, next) => {
     });
     accessible.forEach((route) => router.addRoute(route));
     dynamicAdded = true;
-    return next({ ...to, replace: true });
+    // 动态路由刚注册，需要以 replace 方式重新导航到目标地址
+    const redirectPath = to.fullPath || to.path;
+    return next({ path: redirectPath, replace: true });
   }
 
   next();

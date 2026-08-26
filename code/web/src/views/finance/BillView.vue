@@ -23,7 +23,8 @@ onMounted(async () => {
 async function load() {
   loading.value = true;
   try {
-    list.value = await getBills(query);
+    const res = await getBills(query);
+    list.value = res.list;
   } finally {
     loading.value = false;
   }

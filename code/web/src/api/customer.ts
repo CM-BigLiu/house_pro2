@@ -14,7 +14,7 @@ export interface Customer {
 }
 
 export function getCustomers(params?: { keyword?: string; identity?: string }) {
-  return get<Customer[]>('/house/customers', { params });
+  return get<{ list: Customer[]; total: number }>('/house/customers', { params });
 }
 
 export function createCustomer(data: Partial<Customer>) {

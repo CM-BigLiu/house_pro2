@@ -1,0 +1,222 @@
+# 修复建议-9：第二轮 P0 修复后最终复测（2026-08-20 17:30）
+
+## 测试方法
+
+- 后端：`code/server` 重启于 17:14（dist 构建 16:57，含 5 个页面 rows iterable + Customer.storeId 修复）
+- 前端：`code/web` Vite 持续运行 5173（HMR 加载最新代码）
+- 数据库：PostgreSQL `synchronize: true` 自动加列，已手动 UPDATE 客户种子数据的 store_id
+- 自动化：Playwright + 系统 Chrome（headless）
+- 覆盖：9 账号 × 25 页 = 225 次访问 + 深度越权写测试
+
+---
+
+## 5 个修复全部验证通过
+
+| 原 P0 问题 | 修复内容 | 实测结果 |
+|---|---|---|
+| 账单 rows is not iterable | `BillView.vue:26` `list.value = res.list` | ✅ 页面正常显示账单列表 |
+| 流水账 rows is not iterable | `FlowView.vue:25` `list.value = res.list` | ✅ 页面正常显示流水列表 |
+| 欠款统计 rows is not iterable | `ArrearsView.vue:25` `list.value = res.list` | ✅ 页面正常显示欠款列表 |
+| 人员管理 rows is not iterable | `EmployeeView.vue:26` `employees.value = res.list` | ✅ 页面正常显示员工列表 |
+| 客户管理 store_manager 500 | Customer 实体新增 storeId 字段 + 种子/服务/控制器联动 | ✅ store_manager 返回 200，且按 store_id 正确过滤（仅看到张江店 2 个客户） |
+
+### 最终实测矩阵
+
+```
+账号            完美页面数
+super_admin     25/25
+boss            25/25
+store_manager   25/25
+salesman        25/25
+finance         25/25
+housekeeper     25/25
+agent01         25/25
+agent02         25/25
+readonly        25/25
+─────────────────────
+总计            225/225 (100%)
+```
+
+所有 9 个账号在 25 个页面：登录 ✅、路由保持 ✅、HTTP 无 4xx/5xx ✅、JS 无错误 ✅。
+
+---
+
+## 仍存在的严重缺陷（深度测试发现）
+
+### P0-1【仍然存在】越权写完全未拦截（PermissionGuard 形同虚设）
+
+**实测**：
+1. `salesman`（个人范围）`PUT /house/sale-properties/2` 把 agent01 的房源 salePrice 改成 1 → **HTTP 200，数据被改**
+2. `readonly`（只读）`POST /house/customers` 创建客户 → **HTTP 201，记录已落库**
+3. `readonly` `DELETE /house/blacklist/1` → **HTTP 200，把"王老赖"黑名单删了**
+4. `salesman` `POST /system/roles` 创建系统角色 → **HTTP 201**
+
+**根因**：`code/server/src/app.module.ts` 虽然全局注册了 `PermissionGuard`，但**所有 controller 方法都没有加 `@RequirePermission(...)` 装饰器**，PermissionGuard 读到 `required = undefined` 就直接放行。
+
+证据（`code/server/src/common/guards/permission.guard.ts:20`）：
+```ts
+if (!required || required.length === 0) return true;  // 没标 @RequirePermission 就放行
+```
+
+而全工程 grep `@RequirePermission` 只在 `auth.controller.ts` 的登录方法出现（用于豁免）：
+
+```
+code/server/src/modules/auth/auth.controller.ts:29: @SetMetadata('permissions', [])
+```
+
+**修复建议**：
+1. 给所有 controller 写接口加细粒度权限点：
+   - `POST /house/sale-properties` → `@RequirePermission('house:sale:create')`
+   - `PUT /house/sale-properties/:id` → `@RequirePermission('house:sale:update')`
+   - `DELETE /house/blacklist/:id` → `@RequirePermission('house:blacklist:delete')`
+   - `POST /system/roles` → `@RequirePermission('system:role:create')`
+   - 等
+2. 在 service 层补**数据范围校验**：PUT/DELETE 必须先 `findOne` 并 `applyDataScope` 校验记录归属
+3. 在种子权限表 `sys_permission` 里补这些动作权限点（type='action'），并给 readonly 角色只分配 type='menu' 的权限
+
+**验收影响**：验收.md 7.3 数据权限、9.4 角色授权流程均为 P0 项，**当前完全不通过**。
+
+---
+
+### P1 严重缺陷（仍存在）
+
+#### P1-1 售房详情接口缺失
+`GET /house/sale-properties/:id` → 404。验收 3.2.2.6 要求房源详情页（基础信息、图片、跟进、验真、带看、合同）。**前端目前根本没有详情页路由**。
+
+#### P1-2 跟进记录接口缺失
+`GET /house/followups`、`/house/sale-properties/:id/followups` → 404。`house_followup` 表已建，无 controller。验收 6.4 跟进 SLA 是 P1 项。
+
+#### P1-3 操作日志接口缺失
+`/system/logs`、`/system/operation-logs` → 404。`sys_operation_log` 表已建，无 controller、无拦截器自动写入。验收 7.4 审计是 P0/P1 项。
+
+#### P1-4 售房管理卡片字段全部渲染为相同值
+实测截图显示 3 张卡片的面积、户型、装修字段都显示 "88.00 m²、2室1厅1卫、精装"，但数据库中 3 套房源的实际字段不同：
+- id=1: 88m², 2室2厅, fine（精装）
+- id=2: 88m², 2室1厅, fine
+- id=3: 88m², 1室1厅, simple（简装）
+
+**根因待查**：可能是 `SaleView.vue` 卡片渲染时 `:key` 绑定错误，或字段映射到了同一个示例值。需要打开 `code/web/src/views/house/SaleView.vue` 检查 `v-for` 和字段读取。
+
+---
+
+## P2 体验问题（仍存在）
+
+### P2-1 房屋创建 DTO 必填字段过多
+`POST /house/sale-properties` 强制要求约 15 个字段（code/layoutBalconies/orientation/decoration/elevator/sourceChannel/taxType/debt/certificateType/title 等）。与 4 步向导渐进式录入的设计冲突。
+
+### P2-2 dashboard/todos 字段缺失
+返回 `[{id, title, priority}]` 缺 `date` 字段（overdue 分支漏赋值），前端待办列表日期列空白。
+
+### P2-3 储备房源/租房/黑名单 POST 报 500 而非 400
+缺少必填字段时后端返回 500 而非 400，前端无法 toast 具体字段错误。
+
+### P2-4 售房管理筛选项较少
+实测截图显示筛选区只有"小区/房号/业主"关键字输入框和"状态"下拉。验收 3.2.2.2 要求：备用电话、验真剩余时间数值区间、完整朝向、来源多选、室/厅/卫/阳 4 个独立控件等。
+
+---
+
+## 产品需求与验收标准对照
+
+### 已通过（实测验证）
+
+| 模块 | 验收点 | 实测结果 |
+|------|--------|---------|
+| 登录 | 9 个账号登录 | ✅ 全部通过，错误密码返回 401 |
+| 首页 | KPI 卡片、月度趋势、排行榜、预警卡片 | ✅ 全部渲染真实数据 |
+| 售房管理 | 列表数据范围（3/3/2/1/1/1） | ✅ 9 个账号数据范围完全正确 |
+| 售房管理 | 卡片字段（总价/单价/面积/户型/装修/业主） | ⚠️ 字段齐全但 P1-4 渲染问题 |
+| 租房管理 | 列表 + 状态 | ✅ 正常 |
+| 储备房源 | 列表 + 状态 | ✅ 正常 |
+| 储备客源 | 列表 + 需求类型 | ✅ 正常 |
+| 客户管理 | 各角色数据范围 | ✅ 含 store_manager 修复后的 store 范围 |
+| 黑名单 | 列表 + 预警接口 | ✅ 正常 |
+| 小区管理 | 列表 + 4 级级联 | ✅ 正常 |
+| 房源录入向导 | 4 步流程 | ✅ 页面正常加载 |
+| 账单 | 列表渲染 | ✅ 已修复 |
+| 流水账 | 列表渲染 | ✅ 已修复 |
+| 涨价统计 / 公寓利润 / 合伙人 / 收入成本 / 业绩核算 / 财务核算 / 收支计划 / 代付 / 开票 | 页面加载 | ✅ 全部正常 |
+| 欠款统计 | 列表渲染 | ✅ 已修复 |
+| 角色管理 / 权限管理 / 字典管理 / 人员管理 | 页面加载 | ✅ 全部正常 |
+
+### 未通过（需修复）
+
+| 模块 | 验收点 | 问题 |
+|------|--------|------|
+| **数据权限** | 写操作数据范围校验 | **P0-1 越权写完全未拦截** |
+| **角色授权** | 只读角色不能写 | **P0-1 readonly 可创建/删除** |
+| 售房管理 | 详情页 | P1-1 接口缺失 |
+| 售房管理 | 跟进 SLA | P1-2 接口缺失 |
+| 系统管理 | 操作日志 | P1-3 接口缺失 |
+| 售房管理 | 卡片字段差异化渲染 | P1-4 渲染问题 |
+| 售房管理 | 筛选字段完整 | P2-4 筛选区字段不全 |
+
+---
+
+## 修复优先级（最终）
+
+**第一优先（验收硬性要求，影响数据安全）**：
+1. **P0-1 给所有写接口加 `@RequirePermission` 装饰器 + service 层数据范围校验**
+   - 工作量预估：30+ 个 controller 方法需要标注权限点
+   - 必须先补 `sys_permission` 表里的 action 类型权限点种子
+
+**第二优先（验收必须项）**：
+2. P1-1 售房详情接口 + 前端详情页
+3. P1-2 跟进记录接口
+4. P1-3 操作日志接口
+5. P1-4 售房卡片字段渲染检查
+
+**第三优先（完善体验）**：
+6. P2-1 DTO 必填字段精简（或加 draft 接口）
+7. P2-2 todos date 字段
+8. P2-3 500/400 语义
+9. P2-4 售房筛选字段补齐
+
+---
+
+## 测试产物
+
+- 复测脚本：`.workbuddy/e2e/run3.js`、`.workbuddy/e2e/run3-resume.js`
+- 9 个账号详细报告：`.workbuddy/e2e/results/report-v3-{user}.json`
+- 截图存档：`.workbuddy/e2e/results/screenshots-v3/`（每账号 25 张，共 225 张）
+
+## 复测方法
+
+```bash
+# 后端
+cd code/server && npm run build && node dist/main &
+
+# 前端（Vite HMR 自动加载）
+cd code/web && npm run dev &
+
+# 完整复测
+cd .workbuddy/e2e && node run3-resume.js
+```
+
+## 越权写回归测试用例（必须加）
+
+修复 P0-1 后，必须跑这些用例验证：
+
+```bash
+# 1. salesman 改 agent01 的房源（应 403）
+curl -X PUT -H "Authorization: Bearer $SALESMAN_TOKEN" \
+  -d '{"salePrice":1}' \
+  http://localhost:3000/api/house/sale-properties/2
+# 期望：403 无操作权限 / 404 记录不存在（数据范围外）
+
+# 2. readonly 创建客户（应 403）
+curl -X POST -H "Authorization: Bearer $READONLY_TOKEN" \
+  -d '{"name":"x","mobile":"13999999999","customerType":"tenant"}' \
+  http://localhost:3000/api/house/customers
+# 期望：403 无操作权限
+
+# 3. readonly 删除黑名单（应 403）
+curl -X DELETE -H "Authorization: Bearer $READONLY_TOKEN" \
+  http://localhost:3000/api/house/blacklist/1
+# 期望：403 无操作权限
+
+# 4. salesman 创建角色（应 403）
+curl -X POST -H "Authorization: Bearer $SALESMAN_TOKEN" \
+  -d '{"name":"x","code":"x","dataScope":"self"}' \
+  http://localhost:3000/api/system/roles
+# 期望：403 无操作权限
+```

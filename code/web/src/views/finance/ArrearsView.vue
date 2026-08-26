@@ -22,7 +22,8 @@ onMounted(async () => {
 async function load() {
   loading.value = true;
   try {
-    list.value = await getArrears(query);
+    const res = await getArrears(query);
+    list.value = res.list;
   } finally {
     loading.value = false;
   }

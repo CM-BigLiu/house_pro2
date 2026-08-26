@@ -118,8 +118,8 @@ export class BizSeedService {
 
     await this.saleRepo.save([
       { ...saleBase, code: 'SALE2026080001', roomNo: rooms[0].name, salePrice: 6800000, unitPrice: 77273, floorPrice: 6500000, debt: 0, title: '张江汤臣豪园 2 室 2 厅 精装修', ownerName: '张业主', ownerPhone: '13700137001', status: 'published', qualityScore: 85, qualityLevel: 'A', maintainerId: salesman.id, creatorId: salesman.id, storeId: storeZhangjiang.id },
-      { ...saleBase, code: 'SALE2026080002', roomNo: rooms[1].name, salePrice: 7200000, unitPrice: 81818, floorPrice: 7000000, debt: 1200000, title: '张江汤臣豪园 2 室 1 厅 南北通透', ownerName: '李业主', ownerPhone: '13700137002', status: 'bargain', qualityScore: 78, qualityLevel: 'B', maintainerId: agent1.id, creatorId: agent1.id, storeId: storeZhangjiang.id },
-      { ...saleBase, code: 'SALE2026080003', roomNo: rooms[2].name, salePrice: 5500000, unitPrice: 62500, floorPrice: 5400000, debt: 0, title: '张江汤臣豪园 1 室 1 厅 低总价', ownerName: '赵业主', ownerPhone: '13800138001', status: 'pre_publish', qualityScore: 60, qualityLevel: 'C', maintainerId: agent2.id, creatorId: agent2.id, storeId: storePudong.id },
+      { ...saleBase, code: 'SALE2026080002', roomNo: rooms[1].name, layoutRooms: 3, layoutHalls: 2, layoutBathrooms: 2, buildingArea: 128, decoration: 'luxury', salePrice: 9200000, unitPrice: 71875, floorPrice: 9000000, debt: 1200000, title: '张江汤臣豪园 3 室 2 厅 豪华装修', ownerName: '李业主', ownerPhone: '13700137002', status: 'bargain', qualityScore: 78, qualityLevel: 'B', maintainerId: agent1.id, creatorId: agent1.id, storeId: storeZhangjiang.id },
+      { ...saleBase, code: 'SALE2026080003', roomNo: rooms[2].name, layoutRooms: 1, layoutHalls: 1, layoutBathrooms: 1, buildingArea: 58, decoration: 'simple', salePrice: 4200000, unitPrice: 72414, floorPrice: 4100000, debt: 0, title: '张江汤臣豪园 1 室 1 厅 简装', ownerName: '赵业主', ownerPhone: '13800138001', status: 'pre_publish', qualityScore: 60, qualityLevel: 'C', maintainerId: agent2.id, creatorId: agent2.id, storeId: storePudong.id },
     ]);
 
     const rentalBase = {
@@ -183,9 +183,9 @@ export class BizSeedService {
     ]);
 
     await this.customerRepo.save([
-      { name: '陈租客', mobile: '13500135001', customerType: 'tenant', sourceChannel: 'online', relatedPropertyCode: 'RENT2026080001-A', contractEndDate: '2026-12-31', status: 'active', salesmanId: salesman.id, creatorId: salesman.id },
-      { name: '张业主', mobile: '13700137001', customerType: 'landlord', sourceChannel: 'walk_in', status: 'active', salesmanId: salesman.id, creatorId: salesman.id },
-      { name: '李违约', mobile: '13900139002', customerType: 'landlord', sourceChannel: 'peer', status: 'blacklist', isBlacklist: true, salesmanId: agent1.id, creatorId: agent1.id },
+      { name: '陈租客', mobile: '13500135001', customerType: 'tenant', sourceChannel: 'online', relatedPropertyCode: 'RENT2026080001-A', contractEndDate: '2026-12-31', status: 'active', salesmanId: salesman.id, storeId: storeZhangjiang.id, creatorId: salesman.id },
+      { name: '张业主', mobile: '13700137001', customerType: 'landlord', sourceChannel: 'walk_in', status: 'active', salesmanId: salesman.id, storeId: storeZhangjiang.id, creatorId: salesman.id },
+      { name: '李违约', mobile: '13900139002', customerType: 'landlord', sourceChannel: 'peer', status: 'blacklist', isBlacklist: true, salesmanId: agent1.id, storeId: storePudong.id, creatorId: agent1.id },
     ]);
 
     const now = new Date();

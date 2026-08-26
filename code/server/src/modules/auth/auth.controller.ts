@@ -8,6 +8,7 @@ import {
 import { IsNotEmpty, IsString } from 'class-validator';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 class LoginDto {
@@ -24,6 +25,7 @@ class LoginDto {
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  @Public()
   @Post('login')
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto.mobile, dto.password);

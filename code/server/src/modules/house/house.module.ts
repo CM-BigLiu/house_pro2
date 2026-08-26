@@ -25,7 +25,11 @@ import { ReserveProperty } from './entities/reserve-property.entity';
 import { ReserveClient } from './entities/reserve-client.entity';
 import { Customer } from './entities/customer.entity';
 import { Blacklist } from './entities/blacklist.entity';
-import { FollowUp } from './entities/followup.entity';
+import { FollowUp } from './entities/follow-up.entity';
+import { FollowUpController } from './controllers/follow-up.controller';
+import { FollowUpService } from './services/follow-up.service';
+import { OperationLogService } from './services/operation-log.service';
+import { OperationLog } from '../system/entities/operation-log.entity';
 
 @Module({
   imports: [
@@ -33,10 +37,11 @@ import { FollowUp } from './entities/followup.entity';
       Community, Building, Unit, Floor, RoomCode,
       SaleProperty, RentalSet, RentalRoom,
       ReserveProperty, ReserveClient, Customer, Blacklist, FollowUp,
+      OperationLog,
     ]),
   ],
-  controllers: [CommunityController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController],
-  providers: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService],
-  exports: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService],
+  controllers: [CommunityController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController],
+  providers: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService],
+  exports: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService],
 })
 export class HouseModule {}
