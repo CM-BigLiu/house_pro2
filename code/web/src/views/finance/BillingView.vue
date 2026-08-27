@@ -1,25 +1,62 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useDictStore } from '@/stores/dict';
+import { getInvoices, createInvoice, updateInvoice, type Invoice } from '@/api/finance';
 
 const dictStore = useDictStore();
+const rows = ref<Invoice[]>([]);
+const loading = ref(false);
 const dialogVisible = ref(false);
 const form = reactive({
-  title: '', amount: 0, taxType: '', invoiceType: 'normal', targetName: '', status: 'pending',
+  applySource: '',
+  buyerName: '',
+  buyerTaxNo: '',
+  amountWithTax: 0,
+  invoiceType: 'normal',
+  remark: '',
 });
-const rows = ref([
-  { id: 1, title: '7月租金发票', amount: 12000, taxType: 'normal', invoiceType: 'normal', targetName: '张三', status: 'done' },
-  { id: 2, title: '物业费发票', amount: 3600, taxType: 'normal', invoiceType: 'special', targetName: '李四', status: 'processing' },
-]);
+
+onMounted(loadData);
+
+async function loadData() {
+  loading.value = true;
+  try {
+    const res = await getInvoices();
+    rows.value = res.list || [];
+  } finally {
+    loading.value = false;
+  }
+}
 
 function apply() {
+  Object.assign(form, { applySource: '', buyerName: '', buyerTaxNo: '', amountWithTax: 0, invoiceType: 'normal', remark: '' });
   dialogVisible.value = true;
 }
 
-function submit() {
+async function submit() {
+  const taxRate = 0.06;
+  const amountWithTax = Number(form.amountWithTax);
+  const amountWithoutTax = Math.round((amountWithTax / (1 + taxRate)) * 100) / 100;
+  const taxAmount = Math.round((amountWithTax - amountWithoutTax) * 100) / 100;
+  await createInvoice({
+    applySource: form.applySource,
+    buyerName: form.buyerName,
+    buyerTaxNo: form.buyerTaxNo || undefined,
+    amountWithoutTax,
+    taxAmount,
+    amountWithTax,
+    remark: form.remark,
+  });
   ElMessage.success('开票申请已提交');
   dialogVisible.value = false;
+  await loadData();
+}
+
+async function approve(row: Invoice) {
+  await updateInvoice(row.id, { status: 'done' });
+  ElMessage.success('审批通过');
+  await loadData();
 }
 
 function statusClass(status: string) {
@@ -30,6 +67,10 @@ function statusClass(status: string) {
     rejected: 'pill-red',
   };
   return map[status] || 'pill-gray';
+}
+
+function invoiceTypeLabel(row: Invoice) {
+  return row.buyerTaxNo ? '专票' : '普票';
 }
 </script>
 
@@ -46,18 +87,16 @@ function statusClass(status: string) {
       </div>
     </div>
 
-    <el-table :data="rows" class="card">
-      <el-table-column prop="title" label="开票项目" />
-      <el-table-column prop="targetName" label="开票对象" />
-      <el-table-column prop="amount" label="金额">
+    <el-table v-loading="loading" :data="rows" class="card">
+      <el-table-column prop="applySource" label="开票项目" />
+      <el-table-column prop="buyerName" label="开票对象" />
+      <el-table-column prop="amountWithTax" label="金额">
         <template #default="{ row }">
-          <span class="income">¥{{ row.amount.toLocaleString() }}</span>
+          <span class="income">¥{{ Number(row.amountWithTax).toLocaleString() }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="invoiceType" label="发票类型">
-        <template #default="{ row }">
-          {{ row.invoiceType === 'normal' ? '普票' : '专票' }}
-        </template>
+      <el-table-column label="发票类型">
+        <template #default="{ row }">{{ invoiceTypeLabel(row) }}</template>
       </el-table-column>
       <el-table-column label="状态" width="110">
         <template #default="{ row }">
@@ -65,8 +104,8 @@ function statusClass(status: string) {
         </template>
       </el-table-column>
       <el-table-column label="操作" width="150">
-        <template #default="{}">
-          <el-button v-permission="['finance:ticket:approve']" size="small" type="primary" plain>审批</el-button>
+        <template #default="{ row }">
+          <el-button v-permission="['finance:ticket:approve']" size="small" type="primary" plain @click="approve(row)">审批</el-button>
           <el-button size="small">详情</el-button>
         </template>
       </el-table-column>
@@ -75,13 +114,16 @@ function statusClass(status: string) {
     <el-dialog v-model="dialogVisible" title="开票申请" width="520px">
       <el-form :model="form" label-width="90px">
         <el-form-item label="开票项目" required>
-          <el-input v-model="form.title" />
+          <el-input v-model="form.applySource" />
         </el-form-item>
         <el-form-item label="开票对象">
-          <el-input v-model="form.targetName" />
+          <el-input v-model="form.buyerName" />
+        </el-form-item>
+        <el-form-item label="纳税人识别号">
+          <el-input v-model="form.buyerTaxNo" />
         </el-form-item>
         <el-form-item label="金额">
-          <el-input-number v-model="form.amount" :min="0" controls-position="right" style="width: 100%;" />
+          <el-input-number v-model="form.amountWithTax" :min="0" controls-position="right" style="width: 100%;" />
         </el-form-item>
         <el-form-item label="发票类型">
           <el-radio-group v-model="form.invoiceType">

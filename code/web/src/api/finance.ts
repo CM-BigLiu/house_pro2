@@ -1,4 +1,4 @@
-import { get, post } from '@/utils/request';
+import { get, post, put } from '@/utils/request';
 
 export interface Bill {
   id: number;
@@ -55,6 +55,36 @@ export interface Arrear {
   createdAt: string;
 }
 
+export interface Payout {
+  id: number;
+  batchNo?: string;
+  storeId?: number;
+  accountName: string;
+  bankCardNo?: string;
+  bankName: string;
+  cardType: string;
+  payoutAmount: number;
+  payableAmount: number;
+  actualAmount: number;
+  operateDate: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface Invoice {
+  id: number;
+  applySource: string;
+  buyerName: string;
+  buyerTaxNo?: string;
+  amountWithoutTax: number;
+  taxAmount: number;
+  amountWithTax: number;
+  remark?: string;
+  issuer?: string;
+  status: string;
+  createdAt: string;
+}
+
 export function getBills(params?: { keyword?: string; status?: string }) {
   return get<{ list: Bill[]; total: number }>('/finance/bills', { params });
 }
@@ -85,4 +115,24 @@ export function getArrears(params?: { keyword?: string; status?: string }) {
 
 export function createArrear(data: Partial<Arrear>) {
   return post<Arrear>('/finance/arrears', data);
+}
+
+export function getPayouts(params?: { keyword?: string; status?: string }) {
+  return get<{ list: Payout[]; total: number }>('/finance/payouts', { params });
+}
+
+export function createPayout(data: Partial<Payout>) {
+  return post<Payout>('/finance/payouts', data);
+}
+
+export function getInvoices(params?: { keyword?: string; status?: string }) {
+  return get<{ list: Invoice[]; total: number }>('/finance/invoices', { params });
+}
+
+export function createInvoice(data: Partial<Invoice>) {
+  return post<Invoice>('/finance/invoices', data);
+}
+
+export function updateInvoice(id: number, data: Partial<Invoice>) {
+  return put<Invoice>(`/finance/invoices/${id}`, data);
 }
