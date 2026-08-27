@@ -33,6 +33,11 @@ function maskObject(obj: unknown): unknown {
     return obj.map((item) => maskObject(item));
   }
 
+  if (obj instanceof Date) {
+    // Date 等内置对象直接透传，避免被序列化成 {}
+    return obj;
+  }
+
   if (typeof obj === 'object') {
     const record = obj as Record<string, any>;
     const result: Record<string, any> = {};

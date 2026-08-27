@@ -36,7 +36,8 @@ function openCreate() {
 
 async function checkCustomerBlacklist() {
   if (!form.phone || form.phone.length < 7) return;
-  const hit = await checkBlacklist(form.phone);
+  const hits = (await checkBlacklist(form.phone)) || [];
+  const hit = hits[0];
   if (hit) {
     ElMessageBox.confirm(
       `该客户命中黑名单：${hit.name}\n原因：${hit.reason}\n来源：${hit.source || '系统录入'}`,

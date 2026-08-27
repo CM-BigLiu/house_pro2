@@ -17,8 +17,8 @@ export function getBlacklist(params?: { keyword?: string; type?: string; status?
   return get<{ list: Blacklist[]; total: number }>('/house/blacklist', { params });
 }
 
-export function checkBlacklist(mobile?: string, idCard?: string) {
-  return get<Blacklist | null>('/house/blacklist/check', { params: { mobile, idCard } });
+export function checkBlacklist(mobile?: string, idCard?: string, name?: string) {
+  return get<Blacklist[]>('/house/blacklist/check', { params: { mobile, idCard, name } });
 }
 
 export function createBlacklist(data: Partial<Blacklist>) {

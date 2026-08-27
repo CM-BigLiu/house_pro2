@@ -5,8 +5,6 @@ import { Blacklist } from '../entities/blacklist.entity';
 import { applyDataScope } from '../../../common/data-scope/data-scope.util';
 import { CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 
-import { encryptField } from '../../../common/utils/crypto.util';
-
 @Injectable()
 export class BlacklistService {
   constructor(
@@ -34,19 +32,20 @@ export class BlacklistService {
 
   async check(mobile?: string, idCard?: string, name?: string) {
     const conditions: string[] = [];
-    const params: any = { status: 'active' };
+    const params: any = {};
 
     if (mobile) {
       conditions.push('b.mobile = :mobile');
       params.mobile = mobile;
     }
-    if (idCard) {
-      conditions.push('b.idCard = :idCard');
-      params.idCard = encryptField(idCard);
-    }
     if (name) {
       conditions.push('b.name ILIKE :namePattern');
       params.namePattern = `%${name}%`;
+    }
+    if (idCard) {
+      // 历史明文数据：直接等值匹配
+      conditions.push('b.idCard = :idCardPlain');
+      params.idCardPlain = idCard;
     }
 
     if (!conditions.length) return [];
@@ -56,7 +55,24 @@ export class BlacklistService {
       .where('b.status = :status', { status: 'active' })
       .andWhere(`(${conditions.join(' OR ')})`, params);
 
-    return qb.getMany();
+    const rows = await qb.getMany();
+
+    // 密文数据（enc: 前缀，AES-GCM 随机 IV 无法 SQL 等值匹配）：
+    // 仅取 idCard 非空的 active 记录，解密（transformer 已自动解密）后内存精确比对
+    if (idCard) {
+      const encRows = await this.blacklistRepo
+        .createQueryBuilder('b')
+        .where('b.status = :activeStatus', { activeStatus: 'active' })
+        .andWhere('b.idCard IS NOT NULL')
+        .andWhere("b.idCard LIKE 'enc:%'")
+        .getMany();
+      const seen = new Set(rows.map((r) => r.id));
+      for (const r of encRows) {
+        if (r.idCard === idCard && !seen.has(r.id)) rows.push(r);
+      }
+    }
+
+    return rows;
   }
 
   async create(data: Partial<Blacklist>, user?: CurrentUserPayload) {

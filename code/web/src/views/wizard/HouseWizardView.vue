@@ -230,7 +230,8 @@ function toggleTag(value: string) {
 
 async function checkOwnerBlacklist() {
   if (!form.ownerPhone || form.ownerPhone.length < 7) return;
-  const hit = await checkBlacklist(form.ownerPhone);
+  const hits = (await checkBlacklist(form.ownerPhone, form.ownerIdCard || undefined)) || [];
+  const hit = hits[0];
   if (hit) {
     ElMessageBox.confirm(
       `该业主/客户命中黑名单：${hit.name}\n原因：${hit.reason}\n来源：${hit.source || '系统录入'}`,
