@@ -5,6 +5,8 @@ import { Blacklist } from '../entities/blacklist.entity';
 import { applyDataScope } from '../../../common/data-scope/data-scope.util';
 import { CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 
+import { encryptField } from '../../../common/utils/crypto.util';
+
 @Injectable()
 export class BlacklistService {
   constructor(
@@ -31,20 +33,30 @@ export class BlacklistService {
   }
 
   async check(mobile?: string, idCard?: string, name?: string) {
-    const records = await this.blacklistRepo.find({ where: { status: 'active' } });
-    const hits: Blacklist[] = [];
-    for (const b of records) {
-      let hit = false;
-      if (mobile && b.mobile === mobile) hit = true;
-      if (idCard && b.idCard && b.idCard === idCard) hit = true;
-      if (name && b.name && b.name.includes(name)) hit = true;
-      // 换号拦截：传入身份证时，若黑名单记录有同一身份证且不同手机号，也命中
-      if (idCard && b.idCard && b.idCard === idCard && (!mobile || b.mobile !== mobile)) {
-        hit = true;
-      }
-      if (hit) hits.push(b);
+    const conditions: string[] = [];
+    const params: any = { status: 'active' };
+
+    if (mobile) {
+      conditions.push('b.mobile = :mobile');
+      params.mobile = mobile;
     }
-    return hits;
+    if (idCard) {
+      conditions.push('b.idCard = :idCard');
+      params.idCard = encryptField(idCard);
+    }
+    if (name) {
+      conditions.push('b.name ILIKE :namePattern');
+      params.namePattern = `%${name}%`;
+    }
+
+    if (!conditions.length) return [];
+
+    const qb = this.blacklistRepo
+      .createQueryBuilder('b')
+      .where('b.status = :status', { status: 'active' })
+      .andWhere(`(${conditions.join(' OR ')})`, params);
+
+    return qb.getMany();
   }
 
   async create(data: Partial<Blacklist>, user?: CurrentUserPayload) {
