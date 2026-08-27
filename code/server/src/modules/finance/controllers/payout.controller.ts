@@ -76,7 +76,7 @@ export class PayoutController {
   }
 
   @Post()
-  async create(@Body() data: CreatePayoutDto) {
-    return this.payoutService.create(data);
+  async create(@Body() data: CreatePayoutDto, @CurrentUser() user: any) {
+    return this.payoutService.create(data, user);
   }
 }

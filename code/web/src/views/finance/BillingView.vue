@@ -17,7 +17,10 @@ const form = reactive({
   remark: '',
 });
 
-onMounted(loadData);
+onMounted(async () => {
+  await dictStore.ensureLoaded(['ticket_status']);
+  await loadData();
+});
 
 async function loadData() {
   loading.value = true;

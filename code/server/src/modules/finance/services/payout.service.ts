@@ -23,8 +23,11 @@ export class PayoutService {
     return { list, total };
   }
 
-  async create(data: Partial<Payout>) {
-    const item = this.payoutRepo.create(data);
+  async create(data: Partial<Payout>, user?: CurrentUserPayload) {
+    const item = this.payoutRepo.create({
+      ...data,
+      operatorId: data.operatorId ?? user?.employeeId ?? 1,
+    });
     return this.payoutRepo.save(item);
   }
 }
