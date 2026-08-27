@@ -7,7 +7,7 @@ import { WsJwtGuard } from '../../common/guards/ws-jwt.guard';
 @Module({
   imports: [
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'default-secret',
+      secret: process.env.JWT_SECRET || 'house_pro_jwt_secret_key_change_in_production',
       signOptions: { expiresIn: '7d' },
     }),
   ],
