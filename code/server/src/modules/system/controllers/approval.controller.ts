@@ -44,11 +44,15 @@ export class ApprovalController {
   constructor(private approvalService: ApprovalService) {}
 
   @Get()
-  async findByEntity(
-    @Query('entityType') entityType: string,
-    @Query('entityId') entityId: string,
+  async findAll(
+    @Query('entityType') entityType?: string,
+    @Query('entityId') entityId?: string,
   ) {
-    return this.approvalService.findByEntity(entityType, +entityId);
+    const id = entityId ? Number(entityId) : NaN;
+    if (entityType && Number.isFinite(id)) {
+      return this.approvalService.findByEntity(entityType, id);
+    }
+    return this.approvalService.findAll();
   }
 
   @Post()

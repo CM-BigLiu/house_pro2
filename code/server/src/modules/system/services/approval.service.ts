@@ -52,6 +52,10 @@ export class ApprovalService {
     return this.approvalRepo.save(record);
   }
 
+  async findAll(): Promise<ApprovalRecord[]> {
+    return this.approvalRepo.find({ order: { createdAt: 'DESC' } });
+  }
+
   async findByEntity(entityType: string, entityId: number): Promise<ApprovalRecord[]> {
     return this.approvalRepo.find({
       where: { entityType, entityId },
