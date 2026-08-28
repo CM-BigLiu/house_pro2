@@ -43,6 +43,24 @@ function isActive(path?: string) {
   return route.path === path || route.path.startsWith(path + '/');
 }
 
+function onTopClick(menu: any) {
+  if (menu.path) {
+    router.push(menu.path).catch((err) => console.warn('菜单跳转失败', menu.path, err));
+    return;
+  }
+  // 无 path 的父菜单：跳转到第一个有 path 的子菜单
+  const first = menu.children?.find((c: any) => c.path);
+  if (first?.path) {
+    router.push(first.path).catch((err) => console.warn('菜单跳转失败', first.path, err));
+  }
+}
+
+function onSubClick(child: any) {
+  if (child.path) {
+    router.push(child.path).catch((err) => console.warn('子菜单跳转失败', child.path, err));
+  }
+}
+
 function onLogout() {
   userStore.logout();
   router.push('/login');
@@ -69,7 +87,7 @@ const logoUrl = ref('/logo.svg');
         :key="menu.id"
         class="top-item"
         :class="{ active: activeTop === menu.id }"
-        @click="menu.path ? router.push(menu.path) : undefined"
+        @click="onTopClick(menu)"
       >
         <component :is="iconFor(menu.icon)" class="top-icon" :size="20" />
         <span class="top-label">{{ menu.label }}</span>
@@ -84,7 +102,7 @@ const logoUrl = ref('/logo.svg');
         :key="child.id"
         class="sub-item"
         :class="{ active: isActive(child.path) }"
-        @click="child.path ? router.push(child.path) : undefined"
+        @click="onSubClick(child)"
       >
         <span class="sub-dot" :class="{ active: isActive(child.path) }" />
         <span>{{ child.label }}</span>
