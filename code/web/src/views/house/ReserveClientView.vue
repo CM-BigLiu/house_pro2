@@ -1,22 +1,16 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { getReserveClients, createReserveClient, updateReserveClient, type ReserveClient } from '@/api/reserve-client';
+import { getReserveClients, type ReserveClient } from '@/api/reserve-client';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
 
+const router = useRouter();
 const dictStore = useDictStore();
 const list = ref<ReserveClient[]>([]);
 const total = ref(0);
 const loading = ref(false);
-const dialogVisible = ref(false);
-const isEdit = ref(false);
-const form = reactive<Partial<ReserveClient>>({
-  clientName: '', clientMobile: '', desiredLocation: '', demandType: 'rent',
-  desiredLayout: '', areaMin: undefined, areaMax: undefined,
-  priceMin: undefined, priceMax: undefined, sourceChannel: '',
-  usage: '', urgency: 'normal', ownership: 'public', status: 'not_rented',
-});
 const query = reactive({ keyword: '', demandType: '', status: '', page: 1, pageSize: 20 });
 
 onMounted(async () => {
@@ -35,33 +29,8 @@ async function load() {
   }
 }
 
-function openCreate() {
-  isEdit.value = false;
-  Object.assign(form, {
-    clientName: '', clientMobile: '', desiredLocation: '', demandType: 'rent',
-    desiredLayout: '', areaMin: undefined, areaMax: undefined,
-    priceMin: undefined, priceMax: undefined, sourceChannel: '',
-    usage: '', urgency: 'normal', ownership: 'public', status: 'not_rented',
-  });
-  dialogVisible.value = true;
-}
-
 function openEdit(item: ReserveClient) {
-  isEdit.value = true;
-  Object.assign(form, { ...item });
-  dialogVisible.value = true;
-}
-
-async function submit() {
-  if (!form.clientName?.trim()) return ElMessage.warning('请填写姓名');
-  if (isEdit.value) {
-    await updateReserveClient(form.id!, form);
-  } else {
-    await createReserveClient(form);
-  }
-  ElMessage.success(isEdit.value ? '更新成功' : '创建成功');
-  dialogVisible.value = false;
-  await load();
+  ElMessage.info('编辑功能待对接: ' + item.clientName);
 }
 
 function statusClass(status: string) {
@@ -83,8 +52,8 @@ function statusClass(status: string) {
         <div class="page-desc">维护潜在租客/买家信息、意向、跟进状态</div>
       </div>
       <div class="page-actions">
-        <el-button v-permission="['reserve:client:add']" type="primary" @click="openCreate">录入客源</el-button>
-        <el-button v-permission="['reserve:client:export']">导出</el-button>
+        <button v-permission="['reserve:client:add']" class="btn btn-primary" @click="router.push('/house/reserve-client/create')">录入客源</button>
+        <button v-permission="['reserve:client:export']" class="btn btn-default">导出</button>
       </div>
     </div>
 
@@ -142,84 +111,6 @@ function statusClass(status: string) {
     <div class="pagination-bar">
       <el-pagination v-model:current-page="query.page" v-model:page-size="query.pageSize" :total="total" layout="total, prev, pager, next" @change="load" />
     </div>
-
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑储备客源' : '录入储备客源'" width="620px">
-      <el-form :model="form" label-width="90px">
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="姓名" required>
-              <el-input v-model="form.clientName" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="电话">
-              <el-input v-model="form.clientMobile" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="需求类型">
-              <el-select v-model="form.demandType" style="width: 100%;">
-                <el-option v-for="item in dictStore.getItems('demand_type')" :key="item.value" :label="item.label" :value="item.value" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="意向户型">
-              <el-input v-model="form.desiredLayout" placeholder="如：两室一厅" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="面积最小">
-              <el-input-number v-model="form.areaMin" :min="0" controls-position="right" style="width: 100%;" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="面积最大">
-              <el-input-number v-model="form.areaMax" :min="0" controls-position="right" style="width: 100%;" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="预算最小">
-              <el-input-number v-model="form.priceMin" :min="0" controls-position="right" style="width: 100%;" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="预算最大">
-              <el-input-number v-model="form.priceMax" :min="0" controls-position="right" style="width: 100%;" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="来源">
-              <el-select v-model="form.sourceChannel" style="width: 100%;">
-                <el-option v-for="item in dictStore.getItems('source_channel')" :key="item.value" :label="item.label" :value="item.value" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="公私盘">
-              <el-select v-model="form.ownership" style="width: 100%;">
-                <el-option v-for="item in dictStore.getItems('disk_type')" :key="item.value" :label="item.label" :value="item.value" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="意向位置">
-          <el-input v-model="form.desiredLocation" placeholder="如：张江、联洋" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submit">确定</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 

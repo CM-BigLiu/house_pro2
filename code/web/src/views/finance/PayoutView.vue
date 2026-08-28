@@ -1,19 +1,33 @@
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue';
+import { ref, onMounted, reactive, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { getPayouts, createPayout, type Payout } from '@/api/finance';
+import { getPayouts, type Payout } from '@/api/finance';
 import { useUserStore } from '@/stores/user';
+import { formatMoney } from '@/utils/format';
 
-const userStore = useUserStore();
+const router = useRouter();
+void useUserStore;
 const rows = ref<Payout[]>([]);
 const loading = ref(false);
-const dialogVisible = ref(false);
-const form = reactive({
-  accountName: '',
-  bankCardNo: '',
-  bankName: '',
-  payoutAmount: 0,
-  operateDate: '',
+const query = reactive({ keyword: '', type: '', dateStart: '', dateEnd: '' });
+
+const typeOptions = [
+  { label: '全部', value: '' },
+  { label: '拿房成本', value: 'rent_cost' },
+  { label: '装修成本', value: 'decorate' },
+  { label: '物业费', value: 'property' },
+  { label: '能源费用', value: 'energy' },
+  { label: '其他', value: 'other' },
+];
+
+// 汇总统计
+const summaryData = computed(() => {
+  const items = rows.value;
+  const totalAmount = items.reduce((s, i) => s + Number(i.payoutAmount || 0), 0);
+  const pendingCount = items.filter(i => i.status !== 'paid' && i.status !== 'done').length;
+  const paidCount = items.filter(i => i.status === 'paid' || i.status === 'done').length;
+  return { totalAmount, pendingCount, paidCount, totalCount: items.length };
 });
 
 onMounted(loadData);
@@ -28,32 +42,20 @@ async function loadData() {
   }
 }
 
-function openCreate() {
-  Object.assign(form, { accountName: '', bankCardNo: '', bankName: '', payoutAmount: 0, operateDate: '' });
-  dialogVisible.value = true;
+function onSearch() {
+  loadData();
 }
 
-async function submit() {
-  const payload: Partial<Payout> = {
-    ...form,
-    storeId: userStore.userInfo?.storeIds?.[0] || 1,
-    cardType: 'debit',
-    payableAmount: form.payoutAmount,
-    actualAmount: form.payoutAmount,
-  };
-  await createPayout(payload);
-  ElMessage.success('代付任务已创建');
-  dialogVisible.value = false;
-  await loadData();
+function onReset() {
+  query.keyword = '';
+  query.type = '';
+  query.dateStart = '';
+  query.dateEnd = '';
+  loadData();
 }
 
 function batchPay() {
-  ElMessage.success('批量代付任务已提交');
-}
-
-function maskCard(no?: string) {
-  if (!no || no.length < 8) return no;
-  return `${no.slice(0, 4)}****${no.slice(-4)}`;
+  ElMessage.success('批量支付任务已提交');
 }
 
 function statusClass(status: string) {
@@ -62,10 +64,10 @@ function statusClass(status: string) {
 
 function statusLabel(status: string) {
   const map: Record<string, string> = {
-    pending: '待代付',
+    pending: '待支付',
     downloaded: '已下载',
-    paid: '已代付',
-    done: '已代付',
+    paid: '已支付',
+    done: '已完成',
   };
   return map[status] || status;
 }
@@ -75,63 +77,91 @@ function statusLabel(status: string) {
   <div class="finance-view">
     <div class="page-header">
       <div>
-        <div class="page-title">代付管理</div>
-        <div class="page-desc">房东、供应商批量代付任务管理</div>
+        <div class="page-title">支出管理</div>
+        <div class="page-desc">租金成本、装修、物业等各项支出记录管理</div>
       </div>
       <div class="page-actions">
-        <el-button v-permission="['finance:payout:create']" type="primary" @click="openCreate">新增代付</el-button>
-        <el-button v-permission="['finance:payout:batch']" type="primary" @click="batchPay">批量代付</el-button>
-        <el-button v-permission="['finance:export']">导出</el-button>
+        <button v-permission="['finance:payout:create']" class="btn btn-primary" @click="router.push('/finance/payout/create')"><i data-lucide="plus"></i> 新增支出</button>
+        <button v-permission="['finance:payout:batch']" class="btn btn-default" @click="batchPay"><i data-lucide="layers"></i> 批量支付</button>
+        <button v-permission="['finance:export']" class="btn btn-default"><i data-lucide="download"></i> 导出</button>
       </div>
     </div>
 
-    <el-table v-loading="loading" :data="rows" class="card">
-      <el-table-column prop="accountName" label="代付任务" />
-      <el-table-column prop="bankName" label="收款银行" />
-      <el-table-column prop="bankCardNo" label="收款卡号">
-        <template #default="{ row }">{{ maskCard(row.bankCardNo) }}</template>
-      </el-table-column>
-      <el-table-column prop="payoutAmount" label="代付金额">
-        <template #default="{ row }">
-          <span class="expense">¥{{ Number(row.payoutAmount).toLocaleString() }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="operateDate" label="计划付款日" />
-      <el-table-column label="状态" width="100">
-        <template #default="{ row }">
-          <span :class="['pill', statusClass(row.status)]">{{ statusLabel(row.status) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="120">
-        <template #default="{}">
-          <el-button size="small" type="primary" plain>明细</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="filter-label">日期范围</span>
+        <input v-model="query.dateStart" type="date" class="input input-sm" @change="onSearch" />
+        <span class="range-sep">~</span>
+        <input v-model="query.dateEnd" type="date" class="input input-sm" @change="onSearch" />
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">类型</span>
+        <select v-model="query.type" class="select" @change="onSearch">
+          <option v-for="opt in typeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <input v-model="query.keyword" class="input" placeholder="收款人/银行" @keyup.enter="onSearch" />
+      </div>
+      <div class="filter-group filter-actions">
+        <button class="btn btn-primary btn-sm" @click="onSearch"><i data-lucide="search"></i> 筛选</button>
+        <button class="btn btn-default btn-sm" @click="onReset"><i data-lucide="rotate-ccw"></i> 重置</button>
+      </div>
+    </div>
 
-    <el-dialog v-model="dialogVisible" title="新增代付" width="520px">
-      <el-form :model="form" label-width="100px">
-        <el-form-item label="收款户名" required>
-          <el-input v-model="form.accountName" />
-        </el-form-item>
-        <el-form-item label="收款银行" required>
-          <el-input v-model="form.bankName" />
-        </el-form-item>
-        <el-form-item label="收款卡号">
-          <el-input v-model="form.bankCardNo" />
-        </el-form-item>
-        <el-form-item label="代付金额" required>
-          <el-input-number v-model="form.payoutAmount" :min="0" controls-position="right" style="width: 100%;" />
-        </el-form-item>
-        <el-form-item label="计划付款日" required>
-          <el-date-picker v-model="form.operateDate" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submit">确定</el-button>
-      </template>
-    </el-dialog>
+    <!-- 汇总条 -->
+    <div class="summary-row">
+      <span class="summary-chip">总支出 <strong>{{ formatMoney(summaryData.totalAmount) }}</strong></span>
+      <span class="summary-chip">待支付 <strong>{{ summaryData.pendingCount }}</strong> 笔</span>
+      <span class="summary-chip">已支付 <strong>{{ summaryData.paidCount }}</strong> 笔</span>
+    </div>
+
+    <!-- 数据表格 -->
+    <div class="card">
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>收款人</th>
+              <th>银行</th>
+              <th>卡号</th>
+              <th>支出金额</th>
+              <th>计划付款日</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody v-if="rows.length > 0">
+            <tr v-for="row in rows" :key="row.id">
+              <td>
+                <div class="cell-main">{{ row.accountName || '-' }}</div>
+              </td>
+              <td>{{ row.bankName || '-' }}</td>
+              <td>
+                <span class="mono">{{ row.bankCardNo ? row.bankCardNo.slice(0,4) + '****' + row.bankCardNo.slice(-4) : '-' }}</span>
+              </td>
+              <td class="mono num-neg">{{ formatMoney(row.payoutAmount || 0) }}</td>
+              <td>{{ row.operateDate || '-' }}</td>
+              <td>
+                <span :class="['pill', statusClass(row.status)]">{{ statusLabel(row.status) }}</span>
+              </td>
+              <td>
+                <div class="operation-cell">
+                  <button class="btn btn-ghost btn-sm">查看</button>
+                  <button class="btn btn-ghost btn-sm">明细</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+          <tbody v-else>
+            <tr>
+              <td :colspan="7" style="text-align: center; padding: 48px 0; color: var(--ink-400);">暂无数据</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </template>
 

@@ -13,11 +13,25 @@ export const asyncRoutes: RouteRecordRaw[] = [
     component: () => import('@/views/house/RentView.vue'),
     meta: { title: '租房管理', permission: 'house:rent' },
   },
+  // 租房新增 - 不在菜单显示
+  {
+    path: '/house/rent/create',
+    name: 'RentCreate',
+    component: () => import('@/views/house/RentFormView.vue'),
+    meta: { title: '新增租房', permission: 'house:rent', hidden: true },
+  },
   {
     path: '/house/sale',
     name: 'Sale',
     component: () => import('@/views/house/SaleView.vue'),
     meta: { title: '售房管理', permission: 'house:sale' },
+  },
+  // 售房新增 - 不在菜单显示
+  {
+    path: '/house/sale/create',
+    name: 'SaleCreate',
+    component: () => import('@/views/house/SaleFormView.vue'),
+    meta: { title: '新增售房', permission: 'house:sale', hidden: true },
   },
   {
     path: '/house/reserve-house',
@@ -26,10 +40,22 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '储备房源', permission: 'house:reserve_house' },
   },
   {
+    path: '/house/reserve-house/create',
+    name: 'ReserveHouseCreate',
+    component: () => import('@/views/house/ReserveHouseFormView.vue'),
+    meta: { title: '新增储备房源', permission: 'house:reserve_house', hidden: true },
+  },
+  {
     path: '/house/reserve-client',
     name: 'ReserveClient',
     component: () => import('@/views/house/ReserveClientView.vue'),
     meta: { title: '储备客源', permission: 'house:reserve_client' },
+  },
+  {
+    path: '/house/reserve-client/create',
+    name: 'ReserveClientCreate',
+    component: () => import('@/views/house/ReserveClientFormView.vue'),
+    meta: { title: '新增储备客源', permission: 'house:reserve_client', hidden: true },
   },
   {
     path: '/house/customer',
@@ -38,10 +64,22 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '客户管理', permission: 'house:customer' },
   },
   {
+    path: '/house/customer/create',
+    name: 'CustomerCreate',
+    component: () => import('@/views/house/CustomerFormView.vue'),
+    meta: { title: '新增客户', permission: 'house:customer', hidden: true },
+  },
+  {
     path: '/house/blacklist',
     name: 'Blacklist',
     component: () => import('@/views/house/BlacklistView.vue'),
     meta: { title: '黑名单', permission: 'house:customer' },
+  },
+  {
+    path: '/house/blacklist/create',
+    name: 'BlacklistCreate',
+    component: () => import('@/views/house/BlacklistFormView.vue'),
+    meta: { title: '新增黑名单', permission: 'house:customer', hidden: true },
   },
   {
     path: '/house/community',
@@ -50,11 +88,18 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '小区管理', permission: 'house:community' },
   },
   {
+    path: '/house/community/create',
+    name: 'CommunityCreate',
+    component: () => import('@/views/house/CommunityFormView.vue'),
+    meta: { title: '新增小区', permission: 'house:community', hidden: true },
+  },
+  {
     path: '/house/wizard',
     name: 'HouseWizard',
     component: () => import('@/views/wizard/HouseWizardView.vue'),
     meta: { title: '房源录入', permission: 'house:rent' },
   },
+  // ---- Finance ----
   {
     path: '/finance/bill',
     name: 'FinanceBill',
@@ -62,10 +107,22 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '账单', permission: 'finance:bill' },
   },
   {
+    path: '/finance/bill/create',
+    name: 'FinanceBillCreate',
+    component: () => import('@/views/finance/BillFormView.vue'),
+    meta: { title: '新增账单', permission: 'finance:bill', hidden: true },
+  },
+  {
     path: '/finance/daily-account',
     name: 'FinanceFlow',
     component: () => import('@/views/finance/FlowView.vue'),
     meta: { title: '流水账', permission: 'finance:flow' },
+  },
+  {
+    path: '/finance/daily-account/create',
+    name: 'FinanceFlowCreate',
+    component: () => import('@/views/finance/FlowFormView.vue'),
+    meta: { title: '新增流水', permission: 'finance:flow', hidden: true },
   },
   {
     path: '/finance/rent-increase',
@@ -116,10 +173,22 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '收支计划', permission: 'finance:plan' },
   },
   {
+    path: '/finance/plan/create',
+    name: 'FinancePlanCreate',
+    component: () => import('@/views/finance/PlanFormView.vue'),
+    meta: { title: '新增计划', permission: 'finance:plan', hidden: true },
+  },
+  {
     path: '/finance/payout',
     name: 'FinancePayout',
     component: () => import('@/views/finance/PayoutView.vue'),
     meta: { title: '代付管理', permission: 'finance:payout' },
+  },
+  {
+    path: '/finance/payout/create',
+    name: 'FinancePayoutCreate',
+    component: () => import('@/views/finance/PayoutFormView.vue'),
+    meta: { title: '新增代付', permission: 'finance:payout', hidden: true },
   },
   {
     path: '/finance/billing',
@@ -128,10 +197,23 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '开票管理', permission: 'finance:billing' },
   },
   {
+    path: '/finance/billing/create',
+    name: 'FinanceBillingCreate',
+    component: () => import('@/views/finance/BillingFormView.vue'),
+    meta: { title: '新增开票', permission: 'finance:billing', hidden: true },
+  },
+  // ---- System ----
+  {
     path: '/system/role',
     name: 'SystemRole',
     component: () => import('@/views/system/RoleView.vue'),
     meta: { title: '角色管理', permission: 'system:role' },
+  },
+  {
+    path: '/system/role/create',
+    name: 'SystemRoleCreate',
+    component: () => import('@/views/system/RoleFormView.vue'),
+    meta: { title: '新增角色', permission: 'system:role', hidden: true },
   },
   {
     path: '/system/permission',
@@ -146,9 +228,27 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '字典管理', permission: 'system:dictionary' },
   },
   {
+    path: '/system/dictionary/create',
+    name: 'SystemDictionaryCreate',
+    component: () => import('@/views/system/DictionaryFormView.vue'),
+    meta: { title: '新增字典', permission: 'system:dictionary', hidden: true },
+  },
+  {
     path: '/system/employee',
     name: 'SystemEmployee',
     component: () => import('@/views/system/EmployeeView.vue'),
     meta: { title: '人员管理', permission: 'system:employee' },
+  },
+  {
+    path: '/system/employee/create',
+    name: 'SystemEmployeeCreate',
+    component: () => import('@/views/system/EmployeeFormView.vue'),
+    meta: { title: '新增人员', permission: 'system:employee', hidden: true },
+  },
+  {
+    path: '/system/store/create',
+    name: 'SystemStoreCreate',
+    component: () => import('@/views/system/StoreFormView.vue'),
+    meta: { title: '新增门店', permission: 'system:store', hidden: true },
   },
 ];

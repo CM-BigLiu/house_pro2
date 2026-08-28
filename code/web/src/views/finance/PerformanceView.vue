@@ -48,8 +48,8 @@ async function submit() {
         <div class="page-desc">按员工业绩指标统计提成与排名</div>
       </div>
       <div class="page-actions">
-        <el-button type="primary" @click="openCreate">新增业绩</el-button>
-        <el-button v-permission="['finance:export']">导出</el-button>
+        <button class="btn btn-primary" @click="openCreate">新增业绩</button>
+        <button v-permission="['finance:export']" class="btn btn-default">导出</button>
       </div>
     </div>
 
@@ -124,8 +124,8 @@ async function submit() {
         </el-row>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submit">确定</el-button>
+        <button class="btn btn-default" @click="dialogVisible = false">取消</button>
+        <button class="btn btn-primary" @click="submit">确定</button>
       </template>
     </el-dialog>
   </div>

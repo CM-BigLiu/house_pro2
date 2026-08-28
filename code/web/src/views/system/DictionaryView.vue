@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   getDicts,
   getDictItems,
-  createDict,
-  updateDict,
   createDictItem,
   updateDictItem,
   deleteDictItem,
@@ -18,11 +17,8 @@ const treeData = ref<DictItem[]>([]);
 const flatItems = ref<DictItem[]>([]);
 const loading = ref(false);
 const activeDict = ref<Dict | null>(null);
-const dialogVisible = ref(false);
 const itemDialogVisible = ref(false);
-const isEdit = ref(false);
 const isItemEdit = ref(false);
-const form = reactive<Partial<Dict>>({ code: '', name: '', description: '' });
 const itemForm = reactive<Partial<DictItem>>({
   value: '',
   label: '',
@@ -31,6 +27,8 @@ const itemForm = reactive<Partial<DictItem>>({
   enabled: true,
   dictCode: '',
 });
+
+const router = useRouter();
 
 onMounted(loadDicts);
 
@@ -88,29 +86,9 @@ const parentValueOptions = computed(() => {
   return flatItems.value.filter((i) => !exclude.has(i.value));
 });
 
-function openCreate() {
-  isEdit.value = false;
-  Object.assign(form, { code: '', name: '', description: '' });
-  dialogVisible.value = true;
-}
-
 function openEdit(dict: Dict) {
-  isEdit.value = true;
-  Object.assign(form, { ...dict });
-  dialogVisible.value = true;
+  router.push(`/system/dictionary/create?edit=${dict.id}`);
 }
-
-async function submit() {
-  if (isEdit.value) {
-    await updateDict(form.id!, form);
-  } else {
-    await createDict(form);
-  }
-  ElMessage.success('保存成功');
-  dialogVisible.value = false;
-  await loadDicts();
-}
-
 function openCreateItem(parentValue?: string) {
   isItemEdit.value = false;
   Object.assign(itemForm, {
@@ -144,16 +122,6 @@ async function submitItem() {
   if (activeDict.value) await selectDict(activeDict.value);
 }
 
-async function toggleEnabled(row: DictItem) {
-  try {
-    await updateDictItem(row.id, { enabled: !row.enabled });
-    ElMessage.success('状态已更新');
-    if (activeDict.value) await selectDict(activeDict.value);
-  } catch (e) {
-    // reload keeps consistency
-  }
-}
-
 async function removeItem(data: DictItem) {
   if (data.children?.length) {
     ElMessage.warning('请先删除下级字典项');
@@ -178,83 +146,97 @@ async function removeItem(data: DictItem) {
         <div class="page-desc">维护业务枚举值与级联树形结构</div>
       </div>
       <div class="page-actions">
-        <el-button v-permission="['system:dictionary:edit']" type="primary" @click="openCreate">新增字典</el-button>
+        <button v-permission="['system:dictionary:edit']" class="btn btn-primary" @click="router.push('/system/dictionary/create')">新增字典</button>
       </div>
     </div>
 
-    <div class="dict-layout">
-      <div class="dict-list card">
-        <div class="list-header">字典类型</div>
-        <div
-          v-for="dict in dicts"
-          :key="dict.id"
-          class="dict-item"
-          :class="{ active: activeDict?.id === dict.id }"
-          @click="selectDict(dict)"
-        >
-          <span class="dict-name">{{ dict.name }}</span>
-          <span class="dict-code">{{ dict.code }}</span>
-        </div>
-      </div>
+    <div class="split-layout">
+      <!-- Left: dict type list -->
+      <aside class="tree-panel">
+        <div class="card-title">字典类型</div>
+        <ul class="tree">
+          <li
+            v-for="dict in dicts"
+            :key="dict.id"
+            :class="{ active: activeDict?.id === dict.id }"
+            @click="selectDict(dict)"
+          >
+            <span>
+              <span>{{ dict.name }}</span>
+              <span class="tree-count">{{ dict.code }}</span>
+            </span>
+          </li>
+        </ul>
+      </aside>
 
-      <div class="dict-detail card">
-        <div class="detail-header">
-          <div>
-            <div class="detail-title">{{ activeDict?.name }}</div>
-            <div class="detail-code">{{ activeDict?.code }}</div>
-          </div>
-          <div class="detail-actions">
-            <el-button v-permission="['system:dictionary:edit']" size="small" type="primary" plain @click="openCreateItem()">新增字典项</el-button>
-            <el-button v-permission="['system:dictionary:edit']" size="small" @click="openEdit(activeDict!)">编辑</el-button>
-          </div>
-        </div>
-
-        <el-tree :data="treeData" node-key="value" default-expand-all class="dict-tree">
-          <template #default="{ data }">
-            <div class="tree-node">
-              <div class="tree-label">
-                <span class="label-text">{{ data.label }}</span>
-                <span class="value-text">{{ data.value }}</span>
-              </div>
-              <div class="tree-meta">
-                <span class="sort-text">排序 {{ data.sort }}</span>
-                <el-switch
-                  v-permission="['system:dictionary:edit']"
-                  :model-value="data.enabled"
-                  inline-prompt
-                  active-text="启"
-                  inactive-text="禁"
-                  size="small"
-                  @change="toggleEnabled(data)"
-                />
-                <el-button v-permission="['system:dictionary:edit']" link type="primary" size="small" @click.stop="openCreateItem(data.value)">新增子项</el-button>
-                <el-button v-permission="['system:dictionary:edit']" link size="small" @click.stop="openEditItem(data)">编辑</el-button>
-                <el-button v-permission="['system:dictionary:edit']" link type="danger" size="small" @click.stop="removeItem(data)">删除</el-button>
-              </div>
+      <!-- Right: dict items table -->
+      <div class="split-main">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <span>{{ activeDict?.name || '请选择字典' }}</span>
+              <span v-if="activeDict" class="text-muted" style="font-weight: 400;">{{ activeDict.code }}</span>
             </div>
-          </template>
-        </el-tree>
+            <div style="display: flex; gap: 8px;">
+              <button v-permission="['system:dictionary:edit']" class="btn btn-primary btn-sm" @click="openCreateItem()">新增字典项</button>
+              <button v-permission="['system:dictionary:edit']" class="btn btn-default btn-sm" @click="openEdit(activeDict!)">编辑</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 40%;">字典键 / 标签</th>
+                  <th style="width: 20%;">字典值</th>
+                  <th style="width: 80px;">排序</th>
+                  <th style="width: 80px;">状态</th>
+                  <th style="width: 140px;">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="flatItems.length === 0">
+                  <td colspan="5" style="text-align: center; padding: 48px 0; color: var(--ink-400);">暂无字典项</td>
+                </tr>
+                <tr v-for="data in flatItems" :key="data.id">
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span class="cell-main">{{ data.label }}</span>
+                      <span v-if="data.parentValue" class="cell-sub">({{ data.parentValue }})</span>
+                    </div>
+                  </td>
+                  <td><span class="mono">{{ data.value }}</span></td>
+                  <td><span class="mono">{{ data.sort }}</span></td>
+                  <td>
+                    <span :class="['pill', data.enabled ? 'pill-green' : 'pill-gray']">{{ data.enabled ? '启用' : '禁用' }}</span>
+                  </td>
+                  <td>
+                    <div class="operation-cell">
+                      <button
+                        v-permission="['system:dictionary:edit']"
+                        class="btn btn-ghost btn-sm"
+                        @click="openCreateItem(data.value)"
+                      >新增子项</button>
+                      <button
+                        v-permission="['system:dictionary:edit']"
+                        class="btn btn-default btn-sm"
+                        @click="openEditItem(data)"
+                      >编辑</button>
+                      <button
+                        v-permission="['system:dictionary:edit']"
+                        class="btn btn-danger btn-sm"
+                        @click="removeItem(data)"
+                      >删除</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑字典' : '新增字典'" width="520px">
-      <el-form :model="form" label-width="80px">
-        <el-form-item label="编码" required>
-          <el-input v-model="form.code" :disabled="isEdit" />
-        </el-form-item>
-        <el-form-item label="名称" required>
-          <el-input v-model="form.name" />
-        </el-form-item>
-        <el-form-item label="说明">
-          <el-input v-model="form.description" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submit">确定</el-button>
-      </template>
-    </el-dialog>
-
+    <!-- Dict item edit dialog -->
     <el-dialog v-model="itemDialogVisible" :title="isItemEdit ? '编辑字典项' : '新增字典项'" width="480px">
       <el-form :model="itemForm" label-width="80px">
         <el-form-item label="值" required>
@@ -276,74 +258,13 @@ async function removeItem(data: DictItem) {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="itemDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitItem">确定</el-button>
+        <button class="btn btn-default" @click="itemDialogVisible = false">取消</button>
+        <button class="btn btn-primary" @click="submitItem">确定</button>
       </template>
     </el-dialog>
   </div>
 </template>
 
-<style scoped lang="scss">
+<style scoped>
 .system-view { min-height: 100%; }
-.dict-layout {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 16px;
-}
-.dict-list, .dict-detail {
-  padding: 16px;
-}
-.list-header, .detail-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink-900);
-  margin-bottom: 12px;
-}
-.dict-item {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  &:hover { background: var(--ink-50); }
-  &.active { background: var(--primary-soft); }
-}
-.dict-name { font-size: 13px; font-weight: 600; color: var(--ink-800); }
-.dict-code { font-size: 11px; color: var(--ink-400); }
-.detail-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.detail-code { font-size: 12px; color: var(--ink-400); margin-top: 2px; }
-.detail-actions { display: flex; gap: 8px; }
-.dict-tree {
-  .tree-node {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex: 1;
-    min-width: 0;
-  }
-  .tree-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-  }
-  .label-text { font-size: 13px; color: var(--ink-800); }
-  .value-text { font-size: 11px; color: var(--ink-400); }
-  .tree-meta {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .sort-text { font-size: 11px; color: var(--ink-400); }
-}
-@media (max-width: 768px) {
-  .dict-layout { grid-template-columns: 1fr; }
-  .tree-meta { display: none; }
-}
 </style>

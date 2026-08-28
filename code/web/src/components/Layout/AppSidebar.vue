@@ -30,10 +30,6 @@ const activeTop = computed(() => {
   return 'home';
 });
 
-const activeGroup = computed(() => {
-  return userStore.menus.find((m) => m.id === activeTop.value);
-});
-
 function iconFor(name?: string) {
   return iconMap[name || ''];
 }
@@ -45,19 +41,19 @@ function isActive(path?: string) {
 
 function onTopClick(menu: any) {
   if (menu.path) {
-    router.push(menu.path).catch((err) => console.warn('菜单跳转失败', menu.path, err));
+    router.push(menu.path).catch(() => {});
     return;
   }
-  // 无 path 的父菜单：跳转到第一个有 path 的子菜单
+  // 点击有子菜单的父项：切换展开/收起或跳转第一个子项
   const first = menu.children?.find((c: any) => c.path);
   if (first?.path) {
-    router.push(first.path).catch((err) => console.warn('菜单跳转失败', first.path, err));
+    router.push(first.path).catch(() => {});
   }
 }
 
 function onSubClick(child: any) {
   if (child.path) {
-    router.push(child.path).catch((err) => console.warn('子菜单跳转失败', child.path, err));
+    router.push(child.path).catch(() => {});
   }
 }
 
@@ -72,50 +68,55 @@ const logoUrl = ref('/logo.svg');
 <template>
   <aside class="sidebar">
     <div class="brand">
-      <div class="logo">
+      <div class="brand-icon">
         <img :src="logoUrl" alt="logo" />
       </div>
-      <div class="brand-text">
+      <div>
         <div class="brand-title">房屋租售 ERP</div>
-        <div class="brand-sub">Beta</div>
+        <div class="brand-sub">U-HOUSE · BETA</div>
       </div>
     </div>
 
-    <nav class="top-menu">
-      <div
-        v-for="menu in userStore.menus"
-        :key="menu.id"
-        class="top-item"
-        :class="{ active: activeTop === menu.id }"
-        @click="onTopClick(menu)"
-      >
-        <component :is="iconFor(menu.icon)" class="top-icon" :size="20" />
-        <span class="top-label">{{ menu.label }}</span>
-        <ChevronRight v-if="!menu.path" :size="14" class="top-arrow" />
-      </div>
+    <nav class="nav">
+      <div class="nav-label">主菜单</div>
+
+      <template v-for="menu in userStore.menus" :key="menu.id">
+        <!-- 一级菜单项 -->
+        <div
+          class="nav-item"
+          :class="{ active: activeTop === menu.id }"
+          @click="onTopClick(menu)"
+        >
+          <component :is="iconFor(menu.icon)" :size="20" />
+          <span>{{ menu.label }}</span>
+          <ChevronRight v-if="menu.children?.length" :size="14" class="nav-chevron" />
+        </div>
+
+        <!-- 二级子菜单：仅当该一级菜单被选中时显示 -->
+        <div v-if="activeTop === menu.id && menu.children?.length" class="subnav-group">
+          <div class="subnav-label">{{ menu.label }}</div>
+          <div
+            v-for="child in menu.children"
+            :key="child.id"
+            class="subnav-item"
+            :class="{ active: isActive(child.path) }"
+            @click="onSubClick(child)"
+          >
+            <span class="sub-dot" :class="{ active: isActive(child.path) }" />
+            <span>{{ child.label }}</span>
+          </div>
+        </div>
+      </template>
     </nav>
 
-    <div class="sub-menu" v-if="activeGroup?.children?.length">
-      <div class="sub-title">{{ activeGroup.label }}</div>
-      <div
-        v-for="child in activeGroup.children"
-        :key="child.id"
-        class="sub-item"
-        :class="{ active: isActive(child.path) }"
-        @click="onSubClick(child)"
-      >
-        <span class="sub-dot" :class="{ active: isActive(child.path) }" />
-        <span>{{ child.label }}</span>
+    <div class="sidebar-user">
+      <el-avatar :size="28" :src="userStore.userInfo?.avatar" class="user-avatar">{{ userStore.name?.[0] }}</el-avatar>
+      <div style="flex:1;min-width:0">
+        <div class="su-name">{{ userStore.name }}</div>
+        <div class="su-role">管理员</div>
       </div>
-    </div>
-
-    <div class="side-footer">
-      <div class="user-mini">
-        <el-avatar :size="28" :src="userStore.userInfo?.avatar">{{ userStore.name?.[0] }}</el-avatar>
-        <span class="user-name">{{ userStore.name }}</span>
-      </div>
-      <button class="logout-btn" @click="onLogout">
-        <LogOut :size="16" />
+      <button class="logout-btn" @click="onLogout" title="退出登录">
+        <LogOut :size="15" />
       </button>
     </div>
   </aside>
@@ -123,150 +124,81 @@ const logoUrl = ref('/logo.svg');
 
 <style scoped lang="scss">
 .sidebar {
-  position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: var(--sidebar-width);
-  background: var(--side-bg);
+  width: var(--sidebar-width); position: fixed; inset: 0 auto 0 0; z-index: 50;
+  display: flex; flex-direction: column;
+  background: linear-gradient(178deg, var(--side-bg) 0%, var(--side-bg-2) 60%, #0c1424 100%);
   color: var(--side-text);
-  display: flex;
-  flex-direction: column;
-  z-index: 100;
+  box-shadow: 4px 0 24px -12px rgba(8, 15, 34, 0.6);
 }
 .brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 18px 18px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  height: var(--header-height); display: flex; align-items: center; gap: 11px;
+  padding: 0 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); flex: none;
 }
-.logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--primary), #6ba3ff);
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  color: #fff;
-  img {
-    width: 20px;
-    height: 20px;
-    filter: brightness(0) invert(1);
-  }
+.brand-icon {
+  width: 34px; height: 34px; border-radius: 9px; flex: none;
+  background: linear-gradient(135deg, #4d8bff 0%, #2e6bf0 55%, #1e56d6 100%);
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  box-shadow: 0 4px 12px -2px rgba(46, 107, 240, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  img { width: 18px; height: 18px; filter: brightness(0) invert(1); }
 }
-.brand-text {
-  flex: 1;
+.brand-title { font-weight: 700; font-size: 15.5px; color: #f1f5fb; letter-spacing: 0.5px; }
+.brand-sub { font-size: 10.5px; color: rgba(255, 255, 255, 0.35); letter-spacing: 1.5px; margin-top: 1px; }
+
+.nav { flex: 1; overflow-y: auto; padding: 12px 12px 24px; }
+.nav::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); }
+.nav-label {
+  padding: 10px 10px 6px; font-size: 10.5px; color: rgba(147, 161, 184, 0.55);
+  text-transform: uppercase; letter-spacing: 1.6px;
 }
-.brand-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #e6ecf6;
-  letter-spacing: 0.3px;
+.nav-item {
+  display: flex; align-items: center; gap: 11px; padding: 9.5px 12px; margin-bottom: 2px;
+  color: var(--side-text); border-radius: var(--radius-sm); position: relative;
+  transition: background 0.18s, color 0.18s; font-size: 13.5px; cursor: pointer; user-select: none;
 }
-.brand-sub {
-  font-size: 11px;
-  color: #64748b;
-  margin-top: 2px;
+.nav-item:hover { background: rgba(255, 255, 255, 0.06); color: #e6ecf6; }
+.nav-item.active {
+  background: linear-gradient(90deg, rgba(46, 107, 240, 0.95), rgba(46, 107, 240, 0.75));
+  color: #fff; font-weight: 600;
+  box-shadow: 0 6px 16px -6px rgba(46, 107, 240, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
-.top-menu {
-  padding: 14px 12px;
+.nav-chevron { margin-left: auto; opacity: 0.45; transition: transform 0.22s; width: 14px; height: 14px; }
+
+/* subnav-group: 子菜单容器 - 缩进 + 左侧竖线区分 */
+.subnav-group {
+  margin: 2px 0 6px 8px;
+  padding-left: 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
 }
-.top-item {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 11px 12px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 0.18s ease;
-  margin-bottom: 4px;
-  &:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: #e6ecf6;
-  }
-  &.active {
-    background: rgba(46, 107, 240, 0.18);
-    color: #fff;
-  }
+.subnav-label {
+  font-size: 10.5px; color: rgba(147, 161, 184, 0.4);
+  padding: 6px 10px 4px; letter-spacing: 1.2px;
 }
-.top-icon {
-  flex-shrink: 0;
+.subnav-item {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px; margin: 1px 0;
+  color: rgba(225, 232, 245, 0.7); border-radius: 6px; font-size: 13px;
+  cursor: pointer; transition: all 0.15s; position: relative;
 }
-.top-label {
-  flex: 1;
-  font-size: 13.5px;
-  font-weight: 600;
-}
-.top-arrow {
-  opacity: 0.5;
-}
-.sub-menu {
-  flex: 1;
-  overflow: auto;
-  padding: 10px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-.sub-title {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: #64748b;
-  padding: 10px 12px 6px;
-}
-.sub-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.18s ease;
-  color: #93a1b8;
-  &:hover {
-    background: rgba(255, 255, 255, 0.04);
-    color: #e6ecf6;
-  }
-  &.active {
-    background: rgba(46, 107, 240, 0.14);
-    color: #fff;
-  }
+.subnav-item:hover { color: #e6ecf6; background: rgba(255, 255, 255, 0.05); }
+.subnav-item.active {
+  color: #7fa8ff; background: rgba(46, 107, 240, 0.14); font-weight: 600;
 }
 .sub-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #475569;
-  &.active {
-    background: var(--primary);
-  }
+  width: 5px; height: 5px; border-radius: 50%; background: #475569; flex: none;
+  &.active { background: #5b8cff; box-shadow: 0 0 6px rgba(91, 140, 255, 0.6); }
 }
-.side-footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+
+.sidebar-user {
+  flex: none; margin: 10px 12px 14px; padding: 10px 12px; border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex; align-items: center; gap: 10px;
 }
-.user-mini {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.user-name {
-  font-size: 13px;
-  color: #e6ecf6;
-  font-weight: 600;
-}
+.sidebar-user :deep(.user-avatar) { background: rgba(91, 140, 255, 0.18); color: #9dbcff; }
+.su-name { font-size: 12.5px; color: #e6ecf6; font-weight: 600; }
+.su-role { font-size: 11px; color: rgba(147, 161, 184, 0.7); }
+
 .logout-btn {
-  color: #93a1b8;
-  padding: 6px;
-  border-radius: 6px;
-  &:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-  }
+  color: #93a1b8; padding: 4px; border-radius: 6px; flex: none;
+  &:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
 }
 </style>

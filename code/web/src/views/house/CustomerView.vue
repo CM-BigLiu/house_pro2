@@ -1,18 +1,34 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { getCustomers, createCustomer, type Customer } from '@/api/customer';
-import { checkBlacklist } from '@/api/blacklist';
+import { ref, reactive, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { getCustomers, type Customer } from '@/api/customer';
 import { useDictStore } from '@/stores/dict';
 
+const router = useRouter();
 const dictStore = useDictStore();
 const list = ref<Customer[]>([]);
 const loading = ref(false);
-const dialogVisible = ref(false);
-const form = reactive<Partial<Customer>>({
-  name: '', phone: '', identity: 'tenant', status: 'not_rented', source: '', remark: '',
+const total = ref(0);
+const query = reactive({ keyword: '', identity: '', status: '', district: '', budgetMin: '', budgetMax: '', page: 1, pageSize: 10 });
+const currentPage = ref(1);
+const pageSize = ref(10);
+const activeTab = ref('all');
+
+const statusMap: Record<string, string> = {
+  all: '全部客户',
+  rent_a: '求租 A',
+  rent_b: '求租 B',
+  buy: '求购',
+  done: '已成交',
+  invalid: '已失效',
+};
+
+const stats = computed(() => {
+  const all = list.value.length;
+  const rent = list.value.filter((i: Customer) => i.identity === 'tenant').length;
+  const buy = list.value.filter((i: Customer) => i.identity === 'shareholder').length;
+  return { all, rent, buy };
 });
-const query = reactive({ keyword: '', identity: '' });
 
 onMounted(async () => {
   await dictStore.ensureLoaded(['identity', 'customer_status', 'source_channel']);
@@ -22,42 +38,54 @@ onMounted(async () => {
 async function load() {
   loading.value = true;
   try {
-    const res = await getCustomers(query);
+    const res = await getCustomers({ keyword: query.keyword, identity: query.identity });
     list.value = res.list;
+    total.value = res.total ?? res.list.length;
   } finally {
     loading.value = false;
   }
 }
 
+function onTabChange(tab: string) {
+  activeTab.value = tab;
+  if (tab === 'all') query.status = '';
+  else query.status = tab;
+  currentPage.value = 1;
+  load();
+}
+
+function onSearch() {
+  currentPage.value = 1;
+  load();
+}
+
+function onReset() {
+  Object.assign(query, { keyword: '', identity: '', status: '', district: '', budgetMin: '', budgetMax: '', page: 1, pageSize: 10 });
+  activeTab.value = 'all';
+  currentPage.value = 1;
+  load();
+}
+
+function onPageChange(page: number) {
+  currentPage.value = page;
+  load();
+}
+
 function openCreate() {
-  Object.assign(form, { name: '', phone: '', identity: 'tenant', status: 'not_rented', source: '', remark: '' });
-  dialogVisible.value = true;
+  router.push('/house/customer/create');
 }
 
-async function checkCustomerBlacklist() {
-  if (!form.phone || form.phone.length < 7) return;
-  const hits = (await checkBlacklist(form.phone)) || [];
-  const hit = hits[0];
-  if (hit) {
-    ElMessageBox.confirm(
-      `该客户命中黑名单：${hit.name}\n原因：${hit.reason}\n来源：${hit.source || '系统录入'}`,
-      '黑名单预警',
-      {
-        confirmButtonText: '继续保存（需特批）',
-        cancelButtonText: '取消',
-        type: 'warning',
-      },
-    ).catch(() => {
-      form.phone = '';
-    });
-  }
-}
-
-async function submit() {
-  await createCustomer(form);
-  ElMessage.success('创建成功');
-  dialogVisible.value = false;
-  await load();
+function statusPillClass(status: string) {
+  const map: Record<string, string> = {
+    not_rented: 'pill-orange',
+    pending: 'pill-orange',
+    following: 'pill-blue',
+    rented: 'pill-green',
+    sold: 'pill-green',
+    done: 'pill-green',
+    invalid: 'pill-gray',
+  };
+  return map[status] || 'pill-gray';
 }
 
 function identityClass(id: string) {
@@ -73,89 +101,125 @@ function identityClass(id: string) {
 
 <template>
   <div class="house-view">
+    <!-- Page Header -->
     <div class="page-header">
-      <div>
-        <div class="page-title">客户管理</div>
-        <div class="page-desc">租客、房东、供应商等客户档案统一管理</div>
-      </div>
+      <div class="page-title">客源管理</div>
       <div class="page-actions">
-        <el-button type="primary" @click="openCreate">新增客户</el-button>
+        <button class="btn btn-primary" @click="openCreate">新增客源</button>
       </div>
     </div>
 
-    <div class="filter-bar">
-      <el-input v-model="query.keyword" placeholder="姓名/电话" clearable @keyup.enter="load" />
-      <el-select v-model="query.identity" placeholder="身份" clearable @change="load">
-        <el-option
-          v-for="item in dictStore.getItems('identity')"
-          :key="item.value"
-          :label="item.label"
-          :value="item.value"
-        />
-      </el-select>
-      <el-button type="primary" @click="load">查询</el-button>
+    <!-- Status Tabs -->
+    <div class="status-tabs">
+      <button
+        v-for="(label, key) in statusMap"
+        :key="key"
+        :class="['status-tab', { active: activeTab === key }]"
+        @click="onTabChange(key)"
+      >
+        {{ label }}
+      </button>
     </div>
 
-    <el-table :data="list" v-loading="loading" class="card">
-      <el-table-column prop="name" label="姓名" />
-      <el-table-column prop="phone" label="电话" />
-      <el-table-column label="身份">
-        <template #default="{ row }">
-          <span :class="['pill', identityClass(row.identity)]">{{ dictStore.getLabel('identity', row.identity) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="状态">
-        <template #default="{ row }">
-          <span class="pill pill-gray">{{ dictStore.getLabel('customer_status', row.status) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="storeName" label="所属店面" />
-      <el-table-column prop="employeeName" label="维护人" />
-      <el-table-column prop="createdAt" label="创建时间" />
-      <el-table-column label="操作" width="120">
-        <template #default="{}">
-          <el-button size="small" type="primary" plain>编辑</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <input
+        v-model="query.keyword"
+        class="filter-input"
+        placeholder="姓名 / 电话"
+        @keyup.enter="onSearch"
+      />
+      <select v-model="query.identity" class="filter-select">
+        <option value="">需求类型</option>
+        <option value="tenant">求租</option>
+        <option value="shareholder">求购</option>
+      </select>
+      <div class="filter-range">
+        <input v-model="query.budgetMin" class="filter-input range-input" placeholder="预算 min" />
+        <span class="range-sep">~</span>
+        <input v-model="query.budgetMax" class="filter-input range-input" placeholder="预算 max" />
+      </div>
+      <select v-model="query.district" class="filter-select">
+        <option value="">区域</option>
+      </select>
+      <button class="btn btn-primary btn-sm" @click="onSearch">筛选</button>
+      <button class="btn btn-ghost btn-sm" @click="onReset">重置</button>
+    </div>
 
-    <el-dialog v-model="dialogVisible" title="新增客户" width="500px">
-      <el-form :model="form" label-width="80px">
-        <el-form-item label="姓名" required>
-          <el-input v-model="form.name" />
-        </el-form-item>
-        <el-form-item label="电话">
-          <el-input v-model="form.phone" @blur="checkCustomerBlacklist" />
-        </el-form-item>
-        <el-form-item label="身份">
-          <el-select v-model="form.identity" style="width: 100%;">
-            <el-option
-              v-for="item in dictStore.getItems('identity')"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="来源">
-          <el-select v-model="form.source" style="width: 100%;">
-            <el-option
-              v-for="item in dictStore.getItems('source_channel')"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submit">确定</el-button>
-      </template>
-    </el-dialog>
+    <!-- Summary Row -->
+    <div class="summary-row">
+      <span class="summary-chip">客源总数 {{ stats.all }}</span>
+      <span class="summary-chip">· 求租 {{ stats.rent }}</span>
+      <span class="summary-chip">· 求购 {{ stats.buy }}</span>
+    </div>
+
+    <!-- Data Table -->
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>姓名</th>
+            <th>电话</th>
+            <th>需求类型</th>
+            <th>预算范围</th>
+            <th>期望区域</th>
+            <th>跟进人</th>
+            <th>状态</th>
+            <th>跟进时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="list.length === 0">
+            <td colspan="9" class="empty-row">暂无数据</td>
+          </tr>
+          <tr v-for="item in list" :key="item.id">
+            <td>
+              <div class="cell-sub">{{ item.name }}</div>
+            </td>
+            <td>{{ item.phone }}</td>
+            <td>
+              <span :class="['pill', identityClass(item.identity)]">
+                {{ dictStore.getLabel('identity', item.identity) }}
+              </span>
+            </td>
+            <td>—</td>
+            <td>—</td>
+            <td>{{ item.employeeName || '—' }}</td>
+            <td>
+              <span :class="['pill', statusPillClass(item.status)]">
+                {{ dictStore.getLabel('customer_status', item.status) }}
+              </span>
+            </td>
+            <td>{{ item.createdAt || '—' }}</td>
+            <td class="operation-cell">
+              <button class="btn btn-sm btn-ghost">编辑</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="table-footer">
+      <div class="pagination">
+        <button
+          class="page-btn"
+          :disabled="currentPage <= 1"
+          @click="onPageChange(currentPage - 1)"
+        >
+          上一页
+        </button>
+        <span class="page-info">第 {{ currentPage }} 页 / 共 {{ Math.ceil(total / pageSize) }} 页</span>
+        <button
+          class="page-btn"
+          :disabled="currentPage >= Math.ceil(total / pageSize)"
+          @click="onPageChange(currentPage + 1)"
+        >
+          下一页
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 

@@ -1,62 +1,46 @@
 <script setup lang="ts">
-defineProps<{
+withDefaults(defineProps<{
   title: string;
-  value: string | number;
-  label?: string;
-  icon?: any;
-  color?: string;
-}>();
+}>(), {});
+
+// LargeCard is a container: renders header + default slot for stat grid content
 </script>
 
 <template>
   <div class="large-card">
-    <div class="large-icon" :style="{ background: color || 'var(--primary-soft)' }">
-      <component :is="icon" v-if="icon" :size="24" :color="color ? '#fff' : 'var(--primary)'" />
+    <div class="lc-header">
+      <div class="lc-title">{{ title }}</div>
+      <a class="lc-more" href="#">详情 &gt;</a>
     </div>
-    <div class="large-body">
-      <div class="large-value">{{ value }}</div>
-      <div class="large-title">{{ title }}</div>
-      <div v-if="label" class="large-label">{{ label }}</div>
+    <div class="lc-body">
+      <slot />
     </div>
   </div>
 </template>
 
-<style scoped lang="scss">
+<style scoped>
 .large-card {
   background: #fff;
-  border: 1px solid var(--ink-200);
-  border-radius: var(--radius);
-  padding: 18px;
+  border: 1px solid #e4e9f0;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(16,24,40,0.07);
   display: flex;
-  align-items: center;
-  gap: 14px;
-  box-shadow: var(--shadow-sm);
+  flex-direction: column;
 }
-.large-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius);
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
+.lc-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f4f9;
 }
-.large-body {
+.lc-title {
+  font-size: 14px; font-weight: 700; color: #1e293b;
+}
+.lc-more {
+  font-size: 12px; color: #3b82f6; text-decoration: none;
+}
+.lc-more:hover { text-decoration: underline; }
+.lc-body {
+  padding: 14px 16px;
   flex: 1;
-}
-.large-value {
-  font-family: var(--font-num);
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ink-900);
-}
-.large-title {
-  font-size: 12.5px;
-  color: var(--ink-500);
-  margin-top: 3px;
-}
-.large-label {
-  font-size: 11px;
-  color: var(--ink-400);
-  margin-top: 6px;
 }
 </style>

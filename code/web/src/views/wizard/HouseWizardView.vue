@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Check, MapPin, Home, User, FileText } from 'luci
 import { getCommunities, getCommunityBuildings, getCommunityUnits, getCommunityFloors, getCommunityRooms, type Community } from '@/api/community';
 import { createRentalSet, createSaleProperty, createReserveProperty, uploadImage } from '@/api/wizard';
 import { checkBlacklist } from '@/api/blacklist';
+import { generateHouseCode } from '@/utils/code';
 import { useDictStore } from '@/stores/dict';
 import { useUserStore } from '@/stores/user';
 
@@ -333,9 +334,7 @@ async function submit() {
 }
 
 function generateCode(prefix: string) {
-  const now = new Date();
-  const suffix = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(Math.floor(Math.random() * 9000) + 1000)}`;
-  return `${prefix}${suffix}`;
+  return generateHouseCode(prefix);
 }
 </script>
 

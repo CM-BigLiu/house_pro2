@@ -54,8 +54,8 @@ function statusClass(status: string) {
         <div class="page-desc">租客、房东、供应商欠款及回款跟踪</div>
       </div>
       <div class="page-actions">
-        <el-button type="primary" @click="openCreate">登记欠款</el-button>
-        <el-button v-permission="['finance:export']">导出</el-button>
+        <button class="btn btn-primary" @click="openCreate">登记欠款</button>
+        <button v-permission="['finance:export']" class="btn btn-default">导出</button>
       </div>
     </div>
 
@@ -127,8 +127,8 @@ function statusClass(status: string) {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submit">确定</el-button>
+        <button class="btn btn-default" @click="dialogVisible = false">取消</button>
+        <button class="btn btn-primary" @click="submit">确定</button>
       </template>
     </el-dialog>
   </div>

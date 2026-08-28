@@ -1,18 +1,15 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { getBlacklist, createBlacklist, updateBlacklist, deleteBlacklist, type Blacklist } from '@/api/blacklist';
+import { getBlacklist, deleteBlacklist, type Blacklist } from '@/api/blacklist';
 import { useDictStore } from '@/stores/dict';
 
+const router = useRouter();
 const dictStore = useDictStore();
 const list = ref<Blacklist[]>([]);
 const total = ref(0);
 const loading = ref(false);
-const dialogVisible = ref(false);
-const isEdit = ref(false);
-const form = reactive<Partial<Blacklist>>({
-  name: '', mobile: '', idCard: '', type: 'tenant', reason: '', source: '', status: 'active',
-});
 const query = reactive({ keyword: '', type: '', status: '', page: 1, pageSize: 20 });
 
 onMounted(async () => {
@@ -31,29 +28,8 @@ async function load() {
   }
 }
 
-function openCreate() {
-  isEdit.value = false;
-  Object.assign(form, { name: '', mobile: '', idCard: '', type: 'tenant', reason: '', source: '', status: 'active' });
-  dialogVisible.value = true;
-}
-
 function openEdit(item: Blacklist) {
-  isEdit.value = true;
-  Object.assign(form, { ...item });
-  dialogVisible.value = true;
-}
-
-async function submit() {
-  if (!form.name?.trim()) return ElMessage.warning('请填写姓名');
-  if (!form.reason?.trim()) return ElMessage.warning('请填写原因');
-  if (isEdit.value) {
-    await updateBlacklist(form.id!, form);
-  } else {
-    await createBlacklist(form);
-  }
-  ElMessage.success(isEdit.value ? '更新成功' : '创建成功');
-  dialogVisible.value = false;
-  await load();
+  ElMessage.info('编辑功能待对接: ' + item.name);
 }
 
 async function remove(item: Blacklist) {
@@ -72,119 +48,170 @@ function typeClass(type: string) {
   };
   return map[type] || 'pill-gray';
 }
+
+function handleSearch() {
+  query.page = 1;
+  load();
+}
 </script>
 
 <template>
   <div class="house-view">
+    <!-- Page Header -->
     <div class="page-header">
       <div>
         <div class="page-title">黑名单管理</div>
         <div class="page-desc">租客、房东、供应商等失信人员统一管理</div>
       </div>
       <div class="page-actions">
-        <el-button type="primary" @click="openCreate">新增黑名单</el-button>
+        <button class="btn btn-primary" @click="router.push('/house/blacklist/create')">新增黑名单</button>
       </div>
     </div>
 
+    <!-- Filter Bar -->
     <div class="filter-bar">
-      <el-input v-model="query.keyword" placeholder="姓名/电话/身份证" clearable @keyup.enter="load" />
-      <el-select v-model="query.type" placeholder="类型" clearable @change="load">
+      <el-input v-model="query.keyword" placeholder="姓名/电话/身份证" clearable @keyup.enter="handleSearch" class="filter-input" />
+      <el-select v-model="query.type" placeholder="类型" clearable @change="handleSearch" class="filter-select">
         <el-option v-for="item in dictStore.getItems('blacklist_type')" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
-      <el-select v-model="query.status" placeholder="状态" clearable @change="load">
+      <el-select v-model="query.status" placeholder="状态" clearable @change="handleSearch" class="filter-select">
         <el-option v-for="item in dictStore.getItems('blacklist_status')" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
-      <el-button type="primary" @click="load">查询</el-button>
+      <el-button type="primary" @click="handleSearch">查询</el-button>
     </div>
 
-    <el-table :data="list" v-loading="loading" class="card">
-      <el-table-column prop="name" label="姓名" />
-      <el-table-column prop="mobile" label="电话" />
-      <el-table-column prop="idCard" label="身份证" />
-      <el-table-column label="类型">
-        <template #default="{ row }">
-          <span :class="['pill', typeClass(row.type)]">{{ dictStore.getLabel('blacklist_type', row.type) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="reason" label="原因" show-overflow-tooltip />
-      <el-table-column prop="source" label="来源" />
-      <el-table-column label="状态">
-        <template #default="{ row }">
-          <span :class="['pill', row.status === 'active' ? 'pill-red' : 'pill-gray']">{{ dictStore.getLabel('blacklist_status', row.status) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="createdAt" label="创建时间" />
-      <el-table-column label="操作" width="160">
-        <template #default="{ row }">
-          <el-button size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
-          <el-button size="small" type="danger" plain @click="remove(row)">移除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <div class="pagination-bar">
-      <el-pagination
-        v-model:current-page="query.page"
-        v-model:page-size="query.pageSize"
-        :total="total"
-        layout="total, prev, pager, next"
-        @change="load"
-      />
+    <!-- Data Table -->
+    <div class="card table-wrap">
+      <el-table :data="list" v-loading="loading" class="data-table" style="width: 100%">
+        <el-table-column prop="name" label="姓名" min-width="100">
+          <template #default="{ row }">
+            <span class="cell-main">{{ row.name }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="mobile" label="手机号" min-width="130">
+          <template #default="{ row }">
+            <span class="mono">{{ row.mobile || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="类型" min-width="90">
+          <template #default="{ row }">
+            <span :class="['pill', typeClass(row.type)]">{{ dictStore.getLabel('blacklist_type', row.type) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="reason" label="拉黑原因" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="createdAt" label="拉黑时间" min-width="110">
+          <template #default="{ row }">
+            <span class="mono">{{ row.createdAt || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="source" label="操作人" min-width="100" />
+        <el-table-column label="状态" min-width="80">
+          <template #default="{ row }">
+            <span :class="['pill', row.status === 'active' ? 'pill-red' : 'pill-gray']">{{ dictStore.getLabel('blacklist_status', row.status) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="150" fixed="right">
+          <template #default="{ row }">
+            <div class="operation-cell">
+              <el-button size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
+              <el-button size="small" type="danger" plain @click="remove(row)">移除</el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="table-footer">
+        <span class="table-total">共 {{ total }} 条</span>
+        <div class="pagination">
+          <el-pagination
+            v-model:current-page="query.page"
+            v-model:page-size="query.pageSize"
+            :total="total"
+            layout="prev, pager, next"
+            small
+            @change="load"
+          />
+        </div>
+      </div>
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑黑名单' : '新增黑名单'" width="520px">
-      <el-form :model="form" label-width="90px">
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="姓名" required>
-              <el-input v-model="form.name" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="类型" required>
-              <el-select v-model="form.type" style="width: 100%;">
-                <el-option v-for="item in dictStore.getItems('blacklist_type')" :key="item.value" :label="item.label" :value="item.value" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="电话">
-              <el-input v-model="form.mobile" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="身份证">
-              <el-input v-model="form.idCard" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="原因" required>
-          <el-input v-model="form.reason" type="textarea" :rows="2" />
-        </el-form-item>
-        <el-form-item label="来源">
-          <el-input v-model="form.source" />
-        </el-form-item>
-        <el-form-item v-if="isEdit" label="状态">
-          <el-select v-model="form.status" style="width: 100%;">
-            <el-option v-for="item in dictStore.getItems('blacklist_status')" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submit">确定</el-button>
-      </template>
-    </el-dialog>
+    <!-- Dialog -->
   </div>
 </template>
 
 <style scoped lang="scss">
 .house-view { min-height: 100%; }
-.pagination-bar {
+
+/* ---- Filter Bar ---- */
+.filter-bar {
+  background: #fff;
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
   display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.filter-input { width: 220px; }
+.filter-select { width: 130px; }
+
+/* ---- Table ---- */
+.table-wrap {
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.data-table {
+  :deep(.el-table__header th) {
+    background: var(--ink-50);
+    color: var(--ink-500);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.2px;
+  }
+  :deep(.el-table__body tr:hover td) {
+    background: var(--primary-softer);
+  }
+  :deep(.el-table__body td) {
+    color: var(--ink-700);
+    font-size: 13px;
+  }
+}
+.cell-main {
+  font-weight: 600;
+  color: var(--ink-800);
+}
+.mono {
+  font-family: var(--font-num);
+}
+.operation-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* ---- Table Footer ---- */
+.table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: #fff;
+  border-top: 1px solid var(--ink-100);
+}
+.table-total {
+  font-size: 13px;
+  color: var(--ink-500);
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+  .filter-bar { flex-direction: column; align-items: stretch; }
+  .filter-input, .filter-select { width: 100%; }
 }
 </style>

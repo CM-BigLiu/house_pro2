@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
-import { getFlows, createFlow, type Flow } from '@/api/finance';
+import { useRouter } from 'vue-router';
+import { getFlows, type Flow } from '@/api/finance';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
 
+const router = useRouter();
 const dictStore = useDictStore();
 const list = ref<Flow[]>([]);
 const loading = ref(false);
-const dialogVisible = ref(false);
-const form = reactive<Partial<Flow>>({
-  title: '', type: 'income', amount: 0, paymentType: '', houseTitle: '', customerName: '', flowDate: '',
-});
 const query = reactive({ keyword: '', type: '' });
 
 onMounted(async () => {
@@ -29,18 +26,6 @@ async function load() {
   }
 }
 
-function openCreate() {
-  Object.assign(form, { title: '', type: 'income', amount: 0, paymentType: '', houseTitle: '', customerName: '', flowDate: '' });
-  dialogVisible.value = true;
-}
-
-async function submit() {
-  await createFlow(form);
-  ElMessage.success('创建成功');
-  dialogVisible.value = false;
-  await load();
-}
-
 function typeClass(type: string) {
   return type === 'income' ? 'pill-green' : 'pill-red';
 }
@@ -54,7 +39,7 @@ function typeClass(type: string) {
         <div class="page-desc">记录每一笔收入与支出流水，关联房源与客户</div>
       </div>
       <div class="page-actions">
-        <el-button type="primary" @click="openCreate">记一笔</el-button>
+        <button class="btn btn-primary" @click="router.push('/finance/daily-account/create')">记一笔</button>
         <el-button v-permission="['finance:export']">导出</el-button>
       </div>
     </div>
@@ -94,40 +79,6 @@ function typeClass(type: string) {
         </template>
       </el-table-column>
     </el-table>
-
-    <el-dialog v-model="dialogVisible" title="记一笔" width="520px">
-      <el-form :model="form" label-width="80px">
-        <el-form-item label="摘要" required>
-          <el-input v-model="form.title" />
-        </el-form-item>
-        <el-form-item label="类型">
-          <el-radio-group v-model="form.type">
-            <el-radio label="income">收入</el-radio>
-            <el-radio label="expense">支出</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="金额">
-          <el-input-number v-model="form.amount" :min="0" controls-position="right" style="width: 100%;" />
-        </el-form-item>
-        <el-form-item label="支付方式">
-          <el-select v-model="form.paymentType" style="width: 100%;">
-            <el-option
-              v-for="item in dictStore.getItems('payment_type')"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="日期">
-          <el-date-picker v-model="form.flowDate" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submit">确定</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 

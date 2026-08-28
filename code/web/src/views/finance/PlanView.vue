@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
-import { getPaymentPlans, createPaymentPlan, type PaymentPlan } from '@/api/finance';
+import { useRouter } from 'vue-router';
+import { getPaymentPlans, type PaymentPlan } from '@/api/finance';
 
+const router = useRouter();
 const list = ref<PaymentPlan[]>([]);
 const total = ref(0);
 const loading = ref(false);
-const dialogVisible = ref(false);
-const form = reactive<Partial<PaymentPlan>>({
-  planType: 'income', billingCategory: '', reason: '', totalPeriods: 1, totalAmount: 0,
-});
 const query = reactive({ planType: '', status: '', page: 1, pageSize: 20 });
 
 onMounted(load);
@@ -25,18 +22,6 @@ async function load() {
   }
 }
 
-function openCreate() {
-  Object.assign(form, { planType: 'income', billingCategory: '', reason: '', totalPeriods: 1, totalAmount: 0 });
-  dialogVisible.value = true;
-}
-
-async function submit() {
-  await createPaymentPlan(form);
-  ElMessage.success('创建成功');
-  dialogVisible.value = false;
-  await load();
-}
-
 function typeClass(type: string) {
   return type === 'income' ? 'pill-green' : 'pill-orange';
 }
@@ -50,7 +35,7 @@ function typeClass(type: string) {
         <div class="page-desc">管理应收应支计划、分期与审批状态</div>
       </div>
       <div class="page-actions">
-        <el-button type="primary" @click="openCreate">新增计划</el-button>
+        <button class="btn btn-primary" @click="router.push('/finance/plan/create')">新增计划</button>
       </div>
     </div>
 
@@ -85,33 +70,6 @@ function typeClass(type: string) {
     <div class="pagination-bar">
       <el-pagination v-model:current-page="query.page" v-model:page-size="query.pageSize" :total="total" layout="total, prev, pager, next" @change="load" />
     </div>
-
-    <el-dialog v-model="dialogVisible" title="新增收支计划" width="520px">
-      <el-form :model="form" label-width="90px">
-        <el-form-item label="类型">
-          <el-radio-group v-model="form.planType">
-            <el-radio label="income">应收</el-radio>
-            <el-radio label="expense">应支</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="款项种类">
-          <el-input v-model="form.billingCategory" />
-        </el-form-item>
-        <el-form-item label="原因">
-          <el-input v-model="form.reason" />
-        </el-form-item>
-        <el-form-item label="总期数">
-          <el-input-number v-model="form.totalPeriods" :min="1" controls-position="right" style="width: 100%;" />
-        </el-form-item>
-        <el-form-item label="总金额">
-          <el-input-number v-model="form.totalAmount" :min="0" :precision="2" controls-position="right" style="width: 100%;" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submit">确定</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
