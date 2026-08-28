@@ -7,6 +7,7 @@ import { PermissionController } from './controllers/permission.controller';
 import { StoreController } from './controllers/store.controller';
 import { StatusController } from './controllers/status.controller';
 import { ApprovalController } from './controllers/approval.controller';
+import { PositionController } from './controllers/position.controller';
 import { DictService } from './services/dict.service';
 import { EmployeeService } from './services/employee.service';
 import { RoleService } from './services/role.service';
@@ -40,7 +41,7 @@ import { Invoice } from '../finance/entities/invoice.entity';
       ApprovalRecord, SaleProperty, RentalRoom, Bill, Invoice,
     ]),
   ],
-  controllers: [DictController, EmployeeController, RoleController, PermissionController, StoreController, StatusController, ApprovalController],
+  controllers: [DictController, EmployeeController, RoleController, PermissionController, StoreController, StatusController, ApprovalController, PositionController],
   providers: [DictService, EmployeeService, RoleService, PermissionService, StoreService, ApprovalService, StateMachineService],
   exports: [DictService, EmployeeService, RoleService, PermissionService, StoreService, ApprovalService, StateMachineService],
 })
