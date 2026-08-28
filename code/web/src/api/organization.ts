@@ -27,6 +27,8 @@ export interface Role {
   isBuiltin: boolean;
   status: string;
   permissions?: { id: number; name: string; code: string }[];
+  /** 保存时提交的权限点 id 集合 */
+  permissionIds?: number[];
 }
 
 export interface Permission {

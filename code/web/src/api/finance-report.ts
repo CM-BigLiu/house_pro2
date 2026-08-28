@@ -19,6 +19,7 @@ export interface Profit {
   cost: number;
   profit: number;
   margin: number;
+  growth?: number;
 }
 
 export interface Partner {
@@ -86,7 +87,7 @@ export function createRentIncrease(data: Partial<RentIncrease>) {
   return post<RentIncrease>('/finance/rent-increases', data);
 }
 
-export function getProfits(params?: { period?: string }) {
+export function getProfits(params?: { period?: string; [key: string]: unknown }) {
   return get<{ list: Profit[]; total: number }>('/finance/profits', { params });
 }
 
@@ -110,7 +111,7 @@ export function updatePartner(id: number, data: Partial<Partner>) {
   return put<Partner>(`/finance/partners/${id}`, data);
 }
 
-export function getIncomeCosts(params?: { period?: string }) {
+export function getIncomeCosts(params?: { period?: string; [key: string]: unknown }) {
   return get<{ list: IncomeCost[]; total: number }>('/finance/income-costs', { params });
 }
 
@@ -126,7 +127,7 @@ export function createPerformance(data: Partial<Performance>) {
   return post<Performance>('/finance/performances', data);
 }
 
-export function getAccountings(params?: { period?: string }) {
+export function getAccountings(params?: { period?: string; [key: string]: unknown }) {
   return get<{ list: Accounting[]; total: number }>('/finance/accountings', { params });
 }
 
