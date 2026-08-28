@@ -246,9 +246,39 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '新增人员', permission: 'system:employee', hidden: true },
   },
   {
+    path: '/system/store',
+    name: 'SystemStore',
+    component: () => import('@/views/system/StoreView.vue'),
+    meta: { title: '门店管理', permission: 'system:store' },
+  },
+  {
     path: '/system/store/create',
     name: 'SystemStoreCreate',
     component: () => import('@/views/system/StoreFormView.vue'),
     meta: { title: '新增门店', permission: 'system:store', hidden: true },
+  },
+  {
+    path: '/system/log',
+    name: 'SystemLog',
+    component: () => import('@/views/system/LogView.vue'),
+    meta: { title: '操作日志', permission: 'system:log' },
+  },
+  {
+    path: '/system/config',
+    name: 'SystemConfig',
+    component: () => import('@/views/system/ConfigView.vue'),
+    meta: { title: '系统配置', permission: 'system:config' },
+  },
+  {
+    path: '/house/checkout',
+    name: 'HouseCheckout',
+    component: () => import('@/views/house/CheckoutView.vue'),
+    meta: { title: '退租管理', permission: 'house:checkout' },
+  },
+  {
+    path: '/house/deposit',
+    name: 'HouseDeposit',
+    component: () => import('@/views/house/DepositView.vue'),
+    meta: { title: '押金管理', permission: 'house:deposit' },
   },
 ];

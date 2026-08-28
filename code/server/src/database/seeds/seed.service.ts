@@ -68,6 +68,8 @@ export class SeedService implements OnModuleInit {
       { code: 'house:customer', name: '客户管理', type: 'menu', path: '/house/customer', module: 'house', sort: 5 },
       { code: 'house:blacklist', name: '黑名单', type: 'menu', path: '/house/blacklist', module: 'house', sort: 7 },
       { code: 'house:community', name: '小区管理', type: 'menu', path: '/house/community', module: 'house', sort: 8 },
+      { code: 'house:checkout', name: '退租管理', type: 'menu', path: '/house/checkout', module: 'house', sort: 9 },
+      { code: 'house:deposit', name: '押金管理', type: 'menu', path: '/house/deposit', module: 'house', sort: 10 },
       { code: 'finance', name: '财务管理', type: 'menu', sort: 3 },
       { code: 'finance:bill', name: '账单', type: 'menu', path: '/finance/bill', module: 'finance', sort: 1 },
       { code: 'finance:flow', name: '流水账', type: 'menu', path: '/finance/daily-account', module: 'finance', sort: 2 },
@@ -86,6 +88,9 @@ export class SeedService implements OnModuleInit {
       { code: 'system:permission', name: '权限管理', type: 'menu', path: '/system/permission', module: 'system', sort: 2 },
       { code: 'system:dictionary', name: '字典管理', type: 'menu', path: '/system/dictionary', module: 'system', sort: 3 },
       { code: 'system:employee', name: '人员管理', type: 'menu', path: '/system/employee', module: 'system', sort: 4 },
+      { code: 'system:store', name: '门店管理', type: 'menu', path: '/system/store', module: 'system', sort: 5 },
+      { code: 'system:log', name: '操作日志', type: 'menu', path: '/system/log', module: 'system', sort: 6 },
+      { code: 'system:config', name: '系统配置', type: 'menu', path: '/system/config', module: 'system', sort: 7 },
     ];
     const actions = [
       { code: 'renting:add', name: '新建房间', type: 'action', module: 'house' },
@@ -116,6 +121,9 @@ export class SeedService implements OnModuleInit {
       { code: 'system:permission:edit', name: '编辑权限', type: 'action', module: 'system' },
       { code: 'system:dictionary:edit', name: '编辑字典', type: 'action', module: 'system' },
       { code: 'system:employee:edit', name: '编辑员工', type: 'action', module: 'system' },
+      { code: 'system:store:edit', name: '编辑门店', type: 'action', module: 'system' },
+      { code: 'checkout:export', name: '导出退租', type: 'action', module: 'house' },
+      { code: 'deposit:export', name: '导出押金', type: 'action', module: 'house' },
     ];
 
     // 顶层菜单补 module，便于前端按模块分组展示

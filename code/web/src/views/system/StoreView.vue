@@ -48,9 +48,14 @@ async function loadStores() {
     if (query.keyword) params.keyword = query.keyword;
     if (query.cityId) params.cityId = query.cityId;
     if (query.statusFilter !== 'all') params.status = query.statusFilter;
-    const res = await get<{ list: StoreDetail[]; total: number }>('/system/stores', { params });
-    stores.value = res.list;
-    total.value = res.total;
+    // 后端 /system/stores 直接返回数组（门店规模小、不分页），此处兼容两种返回形态
+    const res = await get<{ list?: StoreDetail[]; total?: number } | StoreDetail[]>(
+      '/system/stores',
+      { params },
+    );
+    const list = Array.isArray(res) ? res : res.list || [];
+    stores.value = list;
+    total.value = Array.isArray(res) ? list.length : res.total ?? list.length;
   } finally {
     loading.value = false;
   }
@@ -85,6 +90,12 @@ function statusClass(status?: string) {
 
 function statusLabel(status?: string) {
   return status === 'active' ? '营业中' : '已停用';
+}
+
+function managerName(item: StoreDetail): string {
+  const m: any = item.manager;
+  if (!m) return '';
+  return typeof m === 'string' ? m : m.name || '';
 }
 </script>
 
@@ -129,7 +140,7 @@ function statusLabel(status?: string) {
         <div class="detail-card-header">
           <div>
             <div class="detail-card-title">{{ item.name }}</div>
-            <div v-if="item.manager" class="cell-sub" style="margin-top: 4px;">店长：{{ item.manager }}</div>
+            <div v-if="managerName(item)" class="cell-sub" style="margin-top: 4px;">店长：{{ managerName(item) }}</div>
           </div>
           <span :class="['pill', statusClass(item.status)]">{{ statusLabel(item.status) }}</span>
         </div>
@@ -192,6 +203,7 @@ function statusLabel(status?: string) {
         </div>
       </div>
     </div>
+  </div>
 </template>
 
 <style scoped>
