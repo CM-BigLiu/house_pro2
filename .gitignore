@@ -1,3 +1,14 @@
 # Local working data
 .tmp_browser/
 .workbuddy/
+
+# 运行时产物 / 本地工作目录（截图、临时日志、上传缓存）
+outputs/
+tmp/
+uploads/
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.claude/
+
