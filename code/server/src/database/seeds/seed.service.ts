@@ -39,6 +39,8 @@ export class SeedService implements OnModuleInit {
     const count = await this.companyRepo.count();
     if (count > 0) {
       this.logger.log('Seed skipped: data already exists');
+      // 已有数据时仍需保证权限层级完整（修复历史库 parentId 缺失导致权限树扁平的问题）
+      await this.linkPermissionHierarchy();
       return;
     }
     await this.seed();
@@ -115,9 +117,87 @@ export class SeedService implements OnModuleInit {
       { code: 'system:dictionary:edit', name: '编辑字典', type: 'action', module: 'system' },
       { code: 'system:employee:edit', name: '编辑员工', type: 'action', module: 'system' },
     ];
+
+    // 顶层菜单补 module，便于前端按模块分组展示
+    const topModules: Record<string, string> = {
+      home: 'home',
+      house: 'house',
+      finance: 'finance',
+      system: 'system',
+    };
+    for (const m of menus) {
+      if (topModules[m.code]) m.module = topModules[m.code];
+    }
+
     const all = [...menus, ...actions].filter((p) => !existing.has(p.code));
     if (all.length) {
       await this.permissionRepo.save(all.map((p) => this.permissionRepo.create(p)));
+    }
+
+    // 建立父子层级：菜单挂到所属模块、操作权限挂到对应菜单
+    // 缺少这一步会导致 /system/permissions/tree 返回扁平数据，角色权限面板显示「暂无权限数据」
+    await this.linkPermissionHierarchy();
+  }
+
+  /**
+   * 推导权限父子关系：
+   * 1) 二级菜单（house:rent）挂到一级模块（house）
+   * 2) 操作权限挂到对应菜单（前缀命中，或按语义兜底映射）
+   */
+  private async linkPermissionHierarchy() {
+    const perms = await this.permissionRepo.find();
+    const byCode = new Map(perms.map((p) => [p.code, p]));
+    const topModules = ['house', 'finance', 'system'];
+
+    // 无直接前缀菜单的操作权限，按语义归属
+    const actionFallback: Record<string, string> = {
+      'finance:ticket:apply': 'finance:billing',
+      'finance:ticket:approve': 'finance:billing',
+      'finance:export': 'finance:bill',
+      'renting:add': 'house:rent',
+      'renting:edit': 'house:rent',
+      'renting:checkout': 'house:rent',
+      'renting:export': 'house:rent',
+      'sale:add': 'house:sale',
+      'sale:edit': 'house:sale',
+      'sale:changeStatus': 'house:sale',
+      'sale:export': 'house:sale',
+      'reserve:house:add': 'house:reserve_house',
+      'reserve:house:take': 'house:reserve_house',
+      'reserve:house:transfer': 'house:reserve_house',
+      'reserve:client:add': 'house:reserve_client',
+      'reserve:client:transfer': 'house:reserve_client',
+    };
+
+    const updates: { id: number; parentId: number }[] = [];
+    for (const p of perms) {
+      if (p.type === 'menu') {
+        if (!topModules.includes(p.code)) {
+          const parent = topModules
+            .map((t) => (p.code.startsWith(`${t}:`) ? byCode.get(t) : undefined))
+            .find(Boolean);
+          if (parent) updates.push({ id: p.id, parentId: parent.id });
+        }
+        continue;
+      }
+      // action：优先前缀菜单，其次语义兜底
+      let parent: { id: number } | undefined;
+      for (const [code, node] of byCode) {
+        if (node.type === 'menu' && p.code.startsWith(`${code}:`)) {
+          if (!parent || code.length > (parent as any).code?.length) parent = node as any;
+        }
+      }
+      const fallbackCode = actionFallback[p.code];
+      const fallback = fallbackCode ? byCode.get(fallbackCode) : undefined;
+      const target = fallback || parent;
+      if (target) updates.push({ id: p.id, parentId: target.id });
+    }
+
+    for (const u of updates) {
+      await this.permissionRepo.update(u.id, { parentId: u.parentId });
+    }
+    if (updates.length) {
+      this.logger.log(`Linked ${updates.length} permission nodes into hierarchy`);
     }
   }
 
