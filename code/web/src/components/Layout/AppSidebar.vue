@@ -16,8 +16,8 @@ const route = useRoute();
 const router = useRouter();
 
 const iconMap: Record<string, any> = {
-  layoutDashboard: LayoutDashboard,
-  building2: Building2,
+  'layout-dashboard': LayoutDashboard,
+  'building-2': Building2,
   banknote: Banknote,
   settings: Settings,
 };

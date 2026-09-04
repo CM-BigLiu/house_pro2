@@ -19,7 +19,7 @@ const statusOptions = [
 ];
 
 onMounted(async () => {
-  await dictStore.ensureLoaded([]);
+  await dictStore.ensureLoaded(['deposit_status']);
   await load();
 });
 
@@ -60,8 +60,25 @@ async function handleRefund(item: Deposit) {
 }
 
 async function handleDeduct(item: Deposit) {
-  await ElMessageBox.confirm(`确认扣留押金 ¥${formatMoney(item.depositAmount)}？`, '扣款确认', { type: 'warning' });
-  await deductDeposit(item.id);
+  let reason = '';
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `扣留「${item.contractCode}」押金 ¥${formatMoney(item.depositAmount)}，请填写扣款原因：`,
+      '扣款确认',
+      {
+        confirmButtonText: '确认扣留',
+        cancelButtonText: '取消',
+        inputPlaceholder: '如：欠缴水费 320 元 / 墙面损坏赔偿',
+        inputValue: '租客违约/房屋损坏',
+        inputValidator: (v: string) => (v && v.trim() ? true : '请填写扣款原因'),
+        type: 'warning',
+      },
+    );
+    reason = (value || '').trim();
+  } catch {
+    return; // 取消
+  }
+  await deductDeposit(item.id, { reason });
   ElMessage.success('已扣留');
   await load();
 }
@@ -143,13 +160,21 @@ function statusClass(status: string) {
         </el-table-column>
         <el-table-column label="状态" min-width="90">
           <template #default="{ row }">
-            <span :class="['pill', statusClass(row.status)]">{{ dictStore.getLabel('deposit_status', row.status) || row.status }}</span>
+            <el-tooltip
+              v-if="row.status === 'deducted' && row.deductReason"
+              :content="`扣款原因：${row.deductReason}`"
+              placement="top"
+            >
+              <span :class="['pill', statusClass(row.status)]">{{ dictStore.getLabel('deposit_status', row.status) || row.status }} ⓘ</span>
+            </el-tooltip>
+            <span v-else :class="['pill', statusClass(row.status)]">{{ dictStore.getLabel('deposit_status', row.status) || row.status }}</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="150" fixed="right">
           <template #default="{ row }">
             <div class="operation-cell">
               <el-button
+                v-permission="['deposit:refund']"
                 size="small"
                 type="primary"
                 plain
@@ -157,6 +182,7 @@ function statusClass(status: string) {
                 @click="handleRefund(row)"
               >退还</el-button>
               <el-button
+                v-permission="['deposit:deduct']"
                 size="small"
                 type="danger"
                 plain
@@ -175,7 +201,7 @@ function statusClass(status: string) {
             v-model:page-size="query.pageSize"
             :total="total"
             layout="prev, pager, next"
-            small
+            size="small"
             @change="load"
           />
         </div>

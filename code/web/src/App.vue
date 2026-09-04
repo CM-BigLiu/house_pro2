@@ -44,8 +44,5 @@ const isLogin = computed(() => route.path === '/login');
   flex: 1;
   padding: 22px 24px 40px;
   overflow: auto;
-  max-width: 1680px;
-  width: 100%;
-  margin: 0 auto;
 }
 </style>

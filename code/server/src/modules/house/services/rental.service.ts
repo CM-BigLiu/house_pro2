@@ -28,14 +28,14 @@ export class RentalService {
       .getManyAndCount();
     const mapped = list.map((rs) => {
       const rooms = rs.rooms || [];
-      const rent = rooms.reduce((sum, r) => sum + Number(r.rentPrice || 0), 0);
+      const rentNum = rs.bizType === 'entire' ? Number(rs.rent || 0) : rooms.reduce((sum, r) => sum + Number(r.rentPrice || 0), 0);
       const deposit = rooms.reduce((sum, r) => sum + Number(r.depositAmount || 0), 0);
       const roomCount = rooms.length;
       const vacantCount = rooms.filter((r) => r.status === 'vacant').length;
       return {
         ...rs,
         communityName: (rs as any).community?.name || '',
-        rent,
+        rent: rentNum,
         deposit,
         roomCount,
         vacantCount,

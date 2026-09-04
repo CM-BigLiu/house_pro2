@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { getCheckouts, confirmCheckout, type Checkout } from '@/api/checkout';
+import { getCheckouts, confirmCheckout, completeCheckout, type Checkout } from '@/api/checkout';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney, formatDate } from '@/utils/format';
 
@@ -19,7 +19,7 @@ const statusOptions = [
 ];
 
 onMounted(async () => {
-  await dictStore.ensureLoaded([]);
+  await dictStore.ensureLoaded(['checkout_status']);
   await load();
 });
 
@@ -56,6 +56,17 @@ async function handleConfirm(item: Checkout) {
   await ElMessageBox.confirm(`确认退租「${item.contractCode}」？`, '退租确认', { type: 'warning' });
   await confirmCheckout(item.id);
   ElMessage.success('已确认退租');
+  await load();
+}
+
+async function handleComplete(item: Checkout) {
+  await ElMessageBox.confirm(
+    `完成「${item.contractCode}」的费用清算？\n需该房源押金已全部处置（退还/扣留），完成后状态不可再变更。`,
+    '完成清算',
+    { confirmButtonText: '完成清算', cancelButtonText: '取消', type: 'warning' },
+  );
+  await completeCheckout(item.id);
+  ElMessage.success('退租已完成清算');
   await load();
 }
 
@@ -143,16 +154,25 @@ function statusClass(status: string) {
             <span :class="['pill', statusClass(row.status)]">{{ dictStore.getLabel('checkout_status', row.status) || row.status }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="130" fixed="right">
+        <el-table-column label="操作" min-width="190" fixed="right">
           <template #default="{ row }">
             <div class="operation-cell">
               <el-button
+                v-permission="['checkout:confirm']"
                 size="small"
                 type="primary"
                 plain
                 :disabled="row.status !== 'pending'"
                 @click="handleConfirm(row)"
               >确认</el-button>
+              <el-button
+                v-permission="['checkout:confirm']"
+                size="small"
+                type="success"
+                plain
+                :disabled="row.status !== 'confirmed'"
+                @click="handleComplete(row)"
+              >完成清算</el-button>
               <el-button size="small" plain @click="handleDetail(row)">详情</el-button>
             </div>
           </template>
@@ -166,7 +186,7 @@ function statusClass(status: string) {
             v-model:page-size="query.pageSize"
             :total="total"
             layout="prev, pager, next"
-            small
+            size="small"
             @change="load"
           />
         </div>

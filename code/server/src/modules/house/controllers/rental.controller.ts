@@ -160,6 +160,19 @@ class CreateRentalSetDto {
   @Type(() => Number)
   housekeeperId?: number;
 
+  @IsString()
+  @IsOptional()
+  tenantLeaseStart?: string;
+
+  @IsString()
+  @IsOptional()
+  tenantLeaseEnd?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  rent?: number;
+
   @IsArray()
   @IsOptional()
   rooms?: CreateRentalRoomDto[];

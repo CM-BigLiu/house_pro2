@@ -89,6 +89,19 @@ class UnifiedPropertyCreateDto {
   @IsArray()
   @IsOptional()
   rooms?: any[];
+
+  @IsString()
+  @IsOptional()
+  tenantLeaseStart?: string;
+
+  @IsString()
+  @IsOptional()
+  tenantLeaseEnd?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  rent?: number;
 }
 
 @Controller('property')

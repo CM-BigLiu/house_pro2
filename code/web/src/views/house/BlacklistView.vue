@@ -127,7 +127,7 @@ function handleSearch() {
             v-model:page-size="query.pageSize"
             :total="total"
             layout="prev, pager, next"
-            small
+            size="small"
             @change="load"
           />
         </div>

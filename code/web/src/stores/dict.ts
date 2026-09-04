@@ -8,7 +8,7 @@ export const useDictStore = defineStore('dict', () => {
   const loadedCodes = ref<Set<string>>(new Set());
 
   const ensureLoaded = async (codes: string[]) => {
-    const missing = codes.filter((code) => !loadedCodes.value.has(code));
+    const missing = codes.filter((code) => !loadedCodes.value.has(code) || !dictMap.value[code]?.length);
     if (!missing.length) return;
     await Promise.all(
       missing.map(async (code) => {

@@ -8,6 +8,8 @@ export interface Checkout {
   houseInfo?: string;
   checkoutDate?: string;
   status: 'pending' | 'confirmed' | 'completed';
+  settlementAmount?: number;
+  reason?: string;
   remark?: string;
   createdAt?: string;
 }
@@ -21,10 +23,26 @@ export interface CheckoutQuery {
   pageSize?: number;
 }
 
+export interface CreateCheckoutParams {
+  houseInfo: string;
+  tenantName: string;
+  checkoutDate?: string;
+  reason?: string;
+  settlementAmount?: number;
+}
+
 export function getCheckouts(params?: CheckoutQuery) {
   return get<{ list: Checkout[]; total: number }>('/house/checkouts', { params });
 }
 
+export function createCheckout(data: CreateCheckoutParams) {
+  return post<Checkout>('/house/checkouts', data);
+}
+
 export function confirmCheckout(id: number) {
   return post<Checkout>(`/house/checkouts/${id}/confirm`);
+}
+
+export function completeCheckout(id: number) {
+  return post<Checkout>(`/house/checkouts/${id}/complete`);
 }

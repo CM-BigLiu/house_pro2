@@ -59,6 +59,9 @@ export class RentalSet {
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   landlordRent: number;
 
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true, default: 0 })
+  rent: number;
+
   @Column({ type: 'date', nullable: true })
   leaseStart: string;
 
@@ -88,6 +91,12 @@ export class RentalSet {
 
   @Column({ name: 'creator_id' })
   creatorId: number;
+
+  @Column({ type: 'date', nullable: true })
+  tenantLeaseStart: string;
+
+  @Column({ type: 'date', nullable: true })
+  tenantLeaseEnd: string;
 
   @OneToMany(() => RentalRoom, (room) => room.set)
   rooms: RentalRoom[];

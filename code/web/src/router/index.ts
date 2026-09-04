@@ -25,8 +25,6 @@ const router = createRouter({
   routes,
 });
 
-let dynamicAdded = false;
-
 router.beforeEach(async (to, _from, next) => {
   const userStore = useUserStore();
 
@@ -49,7 +47,9 @@ router.beforeEach(async (to, _from, next) => {
     }
   }
 
-  if (!dynamicAdded) {
+  // 动态路由注册：以「首页路由是否已注册」为准
+  const routesReady = router.hasRoute('Home');
+  if (!routesReady) {
     const perms = userStore.permissions;
     const accessible = asyncRoutes.filter((route) => {
       const need = route.meta?.permission as string | undefined;
@@ -57,9 +57,10 @@ router.beforeEach(async (to, _from, next) => {
       return perms.includes('*') || perms.includes(need);
     });
     accessible.forEach((route) => router.addRoute(route));
-    dynamicAdded = true;
-    // 动态路由刚注册，需要以 replace 方式重新导航到目标地址
-    const redirectPath = to.fullPath || to.path;
+    // 关键修复：重定向到解析后的目标路径，而不是 to.fullPath 原样回传。
+    // 访问 / 时 fullPath 是 /，重注册后再导航 / 会再次触发 redirect: /home，
+    // 与守卫的 next({path: '/'}) 形成无限循环（RangeError 栈溢出 → 白屏/跳登录）。
+    const redirectPath = to.path === '/' ? '/home' : (to.fullPath || to.path);
     return next({ path: redirectPath, replace: true });
   }
 

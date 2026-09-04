@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import VChart from 'vue-echarts';
 import { use } from 'echarts/core';
@@ -21,19 +21,51 @@ const loading = ref(true);
 // ─── Mock Data ──────────────────────────────────────────────
 // Product-requirement-specified static mock data matching the UI spec (01-home.png)
 
+const activeTab = ref<'今日' | '本周' | '本月' | '上月'>('今日');
+const tabOptions: Array<'今日' | '本周' | '本月' | '上月'> = ['今日', '本周', '本月', '上月'];
 const userName = ref('代建伟');
 const userStore = ref('优居上海-张江店');
 const userRole = ref('综合经纪人');
 const userPhone = ref('137****6208');
 
-// 5 KPI cards
-const kpiData = [
-  { label: '收房', value: 3, unit: '套', trend: 12, color: 'pink' as const, spark: [30, 42, 38, 50, 45, 55, 52, 60, 58, 65, 62, 70] },
-  { label: '收客', value: 12, unit: '人', trend: 8, color: 'yellow' as const, spark: [20, 28, 25, 35, 30, 40, 38, 45, 42, 50, 48, 55] },
-  { label: '带看', value: 8, unit: '次', trend: -3, color: 'green' as const, spark: [15, 18, 14, 22, 20, 28, 25, 30, 26, 22, 18, 20] },
-  { label: '应收', value: '9.75', unit: '万', trend: 5, color: 'blue' as const, spark: [10, 18, 14, 22, 20, 28, 25, 32, 30, 35, 33, 38] },
-  { label: '实收', value: '7.56', unit: '万', trend: 10, color: 'purple' as const, spark: [8, 12, 10, 16, 14, 20, 18, 24, 22, 28, 26, 30] },
-];
+// Per-tab KPI data
+interface KpiItem {
+  label: string; value: number | string; unit: string; trend: number;
+  color: 'pink' | 'yellow' | 'green' | 'blue' | 'purple';
+  spark: number[];
+}
+const allKpiData: Record<string, KpiItem[]> = {
+  '今日': [
+    { label: '收房', value: 0, unit: '套', trend: 0, color: 'pink' as const, spark: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+    { label: '收客', value: 1, unit: '人', trend: 100, color: 'yellow' as const, spark: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] },
+    { label: '带看', value: 3, unit: '次', trend: 50, color: 'green' as const, spark: [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3] },
+    { label: '应收', value: '0.85', unit: '万', trend: 0, color: 'blue' as const, spark: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.4, 0.85] },
+    { label: '实收', value: '0.60', unit: '万', trend: 0, color: 'purple' as const, spark: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.3, 0.6] },
+  ],
+  '本周': [
+    { label: '收房', value: 1, unit: '套', trend: 0, color: 'pink' as const, spark: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] },
+    { label: '收客', value: 5, unit: '人', trend: 25, color: 'yellow' as const, spark: [0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 5] },
+    { label: '带看', value: 8, unit: '次', trend: 14, color: 'green' as const, spark: [0, 0, 0, 0, 0, 0, 0, 1, 3, 5, 6, 8] },
+    { label: '应收', value: '3.20', unit: '万', trend: 8, color: 'blue' as const, spark: [0, 0, 0, 0, 0, 0, 0.5, 1.0, 1.8, 2.2, 2.8, 3.2] },
+    { label: '实收', value: '2.45', unit: '万', trend: 12, color: 'purple' as const, spark: [0, 0, 0, 0, 0, 0, 0.3, 0.8, 1.4, 1.8, 2.2, 2.45] },
+  ],
+  '本月': [
+    { label: '收房', value: 3, unit: '套', trend: 12, color: 'pink' as const, spark: [30, 42, 38, 50, 45, 55, 52, 60, 58, 65, 62, 70] },
+    { label: '收客', value: 12, unit: '人', trend: 8, color: 'yellow' as const, spark: [20, 28, 25, 35, 30, 40, 38, 45, 42, 50, 48, 55] },
+    { label: '带看', value: 8, unit: '次', trend: -3, color: 'green' as const, spark: [15, 18, 14, 22, 20, 28, 25, 30, 26, 22, 18, 20] },
+    { label: '应收', value: '9.75', unit: '万', trend: 5, color: 'blue' as const, spark: [10, 18, 14, 22, 20, 28, 25, 32, 30, 35, 33, 38] },
+    { label: '实收', value: '7.56', unit: '万', trend: 10, color: 'purple' as const, spark: [8, 12, 10, 16, 14, 20, 18, 24, 22, 28, 26, 30] },
+  ],
+  '上月': [
+    { label: '收房', value: 2, unit: '套', trend: -33, color: 'pink' as const, spark: [25, 35, 30, 42, 38, 48, 44, 52, 50, 55, 52, 58] },
+    { label: '收客', value: 10, unit: '人', trend: -17, color: 'yellow' as const, spark: [18, 24, 22, 30, 28, 35, 32, 40, 36, 42, 40, 45] },
+    { label: '带看', value: 10, unit: '次', trend: 25, color: 'green' as const, spark: [12, 15, 13, 18, 16, 22, 20, 25, 22, 18, 16, 18] },
+    { label: '应收', value: '8.50', unit: '万', trend: -8, color: 'blue' as const, spark: [8, 15, 12, 18, 16, 22, 20, 28, 25, 30, 28, 32] },
+    { label: '实收', value: '6.80', unit: '万', trend: -5, color: 'purple' as const, spark: [6, 10, 8, 14, 12, 18, 16, 22, 20, 25, 24, 28] },
+  ],
+};
+
+const kpiData = computed(() => allKpiData[activeTab.value]);
 
 // 6 tenant warning cards + 6 landlord warning cards
 const tenantWarnings = [
@@ -296,10 +328,7 @@ onMounted(() => {
               数据概览 · 我的数据
             </div>
             <div class="sh-tabs">
-              <button class="sh-tab active">今日</button>
-              <button class="sh-tab">本周</button>
-              <button class="sh-tab">本月</button>
-              <button class="sh-tab">上月</button>
+              <button v-for="tab in tabOptions" :key="tab" class="sh-tab" :class="{ active: activeTab === tab }" @click="activeTab = tab">{{ tab }}</button>
             </div>
           </div>
           <div class="kpi-grid">
@@ -581,7 +610,6 @@ onMounted(() => {
 
 .dashboard {
   padding-bottom: 32px;
-  max-width: 1400px;
 }
 .dash-loading {
   padding: 80px 0; text-align: center; color: #94a3b8;

@@ -20,6 +20,13 @@ export const asyncRoutes: RouteRecordRaw[] = [
     component: () => import('@/views/house/RentFormView.vue'),
     meta: { title: '新增租房', permission: 'house:rent', hidden: true },
   },
+  // 租房编辑 - 不在菜单显示
+  {
+    path: '/house/rent/edit/:id',
+    name: 'RentEdit',
+    component: () => import('@/views/house/RentFormView.vue'),
+    meta: { title: '编辑租房', permission: 'house:rent', hidden: true },
+  },
   {
     path: '/house/sale',
     name: 'Sale',
