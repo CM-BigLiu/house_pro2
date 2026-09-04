@@ -1,0 +1,16 @@
+{
+  "status": "fail",
+  "exit_code": 1,
+  "error": {
+    "category": "unknown",
+    "severity": "recoverable",
+    "code": "PG-E-0925",
+    "message": "frontend 端口 5173 60s 内未就绪",
+    "hint": "查看 D:\04-profile\test\house_pro4\house_pro2\.pg\changes\auth-token-refresh\2-build\dev-local-logs/frontend.log；确认 5173 未被占用",
+    "triggered_by": "explicit"
+  },
+  "metadata": {
+    "agent_recoverable": true,
+    "timestamp": "2026-09-04T07:43:22Z"
+  }
+}

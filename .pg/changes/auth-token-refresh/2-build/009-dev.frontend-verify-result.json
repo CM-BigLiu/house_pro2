@@ -1,0 +1,10 @@
+{
+  "summary": "dev.frontend dev 集成验证 PASS：vite(5173)+backend(3000) 服务就绪，e2e POST /api/auth/refresh 非法 token 返回 401 符合契约；vitest 5/5 全过（含 V-frontend-1 401 单飞 refresh 重放用例）；lint 因 code/web 缺 eslint 配置文件 exit=2，属工具链未配置 infra 问题非代码违规；V-frontend-1 PASS。",
+  "outputs": [],
+  "tasks_updated": [],
+  "status": "completed",
+  "evidence_paths": [
+    "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\auth-token-refresh.verify-evidence.md"
+  ],
+  "report_path": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\009-dev.frontend-verify.md"
+}
