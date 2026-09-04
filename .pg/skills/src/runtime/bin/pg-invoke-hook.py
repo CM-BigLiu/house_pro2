@@ -93,6 +93,27 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+def _resolve_python3():
+    """Windows 下 'python3' 可能不存在（仅 python.exe）; 返回可用的解释器名.
+
+    pg-invoke-hook.py 用 [PYTHON3_EXEC, ...] spawn pg-run-hook.py. 在 Windows
+    上 python3 不一定在 PATH（常只有 python.exe）. 优先 $PG_PYTHON 显式
+    覆盖 → shutil.which 探测 → sys.executable 兜底.
+    """
+    import shutil as _shutil
+    env_py = os.environ.get("PG_PYTHON")
+    if env_py and os.path.isfile(env_py):
+        return env_py
+    if _shutil.which("python3"):
+        return "python3"
+    if _shutil.which("python"):
+        return "python"
+    return sys.executable
+
+
+PYTHON3_EXEC = _resolve_python3()
+
+
 
 # ----- 路径解析 -----
 
@@ -832,7 +853,7 @@ def invoke_hook_main(argv=None) -> int:
         for sub_spec in spec["_multi_specs"]:
             try:
                 proc = subprocess.run(
-                    ["python3", str(pg_hook_runner)],
+                    [PYTHON3_EXEC, str(pg_hook_runner)],
                     input=json.dumps(sub_spec, indent=2),
                     text=True,
                     cwd=str(project_root),
@@ -870,7 +891,7 @@ def invoke_hook_main(argv=None) -> int:
 
     try:
         proc = subprocess.run(
-            ["python3", str(pg_hook_runner)],
+            [PYTHON3_EXEC, str(pg_hook_runner)],
             input=json.dumps(spec, indent=2),
             text=True,
             cwd=str(project_root),
@@ -923,7 +944,7 @@ def status_main(argv=None) -> int:
         )
         return 2
 
-    cmd = ["python3", str(runner), "prepare-env-status", args.change]
+    cmd = [PYTHON3_EXEC, str(runner), "prepare-env-status", args.change]
     if args.stage:
         cmd.append(args.stage)
 

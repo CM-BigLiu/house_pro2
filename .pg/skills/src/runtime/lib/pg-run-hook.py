@@ -59,6 +59,31 @@ import sys
 import threading
 
 
+def _resolve_bash():
+    """Windows 下绕过 System32 WSL bash 转发器; 其他平台返回 'bash' 不变.
+
+    Windows CreateProcess 的搜索顺序 (应用目录 → System32 → PATH) 使裸
+    'bash' 永远命中 C:\\Windows\\System32\\bash.exe (WSL 转发器).
+    优先级: $PG_BASH 显式覆盖 → 常见 Git Bash 安装位 → 裸 'bash' 兜底.
+    """
+    if os.name != "nt":
+        return "bash"
+    env_bash = os.environ.get("PG_BASH")
+    if env_bash and os.path.isfile(env_bash):
+        return env_bash
+    for cand in (
+        os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "Git", "bin", "bash.exe"),
+        os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"), "Git", "bin", "bash.exe"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Git", "bin", "bash.exe"),
+    ):
+        if cand and os.path.isfile(cand):
+            return cand
+    return "bash"
+
+
+BASH_EXEC = _resolve_bash()
+
+
 def find_project_root():
     env_root = os.environ.get("PG_PROJECT_ROOT")
     if env_root and _has_config(env_root):
@@ -152,7 +177,7 @@ def run_command(cmd, merged_env, timeout, log_path, wait_for_completion=True):
             header = f"=== pg-run-hook [{os.path.basename(log_path)}] ==="
             log_f.write(header + "\n")
             proc = subprocess.Popen(
-                ["bash", "-c", cmd],
+                [BASH_EXEC, "-c", cmd],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 text=True, bufsize=1, cwd=PROJECT_ROOT, env=merged_env,
             )
@@ -235,7 +260,7 @@ def run_command(cmd, merged_env, timeout, log_path, wait_for_completion=True):
         if wait_for_completion:
             try:
                 result = subprocess.run(
-                    ["bash", "-c", cmd],
+                    [BASH_EXEC, "-c", cmd],
                     text=True,
                     cwd=PROJECT_ROOT,
                     env=merged_env,
@@ -249,7 +274,7 @@ def run_command(cmd, merged_env, timeout, log_path, wait_for_completion=True):
         else:
             # fire-and-forget 无 log_path
             proc = subprocess.Popen(
-                ["bash", "-c", cmd],
+                [BASH_EXEC, "-c", cmd],
                 cwd=PROJECT_ROOT, env=merged_env,
             )
             spawn_wait = min(timeout, 30)

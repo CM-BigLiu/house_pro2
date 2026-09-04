@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+python .pg/skills/src/runtime/bin/pg-run "$@"

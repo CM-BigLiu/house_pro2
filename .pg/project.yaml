@@ -1,0 +1,162 @@
+# pg-skills project declaration
+# Schema: .pg/skills/src/runtime/spec/project.schema.json
+# 生成: pg-init-project Phase 2 (2026-09-04)  基于 .pg/context/repo-scan.md
+
+schema: spec-driven
+
+modules:
+  server:
+    root: code/server
+    language: typescript
+    description: "NestJS 后端（TypeORM + PostgreSQL），REST + WebSocket JWT"
+    build: { cmd: "cd code/server && npm run build", timeout_seconds: 600 }
+    lint: { cmd: "cd code/server && npm run lint", timeout_seconds: 300 }
+    test:
+      unit: { cmd: "cd code/server && npm test", timeout_seconds: 900 }
+      integration: { cmd: "cd code/server && npm run test:e2e", timeout_seconds: 1800 }
+
+  web:
+    root: code/web
+    language: typescript
+    description: "Vue 3 + Vite + Element Plus 前端（含 vue-tsc 类型检查的 build 承担质量门禁）"
+    build: { cmd: "cd code/web && npm run build", timeout_seconds: 600 }
+    lint: { cmd: "cd code/web && npm run lint", timeout_seconds: 300 }
+    test:
+      e2e: { cmd: "cd code/web && npm run build", timeout_seconds: 600 }
+
+  mock-server:
+    root: code/mock-server
+    language: shell
+    description: "Express mock 服务（纯 JS，无构建步骤，直接 node server.js 启动）"
+
+environments:
+  dev-local:
+    description: "本机全栈开发：NestJS server (3000) + web vite dev (5173) + PostgreSQL (5432, 常驻不接管)"
+    describe_env:
+      script: .pg/hooks/env-dev-local-describe.sh
+      timeout_seconds: 60
+    prepare_env:
+      script: .pg/hooks/env-dev-local-prepare.sh
+      hosts: localhost
+      timeout_seconds: 120
+    clean_env:
+      script: .pg/hooks/env-dev-local-clean.sh
+      hosts: localhost
+      timeout_seconds: 60
+    roles:
+      backend:
+        instances:
+          - { name: backend-1, host: localhost, port: 3000 }
+        actions:
+          start:
+            script: .pg/hooks/role-backend-start.sh
+            host: localhost
+            timeout_seconds: 120
+          stop:
+            script: .pg/hooks/role-backend-stop.sh
+            host: localhost
+            timeout_seconds: 30
+          logs:
+            script: .pg/hooks/role-backend-logs.sh
+            host: localhost
+            args: ["{lines:100}"]
+            timeout_seconds: 30
+      frontend:
+        instances:
+          - { name: frontend-1, host: localhost, port: 5173 }
+        actions:
+          start:
+            script: .pg/hooks/role-frontend-start.sh
+            host: localhost
+            timeout_seconds: 120
+          stop:
+            script: .pg/hooks/role-frontend-stop.sh
+            host: localhost
+            timeout_seconds: 30
+          logs:
+            script: .pg/hooks/role-frontend-logs.sh
+            host: localhost
+            args: ["{lines:100}"]
+            timeout_seconds: 30
+
+  dev-mock:
+    description: "mock 联调环境：mock-server (3000) + web vite dev (5173)，与 dev-local 的 backend 互斥占用 3000 端口"
+    roles:
+      mock:
+        instances:
+          - { name: mock-1, host: localhost, port: 3000 }
+        actions:
+          start:
+            script: .pg/hooks/role-mock-start.sh
+            host: localhost
+            timeout_seconds: 60
+          stop:
+            script: .pg/hooks/role-mock-stop.sh
+            host: localhost
+            timeout_seconds: 30
+          logs:
+            script: .pg/hooks/role-mock-logs.sh
+            host: localhost
+            args: ["{lines:100}"]
+            timeout_seconds: 30
+      frontend:
+        instances:
+          - { name: frontend-1, host: localhost, port: 5173 }
+        actions:
+          start:
+            script: .pg/hooks/role-frontend-start.sh
+            host: localhost
+            timeout_seconds: 120
+          stop:
+            script: .pg/hooks/role-frontend-stop.sh
+            host: localhost
+            timeout_seconds: 30
+          logs:
+            script: .pg/hooks/role-frontend-logs.sh
+            host: localhost
+            args: ["{lines:100}"]
+            timeout_seconds: 30
+
+tracks:
+  backend:
+    type: standard
+    modules: [server]
+    max_fix_retries: 5
+    description: "后端 track：server 模块 TDRVG 循环"
+  frontend:
+    type: standard
+    modules: [web]
+    max_fix_retries: 5
+    description: "前端 track：web 模块 TDRVG 循环（无测试命令，build+lint 承担门禁）"
+  fullstack:
+    type: scenario
+    modules: [server, web, mock-server]
+    max_fix_retries: 3
+    description: "端到端场景 track：真实服务实例上跑 Given/When/Then 用户旅程"
+
+regression:
+  suite:
+    backend:
+      environment:
+        name: dev-local
+        required_roles: [backend]
+      module: server
+      test_keys: [unit]
+    frontend:
+      environment:
+        name: dev-mock
+        required_roles: [mock, frontend]
+      module: web
+      test_keys: [e2e]
+
+stages:
+  - name: dev
+    tracks: [backend, frontend]
+    environment:
+      required: false
+    description: "开发阶段：仅跑单测/构建（不启停服务）"
+  - name: int
+    tracks: [backend, frontend, fullstack]
+    environment:
+      required: true
+    description: "集成阶段：dev-local 环境启停，跑集成测试与端到端场景"

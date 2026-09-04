@@ -28,6 +28,26 @@ if _SKILLS_LIB.exists():
     sys.path.insert(0, str(_SKILLS_LIB))
 from tui import Term, render_tab_bar, render_menu
 
+def _resolve_bash():
+    """Windows 下绕过 System32 WSL bash 转发器; 其他平台返回 'bash' 不变. (见 pg-run-hook.py 同名函数)"""
+    if os.name != "nt":
+        return "bash"
+    env_bash = os.environ.get("PG_BASH")
+    if env_bash and os.path.isfile(env_bash):
+        return env_bash
+    for cand in (
+        os.path.join(os.environ.get("ProgramFiles", r"C://Program Files"), "Git", "bin", "bash.exe"),
+        os.path.join(os.environ.get("ProgramFiles(x86)", r"C://Program Files (x86)"), "Git", "bin", "bash.exe"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Git", "bin", "bash.exe"),
+    ):
+        if cand and os.path.isfile(cand):
+            return cand
+    return "bash"
+
+
+BASH_EXEC = _resolve_bash()
+
+
 
 def _c(code: str, text: str) -> str:
     return f"\033[{code}m{text}\033[0m"
@@ -319,7 +339,7 @@ def run_shell(
         env.update(extra_env)
     try:
         proc = subprocess.run(
-            ["bash", "-c", cmd],
+            [BASH_EXEC, "-c", cmd],
             cwd=str(cwd or Path.cwd()),
             timeout=timeout,
             env=env,
