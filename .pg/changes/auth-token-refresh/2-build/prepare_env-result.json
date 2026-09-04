@@ -1,0 +1,9 @@
+{
+  "status": "pass",
+  "exit_code": 0,
+  "duration_seconds": 0,
+  "metadata": {
+    env=dev-local postgres=ready,
+    "timestamp": "2026-09-04T03:54:43Z"
+  }
+}

@@ -4,7 +4,7 @@
 # 产出 env-description.yaml 给 pg-propose / pg-fix-issue / pg-regression 作为输入
 set -uo pipefail  # 注意: 不加 -e, 由 hook-helpers.sh trap ERR 控制
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-export PG_SKILLS_PATH="${PG_SKILLS_PATH:-$SELF_DIR}"
+export PG_SKILLS_PATH="${PG_SKILLS_PATH:-$SELF_DIR/.pg/skills}"
 source "$PG_SKILLS_PATH/src/runtime/lib/hook-helpers.sh"
 trap 'pg_fail_on_error $? $LINENO' ERR
 
