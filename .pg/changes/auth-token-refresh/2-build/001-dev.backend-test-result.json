@@ -1,0 +1,13 @@
+{
+  "summary": "TDD 红 phase 完成。新增 auth.service.spec.ts（11 用例：login 双令牌、refresh 落库+绝对过期 7d[V-backend-1]、sha256 hash 存库[V-backend-2]、revokeUserTokens 停用联动吊销[V-backend-3]、refresh 校验 token_type[V-backend-4]、logout 置 revoked）与 jwt-auth.guard.spec.ts（4 用例：token_type=access 放行、refresh 误用 401[V-backend-4]）。auth.service.spec.ts 全部因生产代码缺失编译失败（TS2307/TS2339）；guard 测试中 refresh 误用用例对既有 guard 运行并断言失败。均未修改生产代码，符合红 phase 预期。",
+  "outputs": [
+    "code/server/src/modules/auth/auth.service.spec.ts",
+    "code/server/src/common/guards/jwt-auth.guard.spec.ts"
+  ],
+  "tasks_updated": [
+    "1.1"
+  ],
+  "status": "completed",
+  "evidence_paths": [],
+  "report_path": ""
+}

@@ -7,7 +7,7 @@
      track=backend (常驻, 无 on_conditions)
 -->
 
-- [ ] 1.1 为 `AuthService` 编写单元测试：`login` 返回双令牌（access + refresh）；`refresh` 校验 token_type + DB 账态；`logout` 置 revoked；覆盖 V-backend-1~4 的后端断言（refresh 落库 / hash 存储 / 停用联动吊销 / token_type 区分）
+- [x] 1.1 为 `AuthService` 编写单元测试：`login` 返回双令牌（access + refresh）；`refresh` 校验 token_type + DB 账态；`logout` 置 revoked；覆盖 V-backend-1~4 的后端断言（refresh 落库 / hash 存储 / 停用联动吊销 / token_type 区分）
 
 ## 2. dev.backend:dev - 实现开发
 
