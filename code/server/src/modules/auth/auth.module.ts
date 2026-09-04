@@ -8,6 +8,7 @@ import { AuthController } from './auth.controller';
 import { Employee } from '../system/entities/employee.entity';
 import { Role } from '../system/entities/role.entity';
 import { Permission } from '../system/entities/permission.entity';
+import { RefreshToken } from './entities/refresh-token.entity';
 
 @Module({
   imports: [
@@ -19,11 +20,16 @@ import { Permission } from '../system/entities/permission.entity';
         secret:
           configService.get<string>('JWT_SECRET') ||
           'house_pro_jwt_secret_key_change_in_production',
-        signOptions: { expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '7d' },
+        signOptions: {
+          expiresIn:
+            configService.get<string>('JWT_ACCESS_EXPIRES_IN') ||
+            configService.get<string>('JWT_EXPIRES_IN') ||
+            '2h',
+        },
       }),
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([Employee, Role, Permission]),
+    TypeOrmModule.forFeature([Employee, Role, Permission, RefreshToken]),
   ],
   providers: [AuthService],
   controllers: [AuthController],

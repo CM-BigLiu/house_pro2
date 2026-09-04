@@ -1,0 +1,16 @@
+{
+  "summary": "绿 phase 完成：新增 RefreshToken entity（sha256 hash 落库，7d 绝对过期）；AuthModule 注册 forFeature([RefreshToken]) + JWT 双 secret；AuthService.login 签发 access(token_type=access,2h)+refresh(token_type=refresh,7d) 双令牌并落库 hash；新增 refresh/logout/revokeUserTokens；AuthController 新增 POST /auth/refresh、/auth/logout（@Public）；JwtAuthGuard 增加 token_type=access 校验。nest build 通过；jest 15/15 PASS。lint 因项目缺少 ESLint 配置文件无法运行（既存问题，与本次改动无关）。",
+  "outputs": [
+    "code/server/src/modules/auth/entities/refresh-token.entity.ts",
+    "code/server/src/modules/auth/auth.service.ts",
+    "code/server/src/modules/auth/auth.controller.ts",
+    "code/server/src/modules/auth/auth.module.ts",
+    "code/server/src/common/guards/jwt-auth.guard.ts"
+  ],
+  "tasks_updated": [
+    "2.1,2.2,2.3,2.4,2.6,2.7"
+  ],
+  "status": "completed",
+  "evidence_paths": [],
+  "report_path": ""
+}

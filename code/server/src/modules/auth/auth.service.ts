@@ -1,23 +1,53 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { createHash } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Employee } from '../system/entities/employee.entity';
 import { Role } from '../system/entities/role.entity';
 import { Permission } from '../system/entities/permission.entity';
+import { RefreshToken, RefreshTokenStatus } from './entities/refresh-token.entity';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 
 import { maskPhone } from '../../common/utils/mask.util';
 
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+/** '2h' | '7d' | '30m' | number(seconds) → 毫秒 */
+function parseExpiresInMs(value: string | number, fallbackMs: number): number {
+  if (typeof value === 'number') return value * 1000;
+  if (!value) return fallbackMs;
+  const match = /^(\d+)\s*(ms|s|m|h|d)?$/.exec(String(value).trim());
+  if (!match) return fallbackMs;
+  const amount = parseInt(match[1], 10);
+  const unit = match[2] || 's';
+  const factor =
+    unit === 'ms' ? 1 :
+    unit === 's' ? 1000 :
+    unit === 'm' ? 60 * 1000 :
+    unit === 'h' ? 3600 * 1000 :
+    24 * 3600 * 1000; // d
+  return amount * factor;
+}
+
+const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
+const TWO_HOURS_MS = 2 * 3600 * 1000;
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(Employee)
     private employeeRepo: Repository<Employee>,
     @InjectRepository(Role)
     private roleRepo: Repository<Role>,
+    @InjectRepository(RefreshToken)
+    private refreshTokenRepo: Repository<RefreshToken>,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
   async validateEmployee(mobile: string, password: string): Promise<Employee> {
@@ -34,8 +64,35 @@ export class AuthService {
   async login(mobile: string, password: string) {
     const employee = await this.validateEmployee(mobile, password);
     const payload = await this.buildPayload(employee);
+
+    const accessExpiresIn = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '2h';
+    const refreshExpiresIn = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
+    const refreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET') ||
+      'house_pro_jwt_refresh_secret_change_in_production';
+
+    const accessToken = this.jwtService.sign(
+      { ...payload, token_type: 'access' },
+      { expiresIn: accessExpiresIn },
+    );
+    const refreshToken = this.jwtService.sign(
+      { ...payload, token_type: 'refresh' },
+      { secret: refreshSecret, expiresIn: refreshExpiresIn },
+    );
+
+    // refresh token 落库：存 sha256 hash 而非明文，绝对过期 7d（不随刷新滚动）
+    const expiresAt = new Date(Date.now() + parseExpiresInMs(refreshExpiresIn, SEVEN_DAYS_MS));
+    const record = this.refreshTokenRepo.create({
+      userId: employee.id,
+      tokenHash: sha256(refreshToken),
+      status: RefreshTokenStatus.Active,
+      expiresAt,
+    });
+    await this.refreshTokenRepo.save(record);
+
     return {
-      token: this.jwtService.sign(payload),
+      accessToken,
+      refreshToken,
       user: {
         id: employee.id,
         name: employee.name,
@@ -43,6 +100,94 @@ export class AuthService {
         avatar: employee.avatar,
       },
     };
+  }
+
+  async refresh(refreshToken: string) {
+    const refreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET') ||
+      'house_pro_jwt_refresh_secret_change_in_production';
+
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(refreshToken, { secret: refreshSecret });
+    } catch (err) {
+      this.logger.warn(`refresh failed: invalid signature, ${err?.message}`);
+      throw new UnauthorizedException('Refresh token 无效或已注销');
+    }
+
+    if (payload?.token_type !== 'refresh') {
+      this.logger.warn('refresh failed: token_type is not refresh');
+      throw new UnauthorizedException('Refresh token 无效或已注销');
+    }
+
+    const record = await this.refreshTokenRepo.findOne({
+      where: { tokenHash: sha256(refreshToken) },
+    });
+    if (
+      !record ||
+      record.status !== RefreshTokenStatus.Active ||
+      record.expiresAt.getTime() <= Date.now()
+    ) {
+      this.logger.warn(
+        `refresh failed: userId=${payload.employeeId}, ` +
+          `reason=${!record ? 'not_found' : record.status !== RefreshTokenStatus.Active ? 'revoked' : 'expired'}`,
+      );
+      throw new UnauthorizedException('Refresh token 无效或已注销');
+    }
+
+    const accessExpiresIn = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '2h';
+    const { iat, exp, ...rest } = payload;
+    const accessToken = this.jwtService.sign(
+      { ...rest, token_type: 'access' },
+      { expiresIn: accessExpiresIn },
+    );
+
+    this.logger.log(`refresh success: userId=${payload.employeeId}`);
+    return { accessToken };
+  }
+
+  async logout(refreshToken: string) {
+    const refreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET') ||
+      'house_pro_jwt_refresh_secret_change_in_production';
+
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(refreshToken, { secret: refreshSecret });
+    } catch (err) {
+      this.logger.warn(`logout failed: invalid signature, ${err?.message}`);
+      throw new UnauthorizedException('Refresh token 无效');
+    }
+
+    if (payload?.token_type !== 'refresh') {
+      this.logger.warn('logout failed: token_type is not refresh');
+      throw new UnauthorizedException('Refresh token 无效');
+    }
+
+    const record = await this.refreshTokenRepo.findOne({
+      where: { tokenHash: sha256(refreshToken) },
+    });
+    if (!record) {
+      this.logger.warn(`logout failed: userId=${payload.employeeId}, reason=not_found`);
+      throw new UnauthorizedException('Refresh token 无效');
+    }
+
+    if (record.status === RefreshTokenStatus.Active) {
+      record.status = RefreshTokenStatus.Revoked;
+      record.revokedAt = new Date();
+      await this.refreshTokenRepo.save(record);
+    }
+
+    this.logger.log(`logout success: userId=${payload.employeeId}, tokenId=${record.id}`);
+  }
+
+  /** 员工停用 / 密码变更后，批次吊销该用户全部 active refresh token */
+  async revokeUserTokens(userId: number): Promise<void> {
+    await this.refreshTokenRepo.update(
+      { userId, status: RefreshTokenStatus.Active },
+      { status: RefreshTokenStatus.Revoked, revokedAt: new Date() },
+    );
+    this.logger.log(`revokeUserTokens: userId=${userId}`);
   }
 
   async buildPayload(employee: Employee): Promise<CurrentUserPayload> {

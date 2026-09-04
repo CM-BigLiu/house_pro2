@@ -31,9 +31,14 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const payload = this.jwtService.verify(token);
+      // 拒绝 refresh token 被误当 access token 使用（旧 token 无 token_type 视为 access，向后兼容）
+      if (payload?.token_type && payload.token_type !== 'access') {
+        throw new UnauthorizedException('Token 无效或已过期');
+      }
       request.user = payload;
       return true;
     } catch (err) {
+      if (err instanceof UnauthorizedException) throw err;
       throw new UnauthorizedException('Token 无效或已过期');
     }
   }

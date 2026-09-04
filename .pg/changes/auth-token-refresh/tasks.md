@@ -16,12 +16,12 @@
      track=backend (常驻, 无 on_conditions)
 -->
 
-- [ ] 2.1 新增 `refresh-token.entity.ts`（RefreshToken entity：userId/tokenHash/status/expiresAt/revokedAt）
-- [ ] 2.2 `AuthModule` 注册 `TypeOrmModule.forFeature([RefreshToken])` + JWT 双 secret（access/refresh 独立密钥 + 独立 expiresIn）
-- [ ] 2.3 `AuthService.login` 改为签发 access（token_type=access, 2h）+ refresh（token_type=refresh, 7d），refresh 落库 sha256 hash
-- [ ] 2.4 新增 `AuthService.refresh`：校验 token_type=refresh + DB 账态（active 且未过期）→ 签发新 access
-- [ ] 2.6 `AuthController` 新增 `POST /auth/refresh`、`POST /auth/logout`（`@Public()` + 独立校验）
-- [ ] 2.7 `JwtAuthGuard` 增加 `token_type === 'access'` 校验，拒绝 refresh token 误当 access 使用
+- [x] 2.1 新增 `refresh-token.entity.ts`（RefreshToken entity：userId/tokenHash/status/expiresAt/revokedAt）
+- [x] 2.2 `AuthModule` 注册 `TypeOrmModule.forFeature([RefreshToken])` + JWT 双 secret（access/refresh 独立密钥 + 独立 expiresIn）
+- [x] 2.3 `AuthService.login` 改为签发 access（token_type=access, 2h）+ refresh（token_type=refresh, 7d），refresh 落库 sha256 hash
+- [x] 2.4 新增 `AuthService.refresh`：校验 token_type=refresh + DB 账态（active 且未过期）→ 签发新 access
+- [x] 2.6 `AuthController` 新增 `POST /auth/refresh`、`POST /auth/logout`（`@Public()` + 独立校验）
+- [x] 2.7 `JwtAuthGuard` 增加 `token_type === 'access'` 校验，拒绝 refresh token 误当 access 使用
 
 ## 3. dev.backend:review - 静态代码审查
 
