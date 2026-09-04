@@ -1,0 +1,11 @@
+{
+  "summary": "[dev.backend:gate] pass — 9/9 检查通过；V-backend-1~4 真实服务+真实 DB 全部 PASS；design 6 项后端承诺全部匹配；7 个变更文件全部在声明范围内无 scope creep；证据抽查 2/2 可追溯；实现完整性扫描 0 命中，tasks-V 映射 6/6 定位；runtime_boot 4 步证据齐备；单测 15/15 PASS 无新引入回归（lint 失败为既存 ESLint 配置缺失）。gate_score: 92, p0_failures: []",
+  "outputs": [],
+  "tasks_updated": [],
+  "status": "pass",
+  "evidence_paths": [
+    "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\005-dev.backend-gate.md",
+    "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\auth-token-refresh.verify-evidence.md"
+  ],
+  "report_path": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\005-dev.backend-gate.md"
+}
