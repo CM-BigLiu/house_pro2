@@ -34,3 +34,4 @@
 {"ts":"2026-09-04T15:59:14+08:00","type":"git_commit","data":{"sha":"8124332972bdaba8c00b6ddf5af0b3ff37d68834","message":"chore(auth-token-refresh): auto-record dev.frontend:gate pass","branch":"feat/pg/auth-token-refresh"}}
 {"ts":"2026-09-04T15:59:23+08:00","type":"clean_env_started","data":{"stage":"dev","env_name":"dev-local"}}
 {"ts":"2026-09-04T15:59:50+08:00","type":"clean_env_completed","data":{"stage":"dev","env_name":"dev-local","exit_code":null,"log_path":"","ok":true}}
+{"ts":"2026-09-04T16:00:32+08:00","type":"prepare_env_completed","data":{"stage":"int","env_name":"dev-local","exit_code":null,"log_path":"","ok":true}}

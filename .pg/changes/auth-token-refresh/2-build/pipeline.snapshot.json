@@ -387,5 +387,7 @@
     "dev-local": 120
   },
   "current_stage": "int",
-  "stage_prepared": []
+  "stage_prepared": [
+    "int"
+  ]
 }
