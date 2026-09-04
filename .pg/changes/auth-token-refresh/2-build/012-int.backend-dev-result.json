@@ -1,0 +1,15 @@
+{
+  "summary": "int.backend 无新增实现（tasks.md 12.1：dev.backend 已完成双令牌签发 + refresh 校验 + logout 撤销）。本次联调确认 refresh_token 表在 dev-local 真实 PostgreSQL 上正确建表并可读写：test 阶段 integration spec 使用独立测试库 house_pro_int（synchronize=true 建表）完整跑通登录-刷新-登出链路并验证落库/哈希存储/revoked 状态流转，npm test 全量 21/21 PASS（含 6/6 集成用例），nest build 通过。lint 因项目缺少 .eslintrc 配置文件无法运行（ESLint 8 需配置文件），属预存在环境限制，与本次变更无关。",
+  "outputs": [
+    "code/server/src/modules/auth/entities/refresh-token.entity.ts",
+    "code/server/src/modules/auth/auth.service.ts",
+    "code/server/src/modules/auth/auth.module.ts",
+    "code/server/src/modules/auth/auth.controller.ts"
+  ],
+  "tasks_updated": [
+    "12.1"
+  ],
+  "status": "completed",
+  "evidence_paths": [],
+  "report_path": ""
+}

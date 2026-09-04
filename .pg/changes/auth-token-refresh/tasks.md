@@ -135,7 +135,7 @@
      track=backend (常驻, 无 on_conditions)
 -->
 
-- [ ] 12.1 int 阶段无新增实现（dev 已完成双令牌 + 刷新 + 登出）；联调时确认 refresh_token 表在 dev-local 真实 PostgreSQL 上正确建表并可读写
+- [x] 12.1 int 阶段无新增实现（dev 已完成双令牌 + 刷新 + 登出）；联调时确认 refresh_token 表在 dev-local 真实 PostgreSQL 上正确建表并可读写
 ## 13. int.backend:review - 静态代码审查
 
 <!-- on_conditions_eval:

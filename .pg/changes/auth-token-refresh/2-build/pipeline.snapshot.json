@@ -254,6 +254,17 @@
           "summary": "int.backend 集成测试 6/6 通过，npm test 21/21；覆盖 V-backend-1~4 全链路（独立测试库 house_pro_int + 动态端口）",
           "tasks_marked": [],
           "current_cycle": 1
+        },
+        "dev": {
+          "status": "completed",
+          "attempt": 1,
+          "started_at": null,
+          "completed_at": null,
+          "agent": null,
+          "report_path": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\012-int.backend-dev-result.json",
+          "summary": "int.backend 无新增实现；npm test 21/21 PASS，nest build 通过；lint 缺配置（既存）",
+          "tasks_marked": [],
+          "current_cycle": 1
         }
       },
       "sub_pipelines": [],
@@ -383,8 +394,8 @@
   "status": "running",
   "failed_reason": null,
   "current_track": "int.backend",
-  "current_phase": "dev",
-  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\011-int.backend-test-dispatch.md",
+  "current_phase": "review",
+  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\012-int.backend-dev-dispatch.md",
   "retry_count": 0,
   "idle_next_count": 0,
   "stage_order": [
