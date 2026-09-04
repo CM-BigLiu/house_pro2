@@ -68,7 +68,7 @@
      track=frontend (常驻, 无 on_conditions)
 -->
 
-- [ ] 6.1 为前端登录态 store + axios 拦截器编写测试：login 存双令牌；401 → 单飞 refresh → 重放原请求成功；V-frontend-1
+- [x] 6.1 为前端登录态 store + axios 拦截器编写测试：login 存双令牌；401 → 单飞 refresh → 重放原请求成功；V-frontend-1
 
 ## 7. dev.frontend:dev - 实现开发
 

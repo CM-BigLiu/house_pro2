@@ -22,7 +22,7 @@ export const useUserStore = defineStore('user', () => {
     loading.value = true;
     try {
       const res = await loginApi(form);
-      setToken(res.token);
+      setToken(res.accessToken);
       await fetchUserInfo();
       await fetchMenus();
       connectSocket();

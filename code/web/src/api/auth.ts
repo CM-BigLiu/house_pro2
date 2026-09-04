@@ -6,7 +6,8 @@ export interface LoginForm {
 }
 
 export interface LoginResult {
-  token: string;
+  accessToken: string;
+  refreshToken?: string;
   user: {
     id: number;
     name: string;
