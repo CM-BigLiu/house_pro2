@@ -1,0 +1,16 @@
+{
+  "status": "fail",
+  "exit_code": 1,
+  "error": {
+    "category": "unknown",
+    "severity": "recoverable",
+    "code": "PG-E-0925",
+    "message": "backend 端口 3000 90s 内未就绪",
+    "hint": "查看 D:\04-profile\test\house_pro4\house_pro2\.pg\changes\auth-token-refresh\2-build\dev-local-logs/backend.log；确认 PostgreSQL 5432 已运行",
+    "triggered_by": "explicit"
+  },
+  "metadata": {
+    "agent_recoverable": true,
+    "timestamp": "2026-09-04T04:27:42Z"
+  }
+}

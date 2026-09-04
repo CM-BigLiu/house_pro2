@@ -60,6 +60,17 @@
           "summary": "review PASS: 6/6 检查项通过, review_score: 100, p0_failures: []",
           "tasks_marked": [],
           "current_cycle": 1
+        },
+        "verify": {
+          "status": "completed",
+          "attempt": 0,
+          "started_at": null,
+          "completed_at": null,
+          "agent": null,
+          "report_path": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\004-dev.backend-verify-result.json",
+          "summary": "verify PASS: 单元测试 15/15、服务启动、V-backend-1/2/3/4 全链路验证通过；lint FAIL 为既存豁免（项目缺 ESLint 配置）",
+          "tasks_marked": [],
+          "current_cycle": 1
         }
       },
       "sub_pipelines": [],
@@ -281,8 +292,8 @@
   "status": "running",
   "failed_reason": null,
   "current_track": "dev.backend",
-  "current_phase": "verify",
-  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\003-dev.backend-review-dispatch.md",
+  "current_phase": "gate",
+  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\004-dev.backend-verify-dispatch.md",
   "retry_count": 0,
   "idle_next_count": 0,
   "stage_order": [
