@@ -157,6 +157,17 @@
           "summary": "dev.frontend 绿 phase：vitest 5/5 通过（V-frontend-1 刷新重放、并发单飞合并、refresh 失败清理）；npm run build 成功",
           "tasks_marked": [],
           "current_cycle": 1
+        },
+        "review": {
+          "status": "completed",
+          "attempt": 0,
+          "started_at": null,
+          "completed_at": null,
+          "agent": null,
+          "report_path": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\008-dev.frontend-review-result.json",
+          "summary": "review PASS: 5/6 检查项通过, review_score: 82.6, R-3 FAIL（非 P0, 建议抽取 clearAuthState action）",
+          "tasks_marked": [],
+          "current_cycle": 1
         }
       },
       "sub_pipelines": [],
@@ -332,8 +343,8 @@
   "status": "running",
   "failed_reason": null,
   "current_track": "dev.frontend",
-  "current_phase": "review",
-  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\007-dev.frontend-dev-dispatch.md",
+  "current_phase": "verify",
+  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\008-dev.frontend-review-dispatch.md",
   "retry_count": 0,
   "idle_next_count": 0,
   "stage_order": [
