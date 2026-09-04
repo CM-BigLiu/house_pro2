@@ -243,7 +243,19 @@
       "max_fix_retries": 5,
       "max_gate_fix_retries": 2,
       "max_review_fix_retries": 3,
-      "phases": {},
+      "phases": {
+        "test": {
+          "status": "completed",
+          "attempt": 1,
+          "started_at": null,
+          "completed_at": null,
+          "agent": null,
+          "report_path": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\011-int.backend-test-result.json",
+          "summary": "int.backend 集成测试 6/6 通过，npm test 21/21；覆盖 V-backend-1~4 全链路（独立测试库 house_pro_int + 动态端口）",
+          "tasks_marked": [],
+          "current_cycle": 1
+        }
+      },
       "sub_pipelines": [],
       "accepted_gaps": [],
       "module_roots": "['code/server']",
@@ -370,9 +382,9 @@
   "feature_branch": "feat/pg/auth-token-refresh",
   "status": "running",
   "failed_reason": null,
-  "current_track": "",
-  "current_phase": "",
-  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\010-dev.frontend-gate-dispatch.md",
+  "current_track": "int.backend",
+  "current_phase": "dev",
+  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\011-int.backend-test-dispatch.md",
   "retry_count": 0,
   "idle_next_count": 0,
   "stage_order": [

@@ -126,7 +126,7 @@
      track=backend (常驻, 无 on_conditions)
 -->
 
-- [ ] 11.1 编写 int 测试：登录→刷新→登出全链路后端集成测试（真实 DB refresh_token 表读写），覆盖 V-backend-1~4
+- [x] 11.1 编写 int 测试：登录→刷新→登出全链路后端集成测试（真实 DB refresh_token 表读写），覆盖 V-backend-1~4
 
 ## 12. int.backend:dev - 实现开发
 

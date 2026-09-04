@@ -1,0 +1,12 @@
+{
+  "summary": "int.backend 集成测试已完成：登录→刷新→登出全链路（真实 DB refresh_token 读写）覆盖 V-backend-1~4。生产代码已存在，测试全部通过（6/6）——因 int 阶段无新增实现（tasks.md 12.1），此为预期的集成验证而非 TDD 红 phase 违规。新增 code/server/src/int/auth-token-refresh.int.spec.ts，使用独立测试库 house_pro_int，不影响 dev-local 业务库。",
+  "outputs": [
+    "code/server/src/int/auth-token-refresh.int.spec.ts"
+  ],
+  "tasks_updated": [
+    "11.1"
+  ],
+  "status": "completed",
+  "evidence_paths": [],
+  "report_path": ""
+}
