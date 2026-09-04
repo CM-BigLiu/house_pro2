@@ -125,7 +125,7 @@
       "track_id": "dev.frontend",
       "bare": "frontend",
       "label": "前端 track：web 模块 TDRVG 循环（无测试命令，build+lint 承担门禁）",
-      "status": "pending",
+      "status": "completed",
       "started_at": null,
       "completed_at": null,
       "modules": [
@@ -179,6 +179,23 @@
           "summary": "verify PASS: vitest 5/5 通过，401 单飞 refresh 重放、并发合并、refresh 失败清登录态均验证通过",
           "tasks_marked": [],
           "current_cycle": 1
+        },
+        "gate": {
+          "status": "pass",
+          "attempt": 0,
+          "started_at": null,
+          "completed_at": null,
+          "agent": null,
+          "report_path": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\010-dev.frontend-gate-result.json",
+          "summary": "门控 PASS, gate_score: 96.5, p0_failures: []；R-3 建议已记录不阻断",
+          "tasks_marked": [],
+          "current_cycle": 1,
+          "gate_cycles": [
+            {
+              "cycle": 1,
+              "status": "pass"
+            }
+          ]
         }
       },
       "sub_pipelines": [],
@@ -353,9 +370,9 @@
   "feature_branch": "feat/pg/auth-token-refresh",
   "status": "running",
   "failed_reason": null,
-  "current_track": "dev.frontend",
-  "current_phase": "gate",
-  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\009-dev.frontend-verify-dispatch.md",
+  "current_track": "",
+  "current_phase": "",
+  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\010-dev.frontend-gate-dispatch.md",
   "retry_count": 0,
   "idle_next_count": 0,
   "stage_order": [

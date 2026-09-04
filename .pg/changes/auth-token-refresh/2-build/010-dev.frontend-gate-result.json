@@ -1,0 +1,11 @@
+{
+  "summary": "[dev.frontend:gate] pass — 9/9 检查通过（V-frontend-1 PASS、design 一致、无 scope creep、证据可追溯 2/2、测试 5/5、实现完整性 0 命中、B3 四步齐全）。gate_score: 96.5, p0_failures: []",
+  "outputs": [],
+  "tasks_updated": [],
+  "status": "pass",
+  "evidence_paths": [
+    "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\009-dev.frontend-verify.md",
+    "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\auth-token-refresh.verify-evidence.md"
+  ],
+  "report_path": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\010-dev.frontend-gate.md"
+}
