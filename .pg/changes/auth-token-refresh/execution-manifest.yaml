@@ -1,0 +1,105 @@
+schema_version: '2026-06-30'
+change: auth-token-refresh
+stages:
+- name: dev
+  environment: dev-local
+  tracks:
+  - id: backend
+    type: standard
+    enabled: true
+    reason: 常驻 track（无 on_conditions），LLM 决策启用
+    on_conditions_eval:
+      matched_rules: []
+      unmatched_rules: []
+      path_hit_count: 0
+      semantic_hit_count: 0
+    phase_prompts:
+      test:
+        tasks_md_section: 1. dev.backend:test - dev 测试先行
+      dev:
+        tasks_md_section: 2. dev.backend:dev - 实现开发
+      review:
+        tasks_md_section: 3. dev.backend:review - 静态代码审查
+      verify:
+        tasks_md_section: 4. dev.backend:verify - dev 集成验证
+      gate:
+        tasks_md_section: 5. dev.backend:gate - dev 门控审查
+  - id: frontend
+    type: standard
+    enabled: true
+    reason: 常驻 track（无 on_conditions），LLM 决策启用
+    on_conditions_eval:
+      matched_rules: []
+      unmatched_rules: []
+      path_hit_count: 0
+      semantic_hit_count: 0
+    phase_prompts:
+      test:
+        tasks_md_section: 6. dev.frontend:test - dev 测试先行
+      dev:
+        tasks_md_section: 7. dev.frontend:dev - 实现开发
+      review:
+        tasks_md_section: 8. dev.frontend:review - 静态代码审查
+      verify:
+        tasks_md_section: 9. dev.frontend:verify - dev 集成验证
+      gate:
+        tasks_md_section: 10. dev.frontend:gate - dev 门控审查
+- name: int
+  environment: dev-local
+  tracks:
+  - id: backend
+    type: standard
+    enabled: true
+    reason: 常驻 track（无 on_conditions），LLM 决策启用
+    on_conditions_eval:
+      matched_rules: []
+      unmatched_rules: []
+      path_hit_count: 0
+      semantic_hit_count: 0
+    phase_prompts:
+      test:
+        tasks_md_section: 11. int.backend:test - int 测试先行
+      dev:
+        tasks_md_section: 12. int.backend:dev - 实现开发
+      review:
+        tasks_md_section: 13. int.backend:review - 静态代码审查
+      verify:
+        tasks_md_section: 14. int.backend:verify - int 集成验证
+      gate:
+        tasks_md_section: 15. int.backend:gate - int 门控审查
+  - id: frontend
+    type: standard
+    enabled: true
+    reason: 常驻 track（无 on_conditions），LLM 决策启用
+    on_conditions_eval:
+      matched_rules: []
+      unmatched_rules: []
+      path_hit_count: 0
+      semantic_hit_count: 0
+    phase_prompts:
+      test:
+        tasks_md_section: 16. int.frontend:test - int 测试先行
+      dev:
+        tasks_md_section: 17. int.frontend:dev - 实现开发
+      review:
+        tasks_md_section: 18. int.frontend:review - 静态代码审查
+      verify:
+        tasks_md_section: 19. int.frontend:verify - int 集成验证
+      gate:
+        tasks_md_section: 20. int.frontend:gate - int 门控审查
+  - id: fullstack
+    type: scenario
+    enabled: true
+    reason: 跨前后端联调：前端 axios 拦截器 refresh 重放 ↔ 后端 refresh token 校验+落库+吊销；新增 2 个 API
+      端点
+    on_conditions_eval:
+      matched_rules: []
+      unmatched_rules: []
+      path_hit_count: 0
+      semantic_hit_count: 0
+    phase_prompts:
+      scenario-execute:
+        tasks_md_section: 21. int.fullstack:scenario-execute - 真机场景执行
+    scenario_yaml: scenario-fullstack.yaml
+final_gate:
+  tasks_md_section: 22. final-gate - 最终门控审查

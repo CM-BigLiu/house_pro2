@@ -4,6 +4,9 @@
 
 schema: spec-driven
 
+git:
+  default_branch: main
+
 modules:
   server:
     root: code/server

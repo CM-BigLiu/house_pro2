@@ -1,0 +1,160 @@
+scenarios:
+- scenario_id: S-auth-login-issue-double-token
+  critical: true
+  description: 登录签发双令牌（access + refresh），refresh token 落库为 active 且存 hash
+  given:
+  - "{env.business_systems[name=house-backend].endpoints[0].url} 可达"
+  - "{env.infra_services[name=house-local-db].instances[0].endpoint} 可达"
+  - "存在可登录员工（sys_employee 有记录）"
+  covers:
+  - V-backend-1
+  - V-backend-2
+  when:
+  - name: 登录
+    type: api
+    method: POST
+    url: /auth/login
+    body:
+      mobile: "13800000000"
+      password: "test123"
+    expect_status: 201
+  then:
+  - status_code == 201
+  - response.data.accessToken exists
+  - response.data.refreshToken exists
+  and:
+  - name: 清理该员工 refresh token
+    action: DB DELETE FROM refresh_token WHERE user_id = (SELECT id FROM sys_employee WHERE mobile='13800000000')
+  evidence:
+  - 2-build/<report_seq>-S-auth-login-issue-double-token-evidence.json
+
+- scenario_id: S-auth-refresh-exchange
+  critical: true
+  description: 用 refresh token 刷新得到新 access token；refresh token 不能当 access token 用
+  given:
+  - "{env.business_systems[name=house-backend].endpoints[0].url} 可达"
+  - "已通过登录获得 refreshToken"
+  covers:
+  - V-backend-4
+  when:
+  - name: 刷新获取新 access token
+    type: api
+    method: POST
+    url: /auth/refresh
+    body:
+      refreshToken: "{refreshToken}"
+    expect_status: 201
+  - name: 用 refresh token 访问受保护接口应被拒
+    type: api
+    method: GET
+    url: /auth/me
+    body:
+      authorization: "Bearer {refreshToken}"
+    expect_status: 401
+  then:
+  - status_code == 201
+  - response.data.accessToken exists
+  - '第二个请求 status_code == 401'
+  and:
+  - name: 清理该员工 refresh token
+    action: DB DELETE FROM refresh_token WHERE user_id = (SELECT id FROM sys_employee WHERE mobile='13800000000')
+  evidence:
+  - 2-build/<report_seq>-S-auth-refresh-exchange-evidence.json
+
+- scenario_id: S-auth-logout-revoke
+  critical: true
+  description: 登出后 refresh token 被吊销，再次刷新返回 401
+  given:
+  - "{env.business_systems[name=house-backend].endpoints[0].url} 可达"
+  - "已通过登录获得 refreshToken"
+  covers:
+  - V-backend-1
+  when:
+  - name: 登出
+    type: api
+    method: POST
+    url: /auth/logout
+    body:
+      refreshToken: "{refreshToken}"
+    expect_status: 201
+  - name: 登出后再次刷新应失败
+    type: api
+    method: POST
+    url: /auth/refresh
+    body:
+      refreshToken: "{refreshToken}"
+    expect_status: 401
+  then:
+  - status_code == 201
+  - '第二个请求 status_code == 401'
+  and:
+  - name: 清理该员工 refresh token
+    action: DB DELETE FROM refresh_token WHERE user_id = (SELECT id FROM sys_employee WHERE mobile='13800000000')
+  evidence:
+  - 2-build/<report_seq>-S-auth-logout-revoke-evidence.json
+
+- scenario_id: S-auth-revoke-user-tokens
+  critical: false
+  description: 员工停用后其历史 refresh token 全部失效
+  given:
+  - "{env.business_systems[name=house-backend].endpoints[0].url} 可达"
+  - "该员工已登录并有多个 active refresh token"
+  covers:
+  - V-backend-3
+  when:
+  - name: 触发按用户吊销 refresh token（revokeUserTokens）
+    type: api
+    method: POST
+    url: /auth/revoke
+    body:
+      userId: 1
+    expect_status: 201
+  - name: 吊销后刷新应失败
+    type: api
+    method: POST
+    url: /auth/refresh
+    body:
+      refreshToken: "{refreshToken}"
+    expect_status: 401
+  then:
+  - status_code == 201
+  - '第二个请求 status_code == 401'
+  and:
+  - name: 清理该员工 refresh token
+    action: DB DELETE FROM refresh_token WHERE user_id = 1
+  evidence:
+  - 2-build/<report_seq>-S-auth-revoke-user-tokens-evidence.json
+
+- scenario_id: S-auth-browser-refresh-retry
+  critical: false
+  description: 浏览器端登录态：access 过期后前端自动刷新并重放请求，登出后跳登录页
+  given:
+  - "{env.business_systems[name=house-frontend].endpoints[0].url} 可达"
+  - "{env.business_systems[name=house-backend].endpoints[0].url} 可达"
+  - "已准备过期 access token 的受保护页面"
+  covers:
+  - V-frontend-1
+  when:
+  - name: 导航到受保护页
+    type: browser
+    action: navigate
+    url: /house/customer
+  - name: 等待页面加载
+    type: browser
+    action: wait
+    selector: ".el-table"
+  - name: 截图验证
+    type: browser
+    action: screenshot
+  then:
+  - 'dom: .el-table exists'
+  - 'console: no errors'
+  and: []
+  evidence:
+  - 2-build/<report_seq>-S-auth-browser-refresh-retry-evidence.json
+  - 2-build/<report_seq>-S-auth-browser-refresh-retry-screenshot.png
+_meta:
+  _comment: "scenario-fullstack.yaml (auth-token-refresh)。dev-local 环境：house-backend(3000) + house-frontend(5173) + house-local-db(5432)。refresh token 落库为 hash、按用户吊销、access/refresh token_type 区分均在 V-backend-* 验证；浏览器场景验证前端拦截器刷新重放。"
+  change: auth-token-refresh
+  track_id: fullstack
+  schema_version: v3.10

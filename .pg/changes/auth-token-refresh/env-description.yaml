@@ -1,0 +1,85 @@
+schema_version: 1
+described_by: env-dev-local-describe.sh
+described_at: "2026-09-04T00:00:00Z"
+described_for:
+  caller: pg-propose
+  change: auth-token-refresh
+  environment: dev-local
+environments:
+  dev-local:
+    infra_services:
+      - name: house-local-db
+        type: postgres
+        category: database
+        instances:
+          - id: house-local-postgres-1
+            endpoint: "127.0.0.1:5432"
+            role: primary
+            version: unknown
+            reachable: true
+            health_check:
+              method: tcp
+              path: "127.0.0.1:5432"
+              expect_status: 0
+              timeout_seconds: 2
+              retry_count: 1
+        state: { initialized: true, replicas: 1, topology: single }
+        lifecycle: persistent
+        tags: ["resident-service", "not-managed-by-pipeline"]
+    business_systems:
+      - name: house-backend
+        type: rest-api
+        category: downstream
+        endpoints:
+          - { name: health, url: "http://localhost:3000/", method: GET }
+          - { name: login, url: "http://localhost:3000/auth/login", method: POST }
+        auth: { user: anonymous-on-login, encoding: jwt }
+        contract_ref: "code/server/src/modules/auth"
+        lifecycle: ephemeral
+        reachable: true
+        tags: ["nestjs", "typescript"]
+      - name: house-frontend
+        type: rest-api
+        category: downstream
+        endpoints:
+          - { name: spa, url: "http://localhost:5173/", method: GET }
+        auth: { user: anonymous, encoding: jwt }
+        contract_ref: "code/web"
+        lifecycle: ephemeral
+        reachable: true
+        tags: ["vue3", "vite"]
+      - name: house-mock
+        type: mock
+        category: mock
+        endpoints:
+          - { name: mock, url: "http://localhost:3000/", method: GET }
+        mock_config: { behavior: stateless }
+        lifecycle: ephemeral
+        reachable: false
+        tags: ["express-mock", "offline-demo"]
+    data_resources:
+      - name: sys_employee
+        type: db-table
+        owner: house-local-db
+        state: { status: unknown, last_verified_at: "2026-09-04T00:00:00Z", verified_by: env-dev-local-describe.sh }
+        schema_ref: "code/server/src/modules/system/entities/employee.entity.ts"
+        lifecycle: persistent
+        cleanup: keep
+        tags: ["house-pro", "employee"]
+    config_resources:
+      - name: env-vars-jwt
+        type: env-vars
+        location: "JWT_SECRET / JWT_EXPIRES_IN / JWT_REFRESH_EXPIRES_IN"
+        scope: application
+      - name: env-file
+        type: file
+        location: "code/server/.env"
+        scope: environment
+    runtime_environment:
+      - name: local-runtime
+        os: windows
+        network: localhost
+        node: present
+    external_dependencies: []
+    relations:
+      - { from: house-backend, to: house-local-db, type: reads }
