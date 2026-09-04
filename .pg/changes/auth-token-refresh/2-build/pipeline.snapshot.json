@@ -386,8 +386,6 @@
   "stage_env_timeout": {
     "dev-local": 120
   },
-  "current_stage": "dev",
-  "stage_prepared": [
-    "dev"
-  ]
+  "current_stage": "int",
+  "stage_prepared": []
 }
