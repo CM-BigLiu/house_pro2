@@ -7,13 +7,18 @@ export interface LoginForm {
 
 export interface LoginResult {
   accessToken: string;
-  refreshToken?: string;
+  refreshToken: string;
   user: {
     id: number;
     name: string;
     mobile: string;
     avatar?: string;
   };
+}
+
+export interface RefreshResult {
+  accessToken: string;
+  refreshToken: string;
 }
 
 export interface UserInfo {
@@ -29,6 +34,14 @@ export interface UserInfo {
 
 export function login(data: LoginForm) {
   return post<LoginResult>('/auth/login', data);
+}
+
+export function refreshToken(data: { refreshToken: string }) {
+  return post<RefreshResult>('/auth/refresh', data);
+}
+
+export function logout(data: { refreshToken: string }) {
+  return post<null>('/auth/logout', data);
 }
 
 export function getMe() {

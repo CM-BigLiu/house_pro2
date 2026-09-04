@@ -77,9 +77,9 @@
      track=frontend (常驻, 无 on_conditions)
 -->
 
-- [ ] 7.1 `code/web/src/api/auth.ts`：login/refresh/logout 调用改造（双令牌返回结构）
-- [ ] 7.2 `code/web/src/stores/auth.ts`：access + refresh 双令牌持久化 + 登出清理
-- [ ] 7.3 axios 拦截器：access 401 → 单飞 refresh → 重放原请求；refresh 失败 → 清登录态跳登录页
+- [x] 7.1 `code/web/src/api/auth.ts`：login/refresh/logout 调用改造（双令牌返回结构）
+- [x] 7.2 `code/web/src/stores/auth.ts`：access + refresh 双令牌持久化 + 登出清理
+- [x] 7.3 axios 拦截器：access 401 → 单飞 refresh → 重放原请求；refresh 失败 → 清登录态跳登录页
 
 ## 8. dev.frontend:review - 静态代码审查
 

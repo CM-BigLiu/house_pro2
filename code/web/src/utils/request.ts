@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 import { ElMessage } from 'element-plus';
 import { useUserStore } from '@/stores/user';
+import { refreshToken as refreshTokenApi } from '@/api/auth';
 
 const request: AxiosInstance = axios.create({
   baseURL: (import.meta as any).env?.VITE_API_BASE_URL || '/api',
@@ -10,11 +11,38 @@ const request: AxiosInstance = axios.create({
   },
 });
 
+// ---------------------------------------------------------------------------
+// 单飞 (in-flight 合并) refresh: 并发 401 只触发一次刷新
+// ---------------------------------------------------------------------------
+let refreshingPromise: Promise<{ accessToken: string; refreshToken: string }> | null = null;
+
+function doRefresh(): Promise<{ accessToken: string; refreshToken: string }> {
+  if (!refreshingPromise) {
+    const userStore = useUserStore();
+    const currentRefreshToken = userStore.refreshToken;
+    refreshingPromise = refreshTokenApi({ refreshToken: currentRefreshToken })
+      .then((res) => {
+        userStore.setTokens(res.accessToken, res.refreshToken);
+        return res;
+      })
+      .finally(() => {
+        refreshingPromise = null;
+      });
+  }
+  return refreshingPromise;
+}
+
+function redirectToLogin() {
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
+
 request.interceptors.request.use(
   (config) => {
     const userStore = useUserStore();
-    if (userStore.token) {
-      config.headers.Authorization = `Bearer ${userStore.token}`;
+    if (userStore.accessToken) {
+      config.headers.Authorization = `Bearer ${userStore.accessToken}`;
     }
     return config;
   },
@@ -33,15 +61,45 @@ request.interceptors.response.use(
     }
     return data;
   },
-  (error: AxiosError<{ message?: string }>) => {
-    const { response } = error;
+  async (error: AxiosError<{ message?: string }>) => {
+    const { response, config } = error;
+
+    // 401: access token 过期 → 单飞 refresh → 重放原请求
+    if (response?.status === 401 && config && !(config as any).__isRetryAfterRefresh) {
+      const userStore = useUserStore();
+      // 本地已无 refresh token: 直接清登录态跳登录
+      if (!userStore.refreshToken) {
+        userStore.setTokens('', '');
+        userStore.userInfo = null;
+        userStore.menus = [];
+        ElMessage.error('登录已过期，请重新登录');
+        redirectToLogin();
+        return Promise.reject(error);
+      }
+      try {
+        await doRefresh();
+      } catch (refreshError) {
+        // refresh 失败 (无效/过期/已吊销): 清登录态跳登录
+        userStore.setTokens('', '');
+        userStore.userInfo = null;
+        userStore.menus = [];
+        ElMessage.error('登录已过期，请重新登录');
+        redirectToLogin();
+        return Promise.reject(error);
+      }
+      // 重放原请求 (换新 access token)
+      (config as any).__isRetryAfterRefresh = true;
+      config.headers = config.headers || ({} as any);
+      (config.headers as any).Authorization = `Bearer ${useUserStore().accessToken}`;
+      return request(config);
+    }
+
     let message = '网络异常，请稍后重试';
     if (response) {
       switch (response.status) {
         case 401:
           message = '登录已过期，请重新登录';
-          useUserStore().logout();
-          window.location.href = '/login';
+          redirectToLogin();
           break;
         case 403:
           message = '没有权限执行该操作';

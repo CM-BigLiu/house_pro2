@@ -1,0 +1,14 @@
+{
+  "summary": "dev.frontend 绿 phase 完成：1) src/api/auth.ts 新增 refreshToken/logout API，LoginResult.refreshToken 改为必填；2) src/stores/user.ts 重构为 access+refresh 双令牌持久化（house_access_token/house_refresh_token），新增 setTokens，logout 改为异步调后端 /auth/logout 并清空双令牌，保留 token 计算属性向后兼容；3) src/utils/request.ts axios 拦截器实现 401 单飞 refresh（in-flight 合并）→ 重放原请求，refresh 失败清登录态跳登录。验证：vitest 5/5 通过（含 V-frontend-1 刷新重放、并发单飞、失败清理），npm run build 成功。ESLint 因项目缺配置文件失败（基线同样失败），非本次改动引入。",
+  "outputs": [
+    "code/web/src/api/auth.ts",
+    "code/web/src/stores/user.ts",
+    "code/web/src/utils/request.ts"
+  ],
+  "tasks_updated": [
+    "7.1,7.2,7.3"
+  ],
+  "status": "completed",
+  "evidence_paths": [],
+  "report_path": ""
+}
