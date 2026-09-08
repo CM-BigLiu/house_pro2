@@ -219,4 +219,14 @@ export const dictSeedData: Record<string, { value: string; label: string; group?
     { value: 'active', label: '生效中' },
     { value: 'revoked', label: '已撤销' },
   ],
+  checkout_status: [
+    { value: 'pending', label: '待确认' },
+    { value: 'confirmed', label: '已确认' },
+    { value: 'completed', label: '已完成' },
+  ],
+  deposit_status: [
+    { value: 'pending', label: '待退' },
+    { value: 'refunded', label: '已退' },
+    { value: 'deducted', label: '已扣' },
+  ],
 };

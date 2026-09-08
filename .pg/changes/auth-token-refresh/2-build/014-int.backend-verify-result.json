@@ -1,0 +1,10 @@
+{
+  "summary": "verify done: backend-1 running (PID 124572, port 3000); npm test 21/21 PASS; V-backend-1 refresh_token row active expiresAt=issued+7d; V-backend-2 tokenHash=sha256(refreshToken) 64-hex matches DB, plaintext not persisted; V-backend-3 logout revokes then refresh 401; V-backend-4 refresh on /auth/me 401, access as refreshToken 401, access on /auth/me 200. lint blocked by missing ESLint config (pre-existing). No code bugs.",
+  "outputs": [],
+  "tasks_updated": [],
+  "status": "completed",
+  "evidence_paths": [
+    "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\auth-token-refresh.verify-evidence.md"
+  ],
+  "report_path": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\014-int.backend-verify.md"
+}

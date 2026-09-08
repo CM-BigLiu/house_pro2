@@ -123,7 +123,10 @@ export class SeedService implements OnModuleInit {
       { code: 'system:employee:edit', name: '编辑员工', type: 'action', module: 'system' },
       { code: 'system:store:edit', name: '编辑门店', type: 'action', module: 'system' },
       { code: 'checkout:export', name: '导出退租', type: 'action', module: 'house' },
+      { code: 'checkout:confirm', name: '确认退租/清算', type: 'action', module: 'house' },
       { code: 'deposit:export', name: '导出押金', type: 'action', module: 'house' },
+      { code: 'deposit:refund', name: '退还押金', type: 'action', module: 'house' },
+      { code: 'deposit:deduct', name: '扣留押金', type: 'action', module: 'house' },
     ];
 
     // 顶层菜单补 module，便于前端按模块分组展示
@@ -175,6 +178,11 @@ export class SeedService implements OnModuleInit {
       'reserve:house:transfer': 'house:reserve_house',
       'reserve:client:add': 'house:reserve_client',
       'reserve:client:transfer': 'house:reserve_client',
+      'checkout:confirm': 'house:checkout',
+      'checkout:export': 'house:checkout',
+      'deposit:refund': 'house:deposit',
+      'deposit:deduct': 'house:deposit',
+      'deposit:export': 'house:deposit',
     };
 
     const updates: { id: number; parentId: number }[] = [];
@@ -240,10 +248,10 @@ export class SeedService implements OnModuleInit {
     const roleActionAllowlist: Record<string, string[]> = {
       super_admin: allPerms.filter((p) => p.type === 'action').map((p) => p.code),
       company_admin: allPerms.filter((p) => p.type === 'action').map((p) => p.code),
-      store_manager: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'renting:add', 'renting:edit', 'renting:checkout', 'renting:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:client:add', 'reserve:client:transfer', 'house:customer:create', 'finance:bill:modify', 'finance:bill:cancel', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'system:employee:edit'],
-      finance_manager: ['finance:bill:modify', 'finance:bill:cancel', 'finance:ticket:apply', 'finance:ticket:approve', 'finance:payout:create', 'finance:payout:batch', 'finance:export'],
+      store_manager: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'renting:add', 'renting:edit', 'renting:checkout', 'renting:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:client:add', 'reserve:client:transfer', 'house:customer:create', 'finance:bill:modify', 'finance:bill:cancel', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'system:employee:edit', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
+      finance_manager: ['finance:bill:modify', 'finance:bill:cancel', 'finance:ticket:apply', 'finance:ticket:approve', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
       finance_clerk: ['finance:bill:modify', 'finance:ticket:apply', 'finance:payout:create', 'finance:payout:batch'],
-      housekeeper: ['renting:add', 'renting:edit', 'renting:checkout', 'reserve:house:add', 'reserve:house:take'],
+      housekeeper: ['renting:add', 'renting:edit', 'renting:checkout', 'reserve:house:add', 'reserve:house:take', 'checkout:confirm'],
       salesman: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:client:add', 'reserve:client:transfer', 'house:customer:create'],
       agent: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:client:add', 'reserve:client:transfer', 'house:customer:create'],
       readonly: [],

@@ -13,8 +13,15 @@ import { EmployeeService } from './services/employee.service';
 import { RoleService } from './services/role.service';
 import { PermissionService } from './services/permission.service';
 import { StoreService } from './services/store.service';
+import { ConfigController } from './controllers/config.controller';
+import { CityController } from './controllers/city.controller';
+import { LogController } from './controllers/log.controller';
+import { ConfigService } from './services/config.service';
+import { CityService } from './services/city.service';
+import { SystemLogService } from './services/system-log.service';
 import { Company } from './entities/company.entity';
 import { City } from './entities/city.entity';
+import { Config } from './entities/config.entity';
 import { Store } from './entities/store.entity';
 import { Department } from './entities/department.entity';
 import { Group } from './entities/group.entity';
@@ -38,11 +45,11 @@ import { Invoice } from '../finance/entities/invoice.entity';
     TypeOrmModule.forFeature([
       Company, City, Store, Department, Group, Position,
       Employee, Role, Permission, Dict, DictItem, OperationLog,
-      ApprovalRecord, SaleProperty, RentalRoom, Bill, Invoice,
+      ApprovalRecord, SaleProperty, RentalRoom, Bill, Invoice, Config,
     ]),
   ],
-  controllers: [DictController, EmployeeController, RoleController, PermissionController, StoreController, StatusController, ApprovalController, PositionController],
-  providers: [DictService, EmployeeService, RoleService, PermissionService, StoreService, ApprovalService, StateMachineService],
-  exports: [DictService, EmployeeService, RoleService, PermissionService, StoreService, ApprovalService, StateMachineService],
+  controllers: [DictController, EmployeeController, RoleController, PermissionController, StoreController, StatusController, ApprovalController, PositionController, ConfigController, CityController, LogController],
+  providers: [DictService, EmployeeService, RoleService, PermissionService, StoreService, ApprovalService, StateMachineService, ConfigService, CityService, SystemLogService],
+  exports: [DictService, EmployeeService, RoleService, PermissionService, StoreService, ApprovalService, StateMachineService, ConfigService, CityService, SystemLogService],
 })
 export class SystemModule {}

@@ -6,6 +6,8 @@ import { Building, Unit, Floor, RoomCode } from '../../modules/house/entities/co
 import { SaleProperty } from '../../modules/house/entities/sale-property.entity';
 import { RentalSet } from '../../modules/house/entities/rental-set.entity';
 import { RentalRoom } from '../../modules/house/entities/rental-room.entity';
+import { Checkout } from '../../modules/house/entities/checkout.entity';
+import { Deposit } from '../../modules/house/entities/deposit.entity';
 import { ReserveProperty } from '../../modules/house/entities/reserve-property.entity';
 import { ReserveClient } from '../../modules/house/entities/reserve-client.entity';
 import { Customer } from '../../modules/house/entities/customer.entity';
@@ -14,6 +16,8 @@ import { Bill } from '../../modules/finance/entities/bill.entity';
 import { FinanceFlow } from '../../modules/finance/entities/finance-flow.entity';
 import { Employee } from '../../modules/system/entities/employee.entity';
 import { Store } from '../../modules/system/entities/store.entity';
+import { OperationLog } from '../../modules/system/entities/operation-log.entity';
+import { Config } from '../../modules/system/entities/config.entity';
 
 @Injectable()
 export class BizSeedService {
@@ -26,6 +30,10 @@ export class BizSeedService {
     @InjectRepository(SaleProperty) private saleRepo: Repository<SaleProperty>,
     @InjectRepository(RentalSet) private rentalSetRepo: Repository<RentalSet>,
     @InjectRepository(RentalRoom) private rentalRoomRepo: Repository<RentalRoom>,
+    @InjectRepository(Checkout) private checkoutRepo: Repository<Checkout>,
+    @InjectRepository(Deposit) private depositRepo: Repository<Deposit>,
+    @InjectRepository(OperationLog) private operationLogRepo: Repository<OperationLog>,
+    @InjectRepository(Config) private configRepo: Repository<Config>,
     @InjectRepository(ReserveProperty) private reservePropertyRepo: Repository<ReserveProperty>,
     @InjectRepository(ReserveClient) private reserveClientRepo: Repository<ReserveClient>,
     @InjectRepository(Customer) private customerRepo: Repository<Customer>,
@@ -155,6 +163,17 @@ export class BizSeedService {
       { setId: rentalSet.id, roomNo: 'C', roomType: 'small', rentPrice: 2200, listedPrice: 2300, status: 'reserved', leaseEnd: '2026-08-31', paymentMethod: 'monthly', leaseTerm: '1_year', depositAmount: 2200, paymentStatus: 'overdue', creatorId: keeper.id },
     ]);
 
+    await this.checkoutRepo.save([
+      { contractCode: 'CO2026080001', tenantName: '陈租客', houseInfo: '张江汤臣豪园 1 号楼 2 单元 802 A室', checkoutDate: '2026-08-31', status: 'pending', settlementAmount: -200, reason: '租期到期', storeId: storeZhangjiang.id, creatorId: keeper.id },
+      { contractCode: 'CO2026080002', tenantName: '刘租客', houseInfo: '张江汤臣豪园 1 号楼 2 单元 802 C室', checkoutDate: '2026-08-15', status: 'confirmed', settlementAmount: 3200, reason: '工作调动', storeId: storeZhangjiang.id, creatorId: salesman.id },
+    ]);
+
+    await this.depositRepo.save([
+      { contractCode: 'RENT2026080001-A', tenantName: '陈租客', houseInfo: '张江汤臣豪园 1 号楼 2 单元 802 A室', depositAmount: 3200, status: 'pending', depositDate: '2026-01-01', storeId: storeZhangjiang.id, creatorId: keeper.id },
+      { contractCode: 'RENT2026080001-B', tenantName: '王租客', houseInfo: '张江汤臣豪园 1 号楼 2 单元 802 B室', depositAmount: 2600, status: 'refunded', depositDate: '2026-01-15', refundDate: '2026-07-20', storeId: storeZhangjiang.id, creatorId: keeper.id },
+      { contractCode: 'RENT2026080001-C', tenantName: '赵租客', houseInfo: '张江汤臣豪园 1 号楼 2 单元 802 C室', depositAmount: 2200, status: 'deducted', depositDate: '2026-02-01', deductReason: '墙面损坏赔偿 500 元', storeId: storeZhangjiang.id, creatorId: keeper.id },
+    ]);
+
     const reserveBase = {
       communityId: community.id,
       address: community.address,
@@ -204,6 +223,24 @@ export class BizSeedService {
       { storeId: storeZhangjiang.id, amount: 3200, direction: 'income', status: 'completed', audited: true, bizType: 'rent', remark: '陈租客租金', creatorId: keeper.id },
       { storeId: storeZhangjiang.id, amount: 9000, direction: 'expense', status: 'completed', audited: true, bizType: 'landlord_rent', remark: '付孙房东承租款', creatorId: keeper.id },
       { storeId: storePudong.id, amount: 68000, direction: 'income', status: 'completed', audited: true, bizType: 'sale_commission', remark: '售房佣金', creatorId: admin.id },
+    ]);
+
+    await this.configRepo.save([
+      { configKey: 'system.company_name', configValue: '优居科技', description: '公司名称', group: 'system', sort: 1 },
+      { configKey: 'system.page_size', configValue: '20', description: '默认分页大小', group: 'system', sort: 2 },
+      { configKey: 'business.blacklist_check', configValue: 'true', description: '签约前黑名单校验开关', group: 'business', sort: 1 },
+      { configKey: 'business.sale_approval', configValue: 'false', description: '售房成交是否需要审批', group: 'business', sort: 2 },
+      { configKey: 'finance.deposit_months', configValue: '1', description: '默认押金月数', group: 'finance', sort: 1 },
+      { configKey: 'finance.overdue_rate', configValue: '0.05', description: '逾期罚金日利率', group: 'finance', sort: 2 },
+      { configKey: 'notification.sms_enabled', configValue: 'true', description: '短信通知开关', group: 'notification', sort: 1 },
+      { configKey: 'notification.email_enabled', configValue: 'false', description: '邮件通知开关', group: 'notification', sort: 2 },
+    ]);
+
+    await this.operationLogRepo.save([
+      { employeeId: admin.id, module: 'system', action: 'login', objectType: 'auth', objectId: '', ip: '127.0.0.1', result: 'success' },
+      { employeeId: salesman.id, module: 'house', action: 'sale:edit', objectType: 'sale_property', objectId: 'SALE2026080001', ip: '192.168.1.10', result: 'success' },
+      { employeeId: keeper.id, module: 'house', action: 'renting:add', objectType: 'rental_room', objectId: 'RENT2026080001', ip: '192.168.1.11', result: 'success' },
+      { employeeId: finance.id, module: 'finance', action: 'finance:bill:modify', objectType: 'bill', objectId: 'RENT2026080001-A', ip: '192.168.1.12', result: 'success' },
     ]);
   }
 }

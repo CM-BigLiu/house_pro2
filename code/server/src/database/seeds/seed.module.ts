@@ -14,11 +14,15 @@ import { Role } from '../../modules/system/entities/role.entity';
 import { Permission } from '../../modules/system/entities/permission.entity';
 import { Dict } from '../../modules/system/entities/dict.entity';
 import { DictItem } from '../../modules/system/entities/dict-item.entity';
+import { OperationLog } from '../../modules/system/entities/operation-log.entity';
+import { Config } from '../../modules/system/entities/config.entity';
 import { Community } from '../../modules/house/entities/community.entity';
 import { Building, Unit, Floor, RoomCode } from '../../modules/house/entities/community-hierarchy.entity';
 import { SaleProperty } from '../../modules/house/entities/sale-property.entity';
 import { RentalSet } from '../../modules/house/entities/rental-set.entity';
 import { RentalRoom } from '../../modules/house/entities/rental-room.entity';
+import { Checkout } from '../../modules/house/entities/checkout.entity';
+import { Deposit } from '../../modules/house/entities/deposit.entity';
 import { ReserveProperty } from '../../modules/house/entities/reserve-property.entity';
 import { ReserveClient } from '../../modules/house/entities/reserve-client.entity';
 import { Customer } from '../../modules/house/entities/customer.entity';
@@ -32,7 +36,9 @@ import { FinanceFlow } from '../../modules/finance/entities/finance-flow.entity'
     TypeOrmModule.forRoot(databaseConfig()),
     TypeOrmModule.forFeature([
       Company, City, Store, Department, Position, Employee, Role, Permission, Dict, DictItem,
+      OperationLog, Config,
       Community, Building, Unit, Floor, RoomCode, SaleProperty, RentalSet, RentalRoom,
+      Checkout, Deposit,
       ReserveProperty, ReserveClient, Customer, Blacklist, Bill, FinanceFlow,
     ]),
   ],

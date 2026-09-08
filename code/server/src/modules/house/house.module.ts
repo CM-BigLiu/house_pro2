@@ -32,6 +32,12 @@ import { FollowUpController, OperationLogController } from './controllers/follow
 import { FollowUpService } from './services/follow-up.service';
 import { OperationLogService } from './services/operation-log.service';
 import { OperationLog } from '../system/entities/operation-log.entity';
+import { CheckoutController } from './controllers/checkout.controller';
+import { DepositController } from './controllers/deposit.controller';
+import { CheckoutService } from './services/checkout.service';
+import { DepositService } from './services/deposit.service';
+import { Checkout } from './entities/checkout.entity';
+import { Deposit } from './entities/deposit.entity';
 
 @Module({
   imports: [
@@ -39,11 +45,11 @@ import { OperationLog } from '../system/entities/operation-log.entity';
       Community, Building, Unit, Floor, RoomCode,
       SaleProperty, RentalSet, RentalRoom,
       ReserveProperty, ReserveClient, Customer, Blacklist, FollowUp,
-      OperationLog,
+      OperationLog, Checkout, Deposit,
     ]),
   ],
-  controllers: [CommunityController, CommunityAliasController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController, OperationLogController, PropertyController, ReserveAliasController],
-  providers: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService],
-  exports: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService],
+  controllers: [CommunityController, CommunityAliasController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController, OperationLogController, PropertyController, ReserveAliasController, CheckoutController, DepositController],
+  providers: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService, CheckoutService, DepositService],
+  exports: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService, CheckoutService, DepositService],
 })
 export class HouseModule {}

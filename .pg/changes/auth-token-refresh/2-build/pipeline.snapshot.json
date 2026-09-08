@@ -276,6 +276,17 @@
           "summary": "review PASS: 6/6 检查项通过, review_score: 100, p0_failures: []",
           "tasks_marked": [],
           "current_cycle": 1
+        },
+        "verify": {
+          "status": "completed",
+          "attempt": 0,
+          "started_at": null,
+          "completed_at": null,
+          "agent": null,
+          "report_path": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\014-int.backend-verify.md",
+          "summary": "verify done: backend-1 running (PID 124572, port 3000); npm test 21/21 PASS; V-backend-1 refresh_token row active expiresAt=issued+7d; V-backend-2 tokenHash=sha256(refreshToken) 64-hex matches DB, plaintext not persisted; V-backend-3 logout revokes then refresh 401; V-backend-4 refresh on /auth/me 401, access as refreshToken 401, access on /auth/me 200. lint blocked by missing ESLint config (pre-existing). No code bugs.",
+          "tasks_marked": [],
+          "current_cycle": 1
         }
       },
       "sub_pipelines": [],
@@ -405,10 +416,10 @@
   "status": "running",
   "failed_reason": null,
   "current_track": "int.backend",
-  "current_phase": "verify",
-  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\013-int.backend-review-dispatch.md",
+  "current_phase": "gate",
+  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\014-int.backend-verify-dispatch.md",
   "retry_count": 0,
-  "idle_next_count": 0,
+  "idle_next_count": 1,
   "stage_order": [
     "dev",
     "int"

@@ -80,3 +80,119 @@ mock 方式: mock `@/api/auth` 的 `refreshToken` 返回 `{accessToken:'fresh-ac
 
 ## Spring Bean 装配自查
 本 track 仅涉及前端 `code/web`（TypeScript/Vue），git diff 无 Java @Service/@Component 变更 → 不适用，PASS。
+
+
+
+---
+
+# int.backend verify evidence (014)
+
+
+## 14.1 lint -- cd code/server && npm run lint
+
+exit_code=2
+
+```
+
+> house-pro-server@1.0.0 lint
+> eslint "{src,apps,libs,test}/**/*.ts" --fix
+
+node.exe : 
+����λ�� ��:1 �ַ�: 1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Oops! Something went wrong! :(
+
+ESLint: 8.57.1
+
+ESLint couldn't find a configuration file. To set up a configuration file for this project, please run:
+
+    npm init @eslint/config
+
+ESLint looked for configuration files in D:\04-profile\test\house_pro4\house_pro2\code\server\src and its ancestors. If
+ it found none, it then looked in your home directory.
+
+If you think you already have a configuration file or if you need more help, please stop by the ESLint Discord server: 
+https://eslint.org/chat
+
+
+```
+
+��Ŀȱ�� ESLint �����ļ����� dev.backend verify һ�£��ȴ� infra ���⣬�Ǳ��α�����룩��
+
+## 14.2 test -- cd code/server && npm test
+
+exit_code=0
+
+Summary:
+
+```
+Test Suites: 3 passed, 3 total
+Tests:       21 passed, 21 total
+Snapshots:   0 total
+Time:        133.47 s
+Ran all test suites.
+```
+
+PASS suites: src/common/guards/jwt-auth.guard.spec.ts, src/modules/auth/auth.service.spec.ts, src/int/auth-token-refresh.int.spec.ts
+
+## 14.3 启动服务 + 健康探针（B3 强制项）
+
+1. **启动**：backend-1 (port 3000) 已由 `npm run start:dev`（nest start --watch）保持运行。`netstat -ano | findstr :3000` → `TCP 0.0.0.0:3000 LISTENING 124572` + `TCP [::]:3000 LISTENING 124572`。
+2. **就绪探针**：`curl.exe -s http://localhost:3000/api/health` → `{"code":404,"message":"Cannot GET /api/health","data":null}`（路由不存在但进程正常应答，全局前缀 `/api`）；`POST /api/auth/login` 返回正常业务应答。
+3. **真实 e2e**（变更核心链路 = 双令牌 login → refresh → logout，见 14.4）。
+4. **失败处置**：无失败。
+
+## 14.4 V-backend-1~4 真实 e2e（Node 脚本驱动，真实服务 + 真实 PostgreSQL）
+
+登录 `super_admin` / `123456` → 200，data 含 accessToken(2h) + refreshToken(7d) + user。
+
+解码 payload：`access.token_type=access`，`refresh.token_type=refresh`；`access.exp-iat=7200s(2h)`，`refresh.exp-iat=604800s(7d)`。
+
+### V-backend-1 refresh token 落库 + 绝对过期
+
+```
+[DB] refresh_token columns = ["id","userId","tokenHash","status","expiresAt","createdAt","revokedAt"]
+[V1] expiresAt - createdAt = 7.00 days
+[V1] status = active (expect active)
+[V1] expiresAt in future = true
+```
+
+login 后 `refresh_token` 表新增 active 记录；`expiresAt - createdAt = 7.00 days`（绝对过期 7d）；`status=active`；过期刷新 401 由单测覆盖。
+
+### V-backend-2 refresh token 存 hash 非明文
+
+```
+[V2] plaintext sha256 = ca82e1e10036f5c8d104e2bf63510a90ea79dcb0025ed37893ac06e82ba52a3f
+[V2] matched row in DB = YES (id=9)
+[V2] hash==plaintext? false
+```
+
+DB `tokenHash` = sha256(refreshToken)（64 hex），与前端拿到的明文 refreshToken 的 sha256 完全一致；明文不落库（`hash==plaintext? false`）。
+
+### V-backend-3 吊销联动（logout → 再刷新 401）
+
+```
+[V3a] logout -> status=201 body={"code":200,"message":"success","data":null}
+[V3b] refresh after logout -> status=401 body={"code":401,"message":"Refresh token 无效或已注销","data":null}
+[V3c] DB after logout = [{"id":9,"status":"revoked","revokedAt":"2026-09-08T01:00:45.594Z"}]
+```
+
+logout 后 DB 行 `status` 由 active 翻转为 `revoked` 且 `revokedAt` 落时间；再用同一 refreshToken 刷新 → 401。`revokeUserTokens(userId)` 批量吊销由单测覆盖（员工停用联动）。
+
+### V-backend-4 token_type 区分
+
+```
+[V4a] refresh token 调 /auth/me -> status=401 body={"code":401,"message":"Token 无效或已过期","data":null}
+[V4b] access token 作 refreshToken 调 /auth/refresh -> status=401 body={"code":401,"message":"Refresh token 无效或已注销","data":null}
+[V4c] access token 调 /auth/me -> status=200（返回 employeeId=1 等 payload）
+```
+
+refresh token 调带 JwtAuthGuard 的 `/api/auth/me` → 401；access token 冒充 refreshToken 调 `/api/auth/refresh` → 401；access token 调业务接口 → 200。类型隔离三向正确。
+
+## NestJS DI 装配自查
+
+AuthService 单构造函数，构造器注入 `@InjectRepository(Employee/Role/RefreshToken)` + `JwtService` + `ConfigService`，全部 provider 已在 AuthModule 注册；无多构造函数、无"测试替身+生产 stub"模式。服务已成功启动运行即装配正确。
