@@ -143,7 +143,9 @@ export class AuthService {
     );
 
     this.logger.log(`refresh success: userId=${payload.employeeId}`);
-    return { accessToken };
+    // design.md 契约：refresh 响应需同时返回 accessToken 与 refreshToken，
+    // 前端 doRefresh 会用返回的 refreshToken 覆盖本地存储（不轮换，原样带回）
+    return { accessToken, refreshToken };
   }
 
   async logout(refreshToken: string) {

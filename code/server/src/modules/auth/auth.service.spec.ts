@@ -158,6 +158,8 @@ describe('AuthService (auth-token-refresh)', () => {
       const result = await service.refresh(REFRESH_PLAIN);
 
       expect(typeof result.accessToken).toBe('string');
+      // 契约：refresh 响应需带回 refreshToken（原样，不轮换），前端依赖它覆盖本地存储
+      expect(result.refreshToken).toBe(REFRESH_PLAIN);
       expect(jwtService.verify).toHaveBeenCalledWith(REFRESH_PLAIN, expect.anything());
       // 落库查询应走 tokenHash
       expect(refreshTokenRepo.findOne).toHaveBeenCalledWith(

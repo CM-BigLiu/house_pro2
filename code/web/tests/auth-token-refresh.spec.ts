@@ -103,6 +103,16 @@ describe('auth-token-refresh: axios 拦截器 401 单飞 refresh 重放', () => 
     vi.clearAllMocks();
     vi.resetModules();
     setActivePinia(createPinia());
+
+    // 替换 window.location，消除 jsdom 导航噪音，并便于断言跳登录行为
+    Object.defineProperty(window, 'location', {
+      value: {
+        href: '',
+        pathname: '/',
+      },
+      writable: true,
+      configurable: true,
+    });
   });
 
   function seedTokens() {
@@ -249,5 +259,7 @@ describe('auth-token-refresh: axios 拦截器 401 单飞 refresh 重放', () => 
     expect(store.refreshToken).toBe('');
     expect(localStorage.getItem('house_access_token')).toBeNull();
     expect(localStorage.getItem('house_refresh_token')).toBeNull();
+    // BUG-6 修复: 断言确实触发了跳登录 (redirectToLogin)
+    expect((window.location as any).href).toBe('/login');
   });
 });

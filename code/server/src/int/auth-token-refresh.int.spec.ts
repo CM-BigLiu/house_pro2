@@ -325,6 +325,13 @@ describe('int.backend: 登录→刷新→登出 全链路（真实 DB refresh_to
     expect(refreshRes.body.code).toBe(200);
     expect(typeof refreshRes.body.data.accessToken).toBe('string');
     expect(decodeJwtPayload(refreshRes.body.data.accessToken).token_type).toBe('access');
+    // 契约：refresh 响应需带回 refreshToken（原样不轮换），否则前端本地 refreshToken 会被清空
+    expect(refreshRes.body.data.refreshToken).toBe(refreshToken);
+
+    // 跨多次刷新：refreshToken 不变，可反复续期（模拟跨 2h 再刷新）
+    const refreshRes2 = await httpJson(port, 'POST', '/auth/refresh', { refreshToken });
+    expect(refreshRes2.status).toBe(201);
+    expect(refreshRes2.body.data.refreshToken).toBe(refreshToken);
 
     // 新 access token 可用
     const meOk = await httpJson(
