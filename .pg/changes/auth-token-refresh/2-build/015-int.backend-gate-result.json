@@ -1,0 +1,11 @@
+{
+  "summary": "[int.backend:gate] fail — 8/9 检查通过 — G-1 scope creep(house/system/seeds 19 文件 676 行新增超出 proposal 声明), gate_score: 76, p0_failures: [G-1]",
+  "outputs": [],
+  "tasks_updated": [],
+  "status": "fail",
+  "evidence_paths": [
+    "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\014-int.backend-verify.md",
+    "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\auth-token-refresh.verify-evidence.md"
+  ],
+  "report_path": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\015-int.backend-gate.md"
+}

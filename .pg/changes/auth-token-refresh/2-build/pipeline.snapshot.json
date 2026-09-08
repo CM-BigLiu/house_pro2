@@ -417,9 +417,9 @@
   "failed_reason": null,
   "current_track": "int.backend",
   "current_phase": "gate",
-  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\014-int.backend-verify-dispatch.md",
+  "last_dispatch_file": "D:\\04-profile\\test\\house_pro4\\house_pro2\\.pg\\changes\\auth-token-refresh\\2-build\\015-int.backend-gate-dispatch.md",
   "retry_count": 0,
-  "idle_next_count": 1,
+  "idle_next_count": 0,
   "stage_order": [
     "dev",
     "int"
