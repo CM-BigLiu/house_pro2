@@ -178,6 +178,21 @@
 | `JwtAuthGuard` | `code/server/src/common/guards/jwt-auth.guard.ts` | 校验 payload `token_type === 'access'`，拒绝 refresh token 误用 |
 | crypto util | `code/server/src/common/utils/crypto.util.ts` | 复用已有 sha256 能力 |
 
+### 追加纳入组件（scope creep G-1 转正声明）
+
+以下组件为本变更开发期间同步落地、经补充声明正式纳入范围的相邻业务模块，与 auth-token-refresh 一并交付：
+
+| 模块 | 组件 | 路径 | 改动 |
+|------|------|------|------|
+| house（退租） | Checkout controller / service / entity | `code/server/src/modules/house/controllers/checkout.controller.ts`、`services/checkout.service.ts`、`entities/checkout.entity.ts` | 新增退租单 CRUD + confirm + complete 闭环 |
+| house（押金） | Deposit controller / service / entity | `code/server/src/modules/house/controllers/deposit.controller.ts`、`services/deposit.service.ts`、`entities/deposit.entity.ts` | 新增押金单管理 |
+| house | house.module.ts | `code/server/src/modules/house/house.module.ts` | 注册 checkout/deposit 实体与服务 |
+| system（城市） | City controller / service | `code/server/src/modules/system/controllers/city.controller.ts`、`services/city.service.ts` | 新增城市管理 |
+| system（配置） | Config controller / service / entity | `code/server/src/modules/system/controllers/config.controller.ts`、`services/config.service.ts`、`entities/config.entity.ts` | 新增系统配置 |
+| system（日志） | Log controller + system-log service | `code/server/src/modules/system/controllers/log.controller.ts`、`services/system-log.service.ts` | 新增操作日志查询 |
+| system | system.module.ts | `code/server/src/modules/system/system.module.ts` | 注册 city/config/log |
+| seeds | biz.seed / dict.seed / seed.module / seed.service | `code/server/src/database/seeds/*` | 配套造数、字典、新实体与权限点注册 |
+
 ### 前端改动组件
 
 | 组件 | 路径 | 改动 |

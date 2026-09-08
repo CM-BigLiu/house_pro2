@@ -23,6 +23,10 @@
 - 后端 `JwtAuthGuard` / `JWT` 校验逻辑：access token 与 refresh token 用不同 secret 或不同 `token_type` 声明区分，防止 refresh token 被误当 access token 使用
 - 后端配置项：`JWT_ACCESS_EXPIRES_IN`（默认 2h）、`JWT_REFRESH_EXPIRES_IN`（默认 7d）、`JWT_REFRESH_SECRET`（默认独立密钥）
 - 前端 `code/web`：登录态管理改为 access + refresh 双令牌；axios 拦截器在 access token 401 时自动 refresh 并重放原请求；登出时调用 `/auth/logout`
+- **本变更同步纳入的相邻模块（补声明，scope creep G-1 转正）**：以下 19 个文件为 auth-token-refresh 开发期间同步落地的独立业务闭环，经本次补充声明正式纳入本变更范围，与 JWT 刷新功能一并交付：
+  - `house` 退租/押金闭环（7 文件）：`checkout`（退租单 CRUD + confirm + complete）、`deposit`（押金单）的 controller / service / entity，以及 `house.module.ts` 注册
+  - `system` 城市/配置/日志（8 文件）：`city`、`config`、`log` 的 controller / service / entity，以及 `system.module.ts` 注册
+  - `seeds` 配套造数（4 文件）：`biz.seed.ts`（checkout/deposit/operationLog/config 造数）、`dict.seed.ts`（checkout_status/deposit_status 字典）、`seed.module.ts` / `seed.service.ts`（新实体与权限点注册）
 
 ### 不包含
 - OAuth / 第三方登录 / SSO 集成

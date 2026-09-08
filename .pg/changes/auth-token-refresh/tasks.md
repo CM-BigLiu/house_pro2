@@ -22,6 +22,7 @@
 - [x] 2.4 新增 `AuthService.refresh`：校验 token_type=refresh + DB 账态（active 且未过期）→ 签发新 access
 - [x] 2.6 `AuthController` 新增 `POST /auth/refresh`、`POST /auth/logout`（`@Public()` + 独立校验）
 - [x] 2.7 `JwtAuthGuard` 增加 `token_type === 'access'` 校验，拒绝 refresh token 误当 access 使用
+- [x] 2.8 （补声明）同步落地 house 退租/押金（checkout/deposit）、system 城市/配置/日志（city/config/log）、seeds 配套造数，已随本变更交付并经 proposal/design 补充声明纳入范围（原 scope creep G-1 转正）
 
 ## 3. dev.backend:review - 静态代码审查
 
