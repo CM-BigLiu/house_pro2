@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { PerformanceService } from '../services/performance.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreatePerformanceDto {
   @IsNumber()
@@ -81,6 +82,7 @@ export class PerformanceController {
   }
 
   @Post()
+  @RequirePermission('finance:bill:modify')
   async create(@Body() data: CreatePerformanceDto) {
     return this.service.create(data);
   }

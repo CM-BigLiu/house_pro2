@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { Company } from '../../modules/system/entities/company.entity';
 import { City } from '../../modules/system/entities/city.entity';
@@ -38,9 +38,10 @@ export class SeedService implements OnModuleInit {
     if (process.env.NODE_ENV === 'test') return;
     const count = await this.companyRepo.count();
     if (count > 0) {
-      this.logger.log('Seed skipped: data already exists');
-      // 已有数据时仍需保证权限层级完整（修复历史库 parentId 缺失导致权限树扁平的问题）
-      await this.linkPermissionHierarchy();
+      this.logger.log('Business seed skipped: data already exists');
+      // 只初始化本次新增权限；不得在每次启动时恢复管理员已撤销的授权。
+      const addedCodes = await this.seedPermissions();
+      await this.ensureBuiltinRoleActionPermissions(addedCodes);
       return;
     }
     await this.seed();
@@ -104,12 +105,22 @@ export class SeedService implements OnModuleInit {
       { code: 'reserve:house:add', name: '录入房源', type: 'action', module: 'house' },
       { code: 'reserve:house:take', name: '拿房签约', type: 'action', module: 'house' },
       { code: 'reserve:house:transfer', name: '转业务员', type: 'action', module: 'house' },
+      { code: 'reserve:house:export', name: '导出储备房源', type: 'action', module: 'house' },
       { code: 'reserve:client:add', name: '录入客源', type: 'action', module: 'house' },
       { code: 'reserve:client:transfer', name: '转签约', type: 'action', module: 'house' },
+      { code: 'reserve:client:export', name: '导出储备客源', type: 'action', module: 'house' },
       { code: 'house:customer:create', name: '新增客户', type: 'action', module: 'house' },
+      { code: 'house:customer:edit', name: '编辑客户', type: 'action', module: 'house' },
+      { code: 'house:blacklist:create', name: '新增黑名单', type: 'action', module: 'house' },
+      { code: 'house:blacklist:edit', name: '编辑黑名单', type: 'action', module: 'house' },
       { code: 'house:blacklist:delete', name: '删除黑名单', type: 'action', module: 'house' },
+      { code: 'house:community:create', name: '新增小区', type: 'action', module: 'house' },
+      { code: 'house:community:edit', name: '编辑小区', type: 'action', module: 'house' },
+      { code: 'house:community:delete', name: '删除小区', type: 'action', module: 'house' },
       { code: 'finance:bill:modify', name: '修改账单', type: 'action', module: 'finance' },
       { code: 'finance:bill:cancel', name: '作废账单', type: 'action', module: 'finance' },
+      { code: 'finance:flow:modify', name: '新增/编辑流水', type: 'action', module: 'finance' },
+      { code: 'finance:flow:export', name: '导出流水', type: 'action', module: 'finance' },
       { code: 'finance:ticket:apply', name: '开票申请', type: 'action', module: 'finance' },
       { code: 'finance:ticket:approve', name: '开票审批', type: 'action', module: 'finance' },
       { code: 'finance:payout:create', name: '新增代付', type: 'action', module: 'finance' },
@@ -148,6 +159,7 @@ export class SeedService implements OnModuleInit {
     // 建立父子层级：菜单挂到所属模块、操作权限挂到对应菜单
     // 缺少这一步会导致 /system/permissions/tree 返回扁平数据，角色权限面板显示「暂无权限数据」
     await this.linkPermissionHierarchy();
+    return all.map((permission) => permission.code);
   }
 
   /**
@@ -176,8 +188,10 @@ export class SeedService implements OnModuleInit {
       'reserve:house:add': 'house:reserve_house',
       'reserve:house:take': 'house:reserve_house',
       'reserve:house:transfer': 'house:reserve_house',
+      'reserve:house:export': 'house:reserve_house',
       'reserve:client:add': 'house:reserve_client',
       'reserve:client:transfer': 'house:reserve_client',
+      'reserve:client:export': 'house:reserve_client',
       'checkout:confirm': 'house:checkout',
       'checkout:export': 'house:checkout',
       'deposit:refund': 'house:deposit',
@@ -192,7 +206,7 @@ export class SeedService implements OnModuleInit {
           const parent = topModules
             .map((t) => (p.code.startsWith(`${t}:`) ? byCode.get(t) : undefined))
             .find(Boolean);
-          if (parent) updates.push({ id: p.id, parentId: parent.id });
+          if (parent && p.parentId !== parent.id) updates.push({ id: p.id, parentId: parent.id });
         }
         continue;
       }
@@ -206,7 +220,7 @@ export class SeedService implements OnModuleInit {
       const fallbackCode = actionFallback[p.code];
       const fallback = fallbackCode ? byCode.get(fallbackCode) : undefined;
       const target = fallback || parent;
-      if (target) updates.push({ id: p.id, parentId: target.id });
+      if (target && p.parentId !== target.id) updates.push({ id: p.id, parentId: target.id });
     }
 
     for (const u of updates) {
@@ -248,12 +262,12 @@ export class SeedService implements OnModuleInit {
     const roleActionAllowlist: Record<string, string[]> = {
       super_admin: allPerms.filter((p) => p.type === 'action').map((p) => p.code),
       company_admin: allPerms.filter((p) => p.type === 'action').map((p) => p.code),
-      store_manager: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'renting:add', 'renting:edit', 'renting:checkout', 'renting:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:client:add', 'reserve:client:transfer', 'house:customer:create', 'finance:bill:modify', 'finance:bill:cancel', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'system:employee:edit', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
-      finance_manager: ['finance:bill:modify', 'finance:bill:cancel', 'finance:ticket:apply', 'finance:ticket:approve', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
-      finance_clerk: ['finance:bill:modify', 'finance:ticket:apply', 'finance:payout:create', 'finance:payout:batch'],
-      housekeeper: ['renting:add', 'renting:edit', 'renting:checkout', 'reserve:house:add', 'reserve:house:take', 'checkout:confirm'],
-      salesman: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:client:add', 'reserve:client:transfer', 'house:customer:create'],
-      agent: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:client:add', 'reserve:client:transfer', 'house:customer:create'],
+      store_manager: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'renting:add', 'renting:edit', 'renting:checkout', 'renting:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'house:customer:create', 'house:customer:edit', 'finance:bill:modify', 'finance:bill:cancel', 'finance:flow:modify', 'finance:flow:export', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'system:employee:edit', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
+      finance_manager: ['finance:bill:modify', 'finance:bill:cancel', 'finance:flow:modify', 'finance:flow:export', 'finance:ticket:apply', 'finance:ticket:approve', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
+      finance_clerk: ['finance:bill:modify', 'finance:flow:modify', 'finance:ticket:apply', 'finance:payout:create', 'finance:payout:batch'],
+      housekeeper: ['renting:add', 'renting:edit', 'renting:checkout', 'reserve:house:add', 'reserve:house:take', 'reserve:house:export', 'checkout:confirm'],
+      salesman: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'house:customer:create', 'house:customer:edit'],
+      agent: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'house:customer:create', 'house:customer:edit'],
       readonly: [],
     };
 
@@ -266,6 +280,47 @@ export class SeedService implements OnModuleInit {
       );
       const role = this.roleRepo.create({ ...cfg, permissions: rolePerms });
       await this.roleRepo.save(role);
+    }
+  }
+
+  private async ensureBuiltinRoleActionPermissions(addedCodes: string[]) {
+    if (!addedCodes.length) return;
+    const grants: Record<string, string[]> = {
+      super_admin: [
+        'house:blacklist:create', 'house:blacklist:edit',
+        'house:community:create', 'house:community:edit', 'house:community:delete', 'house:customer:edit', 'reserve:house:export', 'reserve:client:export',
+        'finance:flow:modify', 'finance:flow:export',
+      ],
+      company_admin: [
+        'house:blacklist:create', 'house:blacklist:edit',
+        'house:community:create', 'house:community:edit', 'house:community:delete', 'house:customer:edit', 'reserve:house:export', 'reserve:client:export',
+        'finance:flow:modify', 'finance:flow:export',
+      ],
+      store_manager: ['house:customer:edit', 'reserve:house:export', 'reserve:client:export', 'finance:flow:modify', 'finance:flow:export'],
+      finance_manager: ['finance:flow:modify', 'finance:flow:export'],
+      finance_clerk: ['finance:flow:modify'],
+      housekeeper: ['reserve:house:export'],
+      salesman: ['house:customer:edit', 'reserve:house:export', 'reserve:client:export'],
+      agent: ['house:customer:edit', 'reserve:house:export', 'reserve:client:export'],
+    };
+    const codes = [...new Set(Object.values(grants).flat())];
+    const permissions = await this.permissionRepo.find({ where: { code: In(codes) } });
+    const permissionByCode = new Map(permissions.map((permission) => [permission.code, permission]));
+    const roles = await this.roleRepo.find({
+      where: { code: In(Object.keys(grants)) },
+      relations: ['permissions'],
+    });
+
+    for (const role of roles) {
+      const existingCodes = new Set((role.permissions || []).map((permission) => permission.code));
+      const missing = grants[role.code]
+        .filter((code) => addedCodes.includes(code) && !existingCodes.has(code))
+        .map((code) => permissionByCode.get(code))
+        .filter((permission): permission is Permission => Boolean(permission));
+      if (missing.length) {
+        role.permissions = [...(role.permissions || []), ...missing];
+        await this.roleRepo.save(role);
+      }
     }
   }
 

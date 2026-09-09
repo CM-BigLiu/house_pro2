@@ -1,23 +1,48 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { createCommunity, type Community } from '@/api/community';
+import { createCommunity, getCommunity, type Community, updateCommunity } from '@/api/community';
 
 const router = useRouter();
+const route = useRoute();
 const submitting = ref(false);
+const loading = ref(false);
+const isEdit = computed(() => Boolean(route.params.id));
 
 const form = reactive<Partial<Community>>({
   name: '', alias: '', cityId: undefined, districtId: undefined,
   businessCircle: '', address: '', longitude: undefined, latitude: undefined,
 });
 
+onMounted(async () => {
+  if (!isEdit.value) return;
+  loading.value = true;
+  try {
+    const detail = await getCommunity(Number(route.params.id));
+    Object.assign(form, detail, {
+      longitude: detail.longitude == null ? undefined : Number(detail.longitude),
+      latitude: detail.latitude == null ? undefined : Number(detail.latitude),
+    });
+  } catch {
+    ElMessage.error('加载小区数据失败');
+    router.replace('/house/community');
+  } finally {
+    loading.value = false;
+  }
+});
+
 async function submit() {
   if (!form.name?.trim()) return ElMessage.warning('请填写小区名称');
   submitting.value = true;
   try {
-    await createCommunity(form);
-    ElMessage.success('创建成功');
+    if (isEdit.value) {
+      await updateCommunity(Number(route.params.id), form);
+      ElMessage.success('修改成功');
+    } else {
+      await createCommunity(form);
+      ElMessage.success('创建成功');
+    }
     router.push('/house/community');
   } finally {
     submitting.value = false;
@@ -29,16 +54,16 @@ async function submit() {
   <div class="form-page">
     <div class="page-header">
       <div>
-        <div class="page-title">新增小区</div>
-        <div class="page-desc">填写小区基本信息</div>
+        <div class="page-title">{{ isEdit ? '编辑小区' : '新增小区' }}</div>
+        <div class="page-desc">{{ isEdit ? '维护小区基本信息' : '填写小区基本信息' }}</div>
       </div>
       <div class="page-actions">
         <button class="btn btn-default" @click="router.push('/house/community')">返回</button>
-        <button class="btn btn-primary" :disabled="submitting" @click="submit">保存</button>
+        <button class="btn btn-primary" :disabled="submitting || loading" @click="submit">保存</button>
       </div>
     </div>
 
-    <div class="card" style="padding: 24px;">
+    <div v-loading="loading" class="card" style="padding: 24px;">
       <el-form :model="form" label-width="90px">
         <el-form-item label="小区名称" required>
           <el-input v-model="form.name" placeholder="请输入小区名称" />

@@ -5,6 +5,7 @@ import { InvoiceService } from '../services/invoice.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Audit } from '../../../common/decorators/audit.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreateInvoiceDto {
   @IsString()
@@ -95,12 +96,14 @@ export class InvoiceController {
   }
 
   @Post()
+  @RequirePermission('finance:ticket:apply')
   @Audit('finance', 'invoice:create', { objectType: 'invoice' })
   async create(@Body() data: CreateInvoiceDto, @CurrentUser() user: any) {
     return this.invoiceService.create(data, user);
   }
 
   @Put(':id')
+  @RequirePermission('finance:ticket:approve')
   @Audit('finance', 'invoice:update', { objectType: 'invoice' })
   async update(@Param('id') id: string, @Body() data: UpdateInvoiceDto, @CurrentUser() user: any) {
     return this.invoiceService.update(+id, data, user);

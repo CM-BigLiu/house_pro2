@@ -83,7 +83,7 @@ async function submit() {
         <div class="page-desc">按收支科目归集收入明细，支持多维度筛选</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" @click="openCreate"><i data-lucide="plus"></i> 新增收入</button>
+        <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="openCreate"><i data-lucide="plus"></i> 新增收入</button>
         <button v-permission="['finance:export']" class="btn btn-default"><i data-lucide="download"></i> 导出</button>
       </div>
     </div>
@@ -152,7 +152,7 @@ async function submit() {
               <td>
                 <div class="operation-cell">
                   <button class="btn btn-ghost btn-sm">查看</button>
-                  <button class="btn btn-ghost btn-sm">编辑</button>
+                  <button v-permission="['finance:bill:modify']" class="btn btn-ghost btn-sm">编辑</button>
                 </div>
               </td>
             </tr>

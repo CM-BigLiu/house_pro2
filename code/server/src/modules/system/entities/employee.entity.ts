@@ -49,7 +49,7 @@ export class Employee {
   @Column({ length: 255, nullable: true })
   avatar: string;
 
-  @ManyToMany(() => Store)
+  @ManyToMany(() => Store, (store) => store.employees)
   @JoinTable({ name: 'sys_employee_store' })
   stores: Store[];
 

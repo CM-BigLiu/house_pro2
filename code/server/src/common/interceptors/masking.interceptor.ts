@@ -4,24 +4,29 @@ import {
   ExecutionContext,
   CallHandler,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { maskBankCard, maskIdCard, maskPhone } from '../utils/mask.util';
+import { SKIP_MASKING_KEY } from '../decorators/skip-masking.decorator';
 
 const SENSITIVE_FIELDS = new Set([
   'mobile',
   'idCard',
+  'ownerIdCard',
   'bankCard',
   'ownerPhone',
   'ownerPhoneBackup',
+  'landlordPhone',
+  'tenantPhone',
 ]);
 
 function maskValue(key: string, value: unknown): unknown {
   if (typeof value !== 'string') return value;
-  if (key === 'mobile' || key === 'ownerPhone' || key === 'ownerPhoneBackup') {
+  if (['mobile', 'ownerPhone', 'ownerPhoneBackup', 'landlordPhone', 'tenantPhone'].includes(key)) {
     return maskPhone(value);
   }
-  if (key === 'idCard') return maskIdCard(value);
+  if (key === 'idCard' || key === 'ownerIdCard') return maskIdCard(value);
   if (key === 'bankCard') return maskBankCard(value);
   return value;
 }
@@ -58,7 +63,14 @@ function maskObject(obj: unknown): unknown {
 
 @Injectable()
 export class MaskingInterceptor implements NestInterceptor {
-  intercept(_context: ExecutionContext, next: CallHandler): Observable<any> {
+  constructor(private readonly reflector: Reflector) {}
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const skipMasking = this.reflector.getAllAndOverride<boolean>(SKIP_MASKING_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (skipMasking) return next.handle();
     return next.handle().pipe(map((data) => maskObject(data)));
   }
 }

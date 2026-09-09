@@ -2,8 +2,9 @@
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { getSaleProperties, type SaleProperty } from '@/api/sale';
+import { getSaleProperties, changeSaleStatus, exportSalePage, type SaleProperty } from '@/api/sale';
 import { useDictStore } from '@/stores/dict';
+import { downloadCsv } from '@/utils/csv';
 import { formatMoney } from '@/utils/format';
 
 const router = useRouter();
@@ -11,10 +12,19 @@ const dictStore = useDictStore();
 const list = ref<SaleProperty[]>([]);
 const total = ref(0);
 const loading = ref(false);
+const statusItem = ref<SaleProperty>();
+const nextStatus = ref('');
+const savingStatus = ref(false);
+const exporting = ref(false);
+const saleStatuses = [
+  { value: 'pre_publish', label: '待发布' }, { value: 'published', label: '已发布' },
+  { value: 'price_negotiation', label: '议价中' }, { value: 'quick_sale', label: '急售' },
+  { value: 'sold', label: '已售' }, { value: 'off_shelf', label: '已下架' },
+];
 const query = reactive({ keyword: '', status: '', page: 1, pageSize: 20 });
 
 onMounted(async () => {
-  await dictStore.ensureLoaded(['house_status', 'decoration_level', 'orientation', 'source_channel', 'tax_type', 'certificate_type']);
+  await dictStore.ensureLoaded(['house_status', 'decoration_level', 'orientation', 'source_channel', 'tax_type', 'certificate_type', 'house_tag']);
   await load();
 });
 
@@ -34,31 +44,42 @@ function openCreate() {
 }
 
 function openEdit(item: SaleProperty) {
-  ElMessage.info('编辑功能待对接: ' + item.title);
+  router.push('/house/sale/edit/' + item.id);
 }
 
+function search() { query.page = 1; load(); }
+
 function statusClass(status: string) {
-  const map: Record<string, string> = {
-    pre_publish: 'pill-gray',
-    not_rented: 'pill-green',
-    rented: 'pill-blue',
-    sold: 'pill-purple',
-    pause: 'pill-gray',
-    taken: 'pill-orange',
-  };
-  return map[status] || 'pill-gray';
+  return ({ published: 'pill-green', price_negotiation: 'pill-orange', bargain: 'pill-orange', quick_sale: 'pill-orange', sold: 'pill-purple' } as Record<string, string>)[status] || 'pill-gray';
 }
 
 function statusLabel(status: string) {
-  const map: Record<string, string> = {
-    pre_publish: '待发布',
-    not_rented: '未租',
-    rented: '在租',
-    sold: '已售',
-    pause: '暂停',
-    taken: '已收',
-  };
-  return map[status] || status;
+  return saleStatuses.find((item) => item.value === (status === 'bargain' ? 'price_negotiation' : status))?.label || status;
+}
+
+function openStatus(item: SaleProperty) { statusItem.value = item; nextStatus.value = ''; }
+
+async function saveStatus() {
+  if (!statusItem.value || !nextStatus.value || savingStatus.value) return;
+  savingStatus.value = true;
+  try {
+    await changeSaleStatus(statusItem.value.id, nextStatus.value);
+    statusItem.value = undefined;
+    ElMessage.success('状态已更新');
+    await load();
+  } finally { savingStatus.value = false; }
+}
+
+async function exportPage() {
+  exporting.value = true;
+  try {
+    const { list: rows } = await exportSalePage(query);
+    downloadCsv('售房当前页.csv', [
+      ['编码', '标题', '小区', '房号', '售价', '面积', '业主', '电话（脱敏）', '状态'],
+      ...rows.map((item) => [item.code, item.title, item.communityName, item.roomNo, item.totalPrice, item.buildingArea, item.ownerName, item.ownerPhone, statusLabel(item.status)]),
+    ]);
+    ElMessage.success('已导出当前筛选页 ' + rows.length + ' 条');
+  } finally { exporting.value = false; }
 }
 </script>
 
@@ -71,7 +92,7 @@ function statusLabel(status: string) {
       </div>
       <div class="page-actions">
         <button v-permission="['sale:add']" class="btn btn-primary" @click="openCreate">新房源录入</button>
-        <button v-permission="['sale:export']" class="btn btn-default">导出</button>
+        <button v-permission="['sale:export']" class="btn btn-default" :disabled="exporting" @click="exportPage">导出当前页</button>
       </div>
     </div>
 
@@ -82,17 +103,17 @@ function statusLabel(status: string) {
           v-model="query.keyword"
           class="input"
           placeholder="小区/房号/业主"
-          @keyup.enter="load"
+          @keyup.enter="search"
         />
       </div>
       <div class="filter-group">
         <span class="filter-label">状态</span>
-        <select v-model="query.status" class="select" @change="load">
+        <select v-model="query.status" class="select" @change="search">
           <option value="">全部</option>
-          <option v-for="item in dictStore.getItems('house_status')" :key="item.value" :value="item.value">{{ item.label }}</option>
+          <option v-for="item in saleStatuses" :key="item.value" :value="item.value">{{ item.label }}</option>
         </select>
       </div>
-      <button class="btn btn-primary" @click="load">查询</button>
+      <button class="btn btn-primary" @click="search">查询</button>
     </div>
 
     <div class="summary-row">
@@ -136,11 +157,11 @@ function statusLabel(status: string) {
             </div>
           </div>
           <div class="house-tags" v-if="item.tags && item.tags.length">
-            <span v-for="tag in item.tags" :key="tag" class="tag tag-blue">{{ tag }}</span>
+            <span v-for="tag in item.tags" :key="tag" class="tag tag-blue">{{ dictStore.getLabel('house_tag', tag) }}</span>
           </div>
           <div class="house-actions" style="margin-top: 12px;">
             <button v-permission="['sale:edit']" class="btn btn-default btn-sm" @click="openEdit(item)">编辑</button>
-            <button v-permission="['sale:changeStatus']" class="btn btn-default btn-sm">变更状态</button>
+            <button v-permission="['sale:changeStatus']" class="btn btn-default btn-sm" @click="openStatus(item)">变更状态</button>
           </div>
         </div>
       </div>
@@ -170,6 +191,17 @@ function statusLabel(status: string) {
         </div>
       </div>
     </div>
+    <el-dialog :model-value="!!statusItem" title="变更售房状态" width="440px" @close="statusItem = undefined">
+      <p>{{ statusItem?.title }}</p>
+      <p>当前状态：{{ statusLabel(statusItem?.status || '') }}</p>
+      <el-select v-model="nextStatus" placeholder="请选择目标状态" aria-label="目标状态" style="width: 100%">
+        <el-option v-for="value in statusItem?.allowedStatuses || []" :key="value" :value="value" :label="statusLabel(value)" />
+      </el-select>
+      <template #footer>
+        <el-button :disabled="savingStatus" @click="statusItem = undefined">取消</el-button>
+        <el-button type="primary" :loading="savingStatus" :disabled="!nextStatus" @click="saveStatus">确认变更</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 

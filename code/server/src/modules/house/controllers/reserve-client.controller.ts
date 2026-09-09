@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Body, Put, Param, Query, UseGuards } from '@nestjs/common';
-import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
+import { Controller, Get, Post, Body, Put, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsDateString, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ReserveClientService } from '../services/reserve-client.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
+import { SkipMasking } from '../../../common/decorators/skip-masking.decorator';
 
 class CreateReserveClientDto {
   @IsNumber()
@@ -139,19 +141,30 @@ class UpdateReserveClientDto {
   @IsOptional()
   ownership?: string;
 
+}
+
+class CreateReserveFollowUpDto {
+  @IsString()
+  @IsNotEmpty()
+  content: string;
+
+  @IsString()
+  @IsIn(['phone', 'visit', 'wechat', 'viewing', 'other'])
+  followType: string;
+
   @IsString()
   @IsOptional()
   status?: string;
+}
 
-  @IsNumber()
-  @IsOptional()
-  @Type(() => Number)
-  salesmanId?: number;
+class ConvertReserveClientDto {
+  @IsString()
+  @IsNotEmpty()
+  contractCode: string;
 
-  @IsNumber()
+  @IsDateString()
   @IsOptional()
-  @Type(() => Number)
-  followerId?: number;
+  contractEndDate?: string;
 }
 
 @Controller('house/reserve-clients')
@@ -165,12 +178,33 @@ export class ReserveClientController {
   }
 
   @Post()
-  async create(@Body() data: CreateReserveClientDto) {
-    return this.service.create(data);
+  @RequirePermission('reserve:client:add')
+  async create(@Body() data: CreateReserveClientDto, @CurrentUser() user: any) {
+    return this.service.create(data, user);
+  }
+
+  @Get(':id/edit')
+  @RequirePermission('reserve:client:add')
+  @SkipMasking()
+  async editDetail(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.service.findOne(id, user);
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() data: UpdateReserveClientDto) {
-    return this.service.update(+id, data);
+  @RequirePermission('reserve:client:add')
+  async update(@Param('id', ParseIntPipe) id: number, @Body() data: UpdateReserveClientDto, @CurrentUser() user: any) {
+    return this.service.update(id, data, user);
+  }
+
+  @Post(':id/follow-ups')
+  @RequirePermission('reserve:client:add')
+  async addFollowUp(@Param('id', ParseIntPipe) id: number, @Body() data: CreateReserveFollowUpDto, @CurrentUser() user: any) {
+    return this.service.addFollowUp(id, data, user);
+  }
+
+  @Post(':id/convert')
+  @RequirePermission('reserve:client:transfer')
+  async convert(@Param('id', ParseIntPipe) id: number, @Body() data: ConvertReserveClientDto, @CurrentUser() user: any) {
+    return this.service.convert(id, data, user);
   }
 }

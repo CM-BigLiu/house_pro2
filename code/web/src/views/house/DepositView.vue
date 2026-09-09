@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { getDeposits, refundDeposit, deductDeposit, type Deposit } from '@/api/deposit';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney, formatDate } from '@/utils/format';
+import { sumAmounts } from '@/utils/money-summary';
 
 const dictStore = useDictStore();
 const list = ref<Deposit[]>([]);
@@ -35,9 +36,9 @@ async function load() {
 }
 
 const summary = computed(() => {
-  const totalDeposit = list.value.reduce((s: number, i: Deposit) => s + (i.depositAmount || 0), 0);
-  const pending = list.value.filter((i: Deposit) => i.status === 'pending').reduce((s: number, i: Deposit) => s + (i.depositAmount || 0), 0);
-  const refunded = list.value.filter((i: Deposit) => i.status === 'refunded').reduce((s: number, i: Deposit) => s + (i.depositAmount || 0), 0);
+  const totalDeposit = sumAmounts(list.value.map((i) => i.depositAmount));
+  const pending = sumAmounts(list.value.filter((i) => i.status === 'pending').map((i) => i.depositAmount));
+  const refunded = sumAmounts(list.value.filter((i) => i.status === 'refunded').map((i) => i.depositAmount));
   return { totalDeposit, pending, refunded };
 });
 
@@ -126,11 +127,11 @@ function statusClass(status: string) {
 
     <!-- Summary Row -->
     <div class="summary-row">
-      <span class="summary-chip">押金总额 <strong>¥{{ formatMoney(summary.totalDeposit).replace('¥', '') }}</strong></span>
+      <span class="summary-chip">当前页押金总额 <strong>¥{{ formatMoney(summary.totalDeposit).replace('¥', '') }}</strong></span>
       <span class="summary-sep">·</span>
-      <span class="summary-chip">待退 <strong>¥{{ formatMoney(summary.pending).replace('¥', '') }}</strong></span>
+      <span class="summary-chip">当前页待退 <strong>¥{{ formatMoney(summary.pending).replace('¥', '') }}</strong></span>
       <span class="summary-sep">·</span>
-      <span class="summary-chip">已退 <strong>¥{{ formatMoney(summary.refunded).replace('¥', '') }}</strong></span>
+      <span class="summary-chip">当前页已退 <strong>¥{{ formatMoney(summary.refunded).replace('¥', '') }}</strong></span>
     </div>
 
     <!-- Data Table -->

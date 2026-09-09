@@ -40,8 +40,8 @@ async function submit() {
       <el-form :model="form" label-width="90px">
         <el-form-item label="类型">
           <el-radio-group v-model="form.planType">
-            <el-radio label="income">应收</el-radio>
-            <el-radio label="expense">应支</el-radio>
+            <el-radio value="income">应收</el-radio>
+            <el-radio value="expense">应支</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="款项种类">

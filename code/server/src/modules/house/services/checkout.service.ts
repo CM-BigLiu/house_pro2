@@ -46,6 +46,11 @@ export class CheckoutService {
     return this.checkoutRepo.save(item);
   }
 
+  async findOne(id: number, user: CurrentUserPayload) {
+    const item = await this.findScoped(id, user);
+    return { ...item, settlementAmount: Number(item.settlementAmount || 0) };
+  }
+
   async confirm(id: number, user: CurrentUserPayload) {
     const checkout = await this.findScoped(id, user);
     if (checkout.status !== 'pending') {

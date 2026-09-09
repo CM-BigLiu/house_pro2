@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { buildPaymentSchedule, formatDate } from '@/utils/rental-schedule';
 import { ref, reactive, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
@@ -6,10 +7,12 @@ import { createRentalSet, getRentalSet, updateRentalSet, type RentalSet, type Re
 import { getCommunities, type Community } from '@/api/community';
 import { generateHouseCode } from '@/utils/code';
 import { useDictStore } from '@/stores/dict';
+import { useUserStore } from '@/stores/user';
 
 const router = useRouter();
 const route = useRoute();
 const dictStore = useDictStore();
+const userStore = useUserStore();
 const submitting = ref(false);
 
 const isEdit = computed(() => !!route.params.id);
@@ -45,7 +48,7 @@ function createEmptyForm(): FormState {
     rent: 0,
     deposit: 0,
     status: 'active',
-    storeId: 1,
+    storeId: userStore.userInfo?.storeIds[0],
     salesmanId: undefined,
     housekeeperId: undefined,
     landlordName: '',
@@ -209,8 +212,8 @@ function applyLeasePreset(years: number, event: MouseEvent) {
   end.setFullYear(end.getFullYear() + years);
   end.setDate(end.getDate() - 1); // 租期结束 = 起始日 + N 年 - 1 天
   form.leaseDateRange = [start, end];
-  form.leaseStart = start.toISOString().slice(0, 10);
-  form.leaseEnd = end.toISOString().slice(0, 10);
+  form.leaseStart = formatDate(start);
+  form.leaseEnd = formatDate(end);
 }
 
 function applyTenantLeasePreset(years: number, event: MouseEvent) {
@@ -221,8 +224,8 @@ function applyTenantLeasePreset(years: number, event: MouseEvent) {
   end.setFullYear(end.getFullYear() + years);
   end.setDate(end.getDate() - 1); // 租期结束 = 起始日 + N 年 - 1 天
   form.tenantLeaseDateRange = [start, end];
-  form.tenantLeaseStart = start.toISOString().slice(0, 10);
-  form.tenantLeaseEnd = end.toISOString().slice(0, 10);
+  form.tenantLeaseStart = formatDate(start);
+  form.tenantLeaseEnd = formatDate(end);
 }
 
 function applyRoomLeasePreset(index: number, years: number, event: MouseEvent) {
@@ -235,16 +238,16 @@ function applyRoomLeasePreset(index: number, years: number, event: MouseEvent) {
   end.setFullYear(end.getFullYear() + years);
   end.setDate(end.getDate() - 1); // 租期结束 = 起始日 + N 年 - 1 天
   room.leaseDateRange = [start, end];
-  room.leaseStart = start.toISOString().slice(0, 10);
-  room.leaseEnd = end.toISOString().slice(0, 10);
+  room.leaseStart = formatDate(start);
+  room.leaseEnd = formatDate(end);
 }
 
 function onRoomDateChange(index: number, val: [Date, Date] | null) {
   const room = form.rooms[index];
   if (!room) return;
   if (val && val[0] && val[1]) {
-    room.leaseStart = val[0].toISOString().slice(0, 10);
-    room.leaseEnd = val[1].toISOString().slice(0, 10);
+    room.leaseStart = formatDate(val[0]);
+    room.leaseEnd = formatDate(val[1]);
   } else {
     room.leaseStart = '';
     room.leaseEnd = '';
@@ -253,8 +256,8 @@ function onRoomDateChange(index: number, val: [Date, Date] | null) {
 
 function onDateRangeChange(val: [Date, Date] | null) {
   if (val && val[0] && val[1]) {
-    form.leaseStart = val[0].toISOString().slice(0, 10);
-    form.leaseEnd = val[1].toISOString().slice(0, 10);
+    form.leaseStart = formatDate(val[0]);
+    form.leaseEnd = formatDate(val[1]);
   } else {
     form.leaseStart = '';
     form.leaseEnd = '';
@@ -263,54 +266,12 @@ function onDateRangeChange(val: [Date, Date] | null) {
 
 function onTenantDateRangeChange(val: [Date, Date] | null) {
   if (val && val[0] && val[1]) {
-    form.tenantLeaseStart = val[0].toISOString().slice(0, 10);
-    form.tenantLeaseEnd = val[1].toISOString().slice(0, 10);
+    form.tenantLeaseStart = formatDate(val[0]);
+    form.tenantLeaseEnd = formatDate(val[1]);
   } else {
     form.tenantLeaseStart = '';
     form.tenantLeaseEnd = '';
   }
-}
-
-// 付款方式 → 交租周期（月）
-const PAYMENT_MONTHS: Record<string, number> = {
-  monthly: 1,
-  quarterly: 3,
-  semi_annual: 6,
-  annual: 12,
-};
-
-function addMonths(date: Date, months: number): Date {
-  const d = new Date(date.getTime());
-  const day = d.getDate();
-  d.setDate(1);
-  d.setMonth(d.getMonth() + months);
-  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  d.setDate(Math.min(day, lastDay));
-  return d;
-}
-
-function formatDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
-}
-
-// 根据起租日 + 结束日 + 付款方式生成交租计划
-function buildPaymentSchedule(startStr?: string, endStr?: string, method?: string) {
-  if (!startStr || !method) return [] as { period: number; date: string }[];
-  const start = new Date(startStr);
-  const end = endStr ? new Date(endStr) : null;
-  const step = PAYMENT_MONTHS[method] || 1;
-  const list: { period: number; date: string }[] = [];
-  let idx = 0;
-  while (idx < 120) {
-    const d = addMonths(start, idx * step);
-    if (end && d >= end) break;
-    list.push({ period: idx + 1, date: formatDate(d) });
-    idx++;
-  }
-  return list;
 }
 
 // 整租交租计划
@@ -326,17 +287,35 @@ function roomPaymentSchedule(room: any) {
 async function submit() {
   if (!form.code?.trim()) return ElMessage.warning('请填写房源编码');
   if (!form.communityId) return ElMessage.warning('请选择小区');
+  const requiredFields = [
+    ['address', '地址'], ['building', '楼栋'], ['unit', '单元'],
+    ['roomNo', '房号'], ['layout', '户型'],
+  ] as const;
+  for (const [field, label] of requiredFields) {
+    if (!form[field]?.trim()) return ElMessage.warning(`请填写${label}`);
+  }
+  if (form.bizType === 'shared') {
+    if (!form.rooms.length) return ElMessage.warning('合租房源至少需要一个房间');
+    if (form.rooms.some(room => !room.roomNo?.trim())) return ElMessage.warning('请填写每个房间的房号');
+    if (new Set(form.rooms.map(room => room.roomNo?.trim())).size !== form.rooms.length) {
+      return ElMessage.warning('房间房号不能重复');
+    }
+  }
   // 校验承租价为数字
   const landlordRent = Number(landlordRentText.value);
-  if (landlordRentText.value === '' || isNaN(landlordRent) || landlordRent < 0) return ElMessage.warning('承租价必须为有效的正数');
+  if (landlordRentText.value.trim() === '' || !Number.isFinite(landlordRent) || landlordRent < 0) return ElMessage.warning('承租价必须为有效的非负数');
   form.landlordRent = landlordRent;
   // 整租时校验客租价
   if (form.bizType === 'entire') {
     const tenantRent = Number(tenantRentText.value);
-    if (tenantRentText.value === '' || isNaN(tenantRent) || tenantRent < 0) return ElMessage.warning('客租价必须为有效的正数');
+    if (tenantRentText.value.trim() === '' || !Number.isFinite(tenantRent) || tenantRent < 0) return ElMessage.warning('客租价必须为有效的非负数');
     form.rent = tenantRent;
   }
   // 转换数字字段
+  const amounts = [form.buildingArea, form.deposit, ...form.rooms.flatMap(room => [room.rentPrice, room.depositAmount])];
+  if (amounts.some(value => !Number.isFinite(Number(value)) || Number(value) < 0)) {
+    return ElMessage.warning('面积、租金和押金必须为有效的非负数');
+  }
   form.buildingArea = Number(form.buildingArea) || 0;
   form.deposit = Number(form.deposit) || 0;
   form.rooms.forEach(room => {
@@ -391,8 +370,8 @@ async function submit() {
           <el-col :span="12">
             <el-form-item label="租赁方式">
               <el-radio-group v-model="form.bizType" @change="onBizTypeChange">
-                <el-radio label="entire">整租</el-radio>
-                <el-radio label="shared">合租</el-radio>
+                <el-radio value="entire">整租</el-radio>
+                <el-radio value="shared">合租</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
@@ -631,6 +610,9 @@ async function submit() {
                     <div style="display: flex; gap: 4px; flex: none;">
                       <button v-for="p in leasePresets" :key="p.years" class="lease-preset-btn" @click="applyRoomLeasePreset(index, p.years, $event)">{{ p.label }}</button>
                     </div>
+                  </div>
+                  <div v-if="!room.leaseStart && room.leaseEnd" class="text-muted">
+                    已记录结束日期 {{ room.leaseEnd }}，开始日期待补全
                   </div>
                 </el-form-item>
               </el-col>

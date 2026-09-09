@@ -69,8 +69,8 @@ async function submit() {
         </el-form-item>
         <el-form-item label="发票类型">
           <el-radio-group v-model="form.invoiceType">
-            <el-radio label="normal">普票</el-radio>
-            <el-radio label="special">专票</el-radio>
+            <el-radio value="normal">普票</el-radio>
+            <el-radio value="special">专票</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>

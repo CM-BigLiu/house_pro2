@@ -4,12 +4,14 @@ import { useRouter } from 'vue-router';
 import { getFlows, type Flow } from '@/api/finance';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
+import { downloadCsv } from '@/utils/csv';
 
 const router = useRouter();
 const dictStore = useDictStore();
 const list = ref<Flow[]>([]);
 const loading = ref(false);
-const query = reactive({ keyword: '', type: '' });
+const total = ref(0);
+const query = reactive({ keyword: '', type: '', page: 1, pageSize: 20 });
 
 onMounted(async () => {
   await dictStore.ensureLoaded(['payment_type']);
@@ -21,9 +23,18 @@ async function load() {
   try {
     const res = await getFlows(query);
     list.value = res.list;
+    total.value = res.total;
   } finally {
     loading.value = false;
   }
+}
+
+function editFlow(row: Flow) { router.push(`/finance/daily-account/edit/${row.id}`); }
+function exportCurrent() {
+  downloadCsv(`流水-${new Date().toISOString().slice(0, 10)}.csv`, [
+    ['编号', '摘要', '方向', '金额', '业务类型', '支付方式', '发生日期', '状态'],
+    ...list.value.map((row) => [row.id, row.title, row.type, row.amount, row.bizType, row.paymentType, row.flowDate, row.status]),
+  ]);
 }
 
 function typeClass(type: string) {
@@ -39,13 +50,13 @@ function typeClass(type: string) {
         <div class="page-desc">记录每一笔收入与支出流水，关联房源与客户</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" @click="router.push('/finance/daily-account/create')">记一笔</button>
-        <el-button v-permission="['finance:export']">导出</el-button>
+        <button v-permission="['finance:flow:modify']" class="btn btn-primary" @click="router.push('/finance/daily-account/create')">记一笔</button>
+        <el-button v-permission="['finance:flow:export']" @click="exportCurrent">导出</el-button>
       </div>
     </div>
 
     <div class="filter-bar">
-      <el-input v-model="query.keyword" placeholder="摘要/房源/客户" clearable @keyup.enter="load" />
+      <el-input v-model="query.keyword" placeholder="搜索摘要" clearable @keyup.enter="load" />
       <el-select v-model="query.type" placeholder="类型" clearable @change="load">
         <el-option label="收入" value="income" />
         <el-option label="支出" value="expense" />
@@ -74,11 +85,12 @@ function typeClass(type: string) {
       <el-table-column prop="customerName" label="客户" width="110" />
       <el-table-column prop="flowDate" label="日期" width="110" />
       <el-table-column label="操作" width="100">
-        <template #default="{}">
-          <el-button size="small" type="primary" plain>编辑</el-button>
+        <template #default="{ row }">
+          <el-button v-permission="['finance:flow:modify']" size="small" type="primary" plain :disabled="row.status !== 'pending' || row.audited || row.isRed" @click="editFlow(row)">编辑</el-button>
         </template>
       </el-table-column>
     </el-table>
+    <div class="table-footer"><span>共 {{ total }} 条</span><el-pagination v-model:current-page="query.page" :page-size="query.pageSize" :total="total" layout="prev, pager, next" @change="load" /></div>
   </div>
 </template>
 

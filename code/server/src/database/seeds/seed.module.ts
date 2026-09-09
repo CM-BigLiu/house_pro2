@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { databaseConfig } from '../../config/database.config';
 import { SeedService } from './seed.service';
 import { BizSeedService } from './biz.seed';
 import { Company } from '../../modules/system/entities/company.entity';
@@ -32,8 +30,6 @@ import { FinanceFlow } from '../../modules/finance/entities/finance-flow.entity'
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
-    TypeOrmModule.forRoot(databaseConfig()),
     TypeOrmModule.forFeature([
       Company, City, Store, Department, Position, Employee, Role, Permission, Dict, DictItem,
       OperationLog, Config,
@@ -43,5 +39,6 @@ import { FinanceFlow } from '../../modules/finance/entities/finance-flow.entity'
     ]),
   ],
   providers: [SeedService, BizSeedService],
+  exports: [SeedService],
 })
 export class SeedModule {}

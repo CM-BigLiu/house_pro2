@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, BadRequestException } from '@nestjs/common';
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray, IsIn } from 'class-validator';
+import { UpdateSalePropertyDto } from './sale.controller';
 import { Type } from 'class-transformer';
 import { SaleService } from '../services/sale.service';
 import { RentalService } from '../services/rental.service';
@@ -10,6 +11,13 @@ import { RequirePermission } from '../../../common/decorators/require-permission
 import { Audit } from '../../../common/decorators/audit.decorator';
 
 class UnifiedPropertyQueryDto {}
+
+class UnifiedPropertyUpdateDto extends UpdateSalePropertyDto {
+  @IsOptional()
+  @IsIn([2])
+  @Type(() => Number)
+  transType?: number;
+}
 
 class UnifiedPropertyCreateDto {
   @IsNumber()
@@ -161,10 +169,11 @@ export class PropertyController {
   @Put('update/:id')
   @RequirePermission('sale:edit')
   @Audit('house', 'property:update', { objectType: 'property' })
-  async update(@Param('id') id: string, @Body() data: any, @CurrentUser() user: any) {
+  async update(@Param('id') id: string, @Body() data: UnifiedPropertyUpdateDto, @CurrentUser() user: any) {
     const transType = Number(data.transType || 2);
     if (transType === 2) {
-      return this.saleService.update(+id, data, user);
+      const { transType: _transType, ...updates } = data;
+      return this.saleService.update(+id, updates, user);
     }
     throw new BadRequestException('不支持的 transType');
   }

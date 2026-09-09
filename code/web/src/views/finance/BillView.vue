@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { getBills, type Bill } from '@/api/finance';
+import { getBills, voidBill, type Bill } from '@/api/finance';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
+import { downloadCsv } from '@/utils/csv';
 
 const router = useRouter();
 const dictStore = useDictStore();
@@ -32,22 +34,26 @@ const statusTabs = [
   { key: 'cancelled', label: '已作废' },
 ];
 
-// 账单类型选项
-const categoryOptions = [
-  { label: '全部', value: '' },
-  { label: '租金', value: 'rent' },
-  { label: '物业费', value: 'property' },
-  { label: '水费', value: 'water' },
-  { label: '电费', value: 'electricity' },
-  { label: '燃气费', value: 'gas' },
-  { label: '其他', value: 'other' },
-];
+const legacyCategoryLabels: Record<string, string> = { rent: '租金', commission: '佣金' };
+const categoryOptions = computed(() => {
+  const options = [
+    { label: '全部', value: '' },
+    ...Object.entries(legacyCategoryLabels).map(([value, label]) => ({ value, label })),
+    ...dictStore.getItems('billing_category'),
+  ];
+  return options.filter((item, index) => options.findIndex((candidate) => candidate.value === item.value) === index);
+});
 
-// 模拟的汇总统计
+function categoryLabel(value: string) {
+  const label = dictStore.getLabel('billing_category', value);
+  return label && label !== value ? label : legacyCategoryLabels[value] || value || '-';
+}
+
+// 仅汇总当前筛选页，不冒充整月或全部门店汇总。
 const summaryStats = computed(() => {
   const items = list.value;
   const totalReceivable = items.reduce((s, i) => s + Number(i.amount || 0), 0);
-  const totalReceived = items.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.amount || 0), 0);
+  const totalReceived = items.reduce((s, i) => s + Number(i.paidAmount || 0), 0);
   const pending = items.filter(i => i.status === 'pending').reduce((s, i) => s + Number(i.amount || 0), 0);
   const overdue = items.filter(i => i.status === 'overdue').reduce((s, i) => s + Number(i.amount || 0), 0);
   return { totalReceivable, totalReceived, pending, overdue };
@@ -137,6 +143,24 @@ const pageNumbers = computed(() => {
   for (let i = start; i <= end; i++) pages.push(i);
   return pages;
 });
+
+function editBill(row: Bill) {
+  router.push(`/finance/bill/edit/${row.id}`);
+}
+
+async function cancelBill(row: Bill) {
+  await ElMessageBox.confirm(`确定作废账单「${row.title}」吗？该操作不能撤销。`, '作废账单', { type: 'warning' });
+  await voidBill(row.id);
+  ElMessage.success('账单已作废');
+  await load();
+}
+
+function exportCurrent() {
+  downloadCsv(`账单-${new Date().toISOString().slice(0, 10)}.csv`, [
+    ['编号', '付款方', '房源/房间', '款项种类', '应收金额', '实收金额', '到期日', '状态'],
+    ...list.value.map((row) => [row.id, row.tenantName, row.houseTitle, categoryLabel(row.category), row.amount, row.paidAmount, row.dueDate, statusLabelMap[row.status] || row.status]),
+  ]);
+}
 </script>
 
 <template>
@@ -148,7 +172,7 @@ const pageNumbers = computed(() => {
       </div>
       <div class="page-actions">
         <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="router.push('/finance/bill/create')">新增账单</button>
-        <el-button v-permission="['finance:export']">导出</el-button>
+        <el-button v-permission="['finance:export']" @click="exportCurrent">导出</el-button>
       </div>
     </div>
 
@@ -185,7 +209,7 @@ const pageNumbers = computed(() => {
         </select>
       </div>
       <div class="filter-group">
-        <span class="filter-label">日期</span>
+        <span class="filter-label">到期日</span>
         <input v-model="query.dateStart" type="date" class="input input-sm" @change="onSearch" />
         <span style="color: var(--ink-300);">~</span>
         <input v-model="query.dateEnd" type="date" class="input input-sm" @change="onSearch" />
@@ -202,8 +226,8 @@ const pageNumbers = computed(() => {
 
     <!-- 汇总条 -->
     <div class="summary-row">
-      <span class="summary-chip">本月应收 <strong>{{ formatMoney(summaryStats.totalReceivable) }}</strong></span>
-      <span class="summary-chip">本月已收 <strong>{{ formatMoney(summaryStats.totalReceived) }}</strong></span>
+      <span class="summary-chip">当前页应收 <strong>{{ formatMoney(summaryStats.totalReceivable) }}</strong></span>
+      <span class="summary-chip">当前页实收 <strong>{{ formatMoney(summaryStats.totalReceived) }}</strong></span>
       <span class="summary-chip">待缴 <strong>{{ formatMoney(summaryStats.pending) }}</strong></span>
       <span class="summary-chip">逾期 <strong>{{ formatMoney(summaryStats.overdue) }}</strong></span>
     </div>
@@ -220,7 +244,7 @@ const pageNumbers = computed(() => {
               <th>费用类型</th>
               <th>应收金额</th>
               <th>实收金额</th>
-              <th>账单日期</th>
+              <th>到期日</th>
               <th>状态</th>
               <th>操作</th>
             </tr>
@@ -233,7 +257,7 @@ const pageNumbers = computed(() => {
               </td>
               <td>{{ row.tenantName || '-' }}</td>
               <td>{{ row.houseTitle || '-' }}</td>
-              <td>{{ dictStore.getLabel('billing_category', row.category) || '-' }}</td>
+              <td>{{ categoryLabel(row.category) }}</td>
               <td class="mono num-neg">{{ formatMoney(row.amount) }}</td>
               <td class="mono num-pos">{{ formatMoney(row.paidAmount || 0) }}</td>
               <td>{{ row.billDate || row.createdAt?.slice(0, 10) || '-' }}</td>
@@ -242,8 +266,8 @@ const pageNumbers = computed(() => {
               </td>
               <td>
                 <div class="operation-cell">
-                  <button v-permission="['finance:bill:modify']" class="btn btn-ghost btn-sm">编辑</button>
-                  <button v-permission="['finance:bill:cancel']" class="btn btn-ghost btn-sm">作废</button>
+                  <button v-permission="['finance:bill:modify']" class="btn btn-ghost btn-sm" :disabled="!['pending', 'overdue', 'due', 'pending_pay'].includes(row.status)" @click="editBill(row)">编辑</button>
+                  <button v-permission="['finance:bill:cancel']" class="btn btn-ghost btn-sm" :disabled="['paid', 'cancelled'].includes(row.status) || Number(row.paidAmount || 0) > 0" @click="cancelBill(row)">作废</button>
                 </div>
               </td>
             </tr>

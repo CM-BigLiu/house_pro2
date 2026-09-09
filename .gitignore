@@ -12,3 +12,6 @@ uploads/
 Thumbs.db
 .claude/
 
+# pnpm 依赖缓存
+.pnpm-store/
+

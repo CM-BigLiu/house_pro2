@@ -1,4 +1,4 @@
-import { get, post } from '@/utils/request';
+import { del, get, post, put } from '@/utils/request';
 
 export interface Community {
   id: number;
@@ -16,6 +16,8 @@ export interface Community {
   buildingCount?: number;
   unitCount?: number;
   roomCount?: number;
+  currentSaleCount?: number;
+  currentRentCount?: number;
   createdAt: string;
 }
 
@@ -25,12 +27,35 @@ export interface Building {
   units: { id: number; name: string }[];
 }
 
-export function getCommunities(params?: { keyword?: string; cityId?: number; page?: number; pageSize?: number }) {
+export function getCommunities(params?: { keyword?: string; cityId?: number; businessCircle?: string; page?: number; pageSize?: number }) {
   return get<{ list: Community[]; total: number }>('/community', { params });
+}
+
+export interface CommunityCityFilter {
+  id: number;
+  name: string;
+  count: number;
+  children: { name: string; count: number }[];
+}
+
+export function getCommunityFilters() {
+  return get<CommunityCityFilter[]>('/community/filters');
 }
 
 export function createCommunity(data: Partial<Community>) {
   return post<Community>('/community', data);
+}
+
+export function getCommunity(id: number | string) {
+  return get<Community>(`/community/${id}`);
+}
+
+export function updateCommunity(id: number | string, data: Partial<Community>) {
+  return put<Community>(`/community/${id}`, data);
+}
+
+export function deleteCommunity(id: number | string) {
+  return del<{ id: number }>(`/community/${id}`);
 }
 
 export function getCommunityBuildings(id: number) {

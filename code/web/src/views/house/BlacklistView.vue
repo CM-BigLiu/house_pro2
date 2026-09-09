@@ -29,7 +29,7 @@ async function load() {
 }
 
 function openEdit(item: Blacklist) {
-  ElMessage.info('编辑功能待对接: ' + item.name);
+  router.push(`/house/blacklist/edit/${item.id}`);
 }
 
 async function remove(item: Blacklist) {
@@ -64,7 +64,7 @@ function handleSearch() {
         <div class="page-desc">租客、房东、供应商等失信人员统一管理</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" @click="router.push('/house/blacklist/create')">新增黑名单</button>
+        <button v-permission="['house:blacklist:create']" class="btn btn-primary" @click="router.push('/house/blacklist/create')">新增黑名单</button>
       </div>
     </div>
 
@@ -113,8 +113,8 @@ function handleSearch() {
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <div class="operation-cell">
-              <el-button size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
-              <el-button size="small" type="danger" plain @click="remove(row)">移除</el-button>
+              <el-button v-permission="['house:blacklist:edit']" size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
+              <el-button v-permission="['house:blacklist:delete']" size="small" type="danger" plain @click="remove(row)">移除</el-button>
             </div>
           </template>
         </el-table-column>

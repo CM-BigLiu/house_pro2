@@ -35,6 +35,10 @@ export function getCheckouts(params?: CheckoutQuery) {
   return get<{ list: Checkout[]; total: number }>('/house/checkouts', { params });
 }
 
+export function getCheckout(id: number) {
+  return get<Checkout>(`/house/checkouts/${id}`);
+}
+
 export function createCheckout(data: CreateCheckoutParams) {
   return post<Checkout>('/house/checkouts', data);
 }

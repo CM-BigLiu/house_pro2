@@ -3,6 +3,7 @@ import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ArrearService } from '../services/arrear.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreateArrearDto {
   @IsString()
@@ -51,6 +52,7 @@ export class ArrearController {
   }
 
   @Post()
+  @RequirePermission('finance:bill:modify')
   async create(@Body() data: CreateArrearDto) {
     return this.arrearService.create(data);
   }

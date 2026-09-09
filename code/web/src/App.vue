@@ -16,9 +16,7 @@ const isLogin = computed(() => route.path === '/login');
         <AppHeader />
         <main class="content">
           <router-view v-slot="{ Component }">
-            <keep-alive>
-              <component :is="Component" />
-            </keep-alive>
+            <component :is="Component" :key="route.fullPath" />
           </router-view>
         </main>
       </div>

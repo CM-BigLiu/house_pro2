@@ -1,12 +1,20 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray } from 'class-validator';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { PartialType } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, IsIn, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { RentalService } from '../services/rental.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Audit } from '../../../common/decorators/audit.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
+import { SkipMasking } from '../../../common/decorators/skip-masking.decorator';
 
-class CreateRentalRoomDto {
+export class CreateRentalRoomDto {
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  id?: number;
+
   @IsString()
   @IsNotEmpty()
   roomNo: string;
@@ -16,11 +24,13 @@ class CreateRentalRoomDto {
   roomType?: string;
 
   @IsNumber()
+  @Min(0)
   @IsOptional()
   @Type(() => Number)
   rentPrice?: number;
 
   @IsNumber()
+  @Min(0)
   @IsOptional()
   @Type(() => Number)
   listedPrice?: number;
@@ -28,6 +38,18 @@ class CreateRentalRoomDto {
   @IsString()
   @IsOptional()
   status?: string;
+
+  @IsString()
+  @IsOptional()
+  leaseStart?: string;
+
+  @IsString()
+  @IsOptional()
+  tenantName?: string;
+
+  @IsString()
+  @IsOptional()
+  tenantPhone?: string;
 
   @IsString()
   @IsOptional()
@@ -61,17 +83,19 @@ class CreateRentalRoomDto {
   arrearDays?: number;
 
   @IsNumber()
+  @Min(0)
   @IsOptional()
   @Type(() => Number)
   depositAmount?: number;
 }
 
-class CreateRentalSetDto {
+export class CreateRentalSetDto {
   @IsString()
   @IsNotEmpty()
   code: string;
 
   @IsString()
+  @IsIn(['entire', 'shared'])
   @IsNotEmpty()
   bizType: string;
 
@@ -119,9 +143,40 @@ class CreateRentalSetDto {
   decoration?: string;
 
   @IsNumber()
+  @Min(0)
   @IsOptional()
   @Type(() => Number)
   landlordRent?: number;
+
+  @IsString()
+  @IsOptional()
+  landlordName?: string;
+
+  @IsString()
+  @IsOptional()
+  landlordPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  tenantName?: string;
+
+  @IsString()
+  @IsOptional()
+  tenantPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  tenantPaymentMethod?: string;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  @Type(() => Number)
+  deposit?: number;
+
+  @IsString()
+  @IsOptional()
+  status?: string;
 
   @IsString()
   @IsOptional()
@@ -169,14 +224,19 @@ class CreateRentalSetDto {
   tenantLeaseEnd?: string;
 
   @IsNumber()
+  @Min(0)
   @IsOptional()
   @Type(() => Number)
   rent?: number;
 
   @IsArray()
   @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => CreateRentalRoomDto)
   rooms?: CreateRentalRoomDto[];
 }
+
+class UpdateRentalSetDto extends PartialType(CreateRentalSetDto) {}
 
 @Controller('house/rental-sets')
 @UseGuards(JwtAuthGuard)
@@ -184,13 +244,33 @@ export class RentalController {
   constructor(private rentalService: RentalService) {}
 
   @Get()
+  @RequirePermission('house:rent')
   async findAll(@Query() query: any, @CurrentUser() user: any) {
     return this.rentalService.findSets(query, user);
   }
 
+  @Get(':id')
+  @RequirePermission('renting:edit')
+  @SkipMasking()
+  async findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.rentalService.findSet(+id, user);
+  }
+
   @Post()
+  @RequirePermission('renting:add')
   @Audit('house', 'rental:create', { objectType: 'rental_set' })
-  async create(@Body() data: any, @CurrentUser() user: any) {
+  async create(@Body() data: CreateRentalSetDto, @CurrentUser() user: any) {
     return this.rentalService.createSet(data, user);
+  }
+
+  @Put(':id')
+  @RequirePermission('renting:edit')
+  @Audit('house', 'rental:update', { objectType: 'rental_set' })
+  async update(
+    @Param('id') id: string,
+    @Body() data: UpdateRentalSetDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.rentalService.updateSet(+id, data, user);
   }
 }

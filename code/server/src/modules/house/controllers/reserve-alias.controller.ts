@@ -5,6 +5,7 @@ import { ReservePropertyService } from '../services/reserve-property.service';
 import { ReserveClientService } from '../services/reserve-client.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreateReserveHouseDto {
   @IsNumber()
@@ -210,13 +211,15 @@ export class ReserveAliasController {
   }
 
   @Post('house/add')
-  async houseAdd(@Body() data: CreateReserveHouseDto) {
-    return this.propertyService.create(data);
+  @RequirePermission('reserve:house:add')
+  async houseAdd(@Body() data: CreateReserveHouseDto, @CurrentUser() user: any) {
+    return this.propertyService.create(data, user);
   }
 
   @Put('house/update/:id')
-  async houseUpdate(@Param('id') id: string, @Body() data: UpdateReserveHouseDto) {
-    return this.propertyService.update(+id, data);
+  @RequirePermission('reserve:house:add')
+  async houseUpdate(@Param('id') id: string, @Body() data: UpdateReserveHouseDto, @CurrentUser() user: any) {
+    return this.propertyService.update(+id, data, user);
   }
 
   @Get('client/page')
@@ -225,12 +228,14 @@ export class ReserveAliasController {
   }
 
   @Post('client/add')
-  async clientAdd(@Body() data: CreateReserveClientDto) {
-    return this.clientService.create(data);
+  @RequirePermission('reserve:client:add')
+  async clientAdd(@Body() data: CreateReserveClientDto, @CurrentUser() user: any) {
+    return this.clientService.create(data, user);
   }
 
   @Put('client/update/:id')
-  async clientUpdate(@Param('id') id: string, @Body() data: UpdateReserveClientDto) {
-    return this.clientService.update(+id, data);
+  @RequirePermission('reserve:client:add')
+  async clientUpdate(@Param('id') id: string, @Body() data: UpdateReserveClientDto, @CurrentUser() user: any) {
+    return this.clientService.update(+id, data, user);
   }
 }

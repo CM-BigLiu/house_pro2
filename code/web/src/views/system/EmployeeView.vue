@@ -96,7 +96,7 @@ function getInitials(name: string) {
 }
 
 function openEdit(row: Employee) {
-  router.push(`/system/employee/create?edit=${row.id}`);
+  router.push(`/system/employee/edit/${row.id}`);
 }
 
 async function remove(row: Employee) {

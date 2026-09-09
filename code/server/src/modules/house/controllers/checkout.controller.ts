@@ -48,7 +48,13 @@ export class CheckoutController {
     return this.checkoutService.findAll(query, user);
   }
 
+  @Get(':id')
+  async findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.checkoutService.findOne(+id, user);
+  }
+
   @Post()
+  @RequirePermission('renting:checkout')
   @Audit('house', 'checkout:create', { objectType: 'checkout' })
   async create(@Body() data: CreateCheckoutDto, @CurrentUser() user: any) {
     return this.checkoutService.create(data, user);

@@ -30,6 +30,15 @@ export class RentalRoom {
   status: string;
 
   @Column({ type: 'date', nullable: true })
+  leaseStart: string;
+
+  @Column({ length: 100, nullable: true })
+  tenantName: string;
+
+  @Column({ length: 30, nullable: true })
+  tenantPhone: string;
+
+  @Column({ type: 'date', nullable: true })
   leaseEnd: string;
 
   @Column({ length: 50, nullable: true })

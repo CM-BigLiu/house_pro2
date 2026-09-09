@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { ProfitService } from '../services/profit.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreateProfitDto {
   @IsNumber()
@@ -97,6 +98,7 @@ export class ProfitController {
   }
 
   @Post()
+  @RequirePermission('finance:bill:modify')
   async create(@Body() data: CreateProfitDto) {
     return this.service.create(data);
   }

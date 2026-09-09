@@ -3,7 +3,7 @@ import { ref, onMounted, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
-  getCommunities, type Community,
+  deleteCommunity as deleteCommunityApi, getCommunities, getCommunityFilters, type Community, type CommunityCityFilter,
 } from '@/api/community';
 
 /* ── Data ── */
@@ -14,72 +14,9 @@ const loading = ref(false);
 const filterKeyword = ref('');
 const treeKeyword = ref('');
 
-/* ── Mock tree data (replace with real API) ── */
-interface DistrictNode {
-  name: string;
-  count: number;
-  children: { name: string; count: number }[];
-}
-const treeData = ref<DistrictNode[]>([
-  {
-    name: '朝阳区', count: 245,
-    children: [
-      { name: 'CBD', count: 42 },
-      { name: '望京', count: 38 },
-      { name: '亚运村', count: 29 },
-      { name: '双井', count: 31 },
-      { name: '劲松', count: 25 },
-    ],
-  },
-  {
-    name: '海淀区', count: 198,
-    children: [
-      { name: '中关村', count: 36 },
-      { name: '五道口', count: 28 },
-      { name: '西二旗', count: 32 },
-      { name: '上地', count: 24 },
-    ],
-  },
-  {
-    name: '东城区', count: 112,
-    children: [
-      { name: '东直门', count: 18 },
-      { name: '安定门', count: 15 },
-      { name: '北新桥', count: 22 },
-    ],
-  },
-  {
-    name: '西城区', count: 98,
-    children: [
-      { name: '金融街', count: 20 },
-      { name: '西单', count: 16 },
-      { name: '新街口', count: 14 },
-    ],
-  },
-  {
-    name: '丰台区', count: 156,
-    children: [
-      { name: '方庄', count: 27 },
-      { name: '马家堡', count: 22 },
-      { name: '科技园区', count: 30 },
-    ],
-  },
-  {
-    name: '通州区', count: 134,
-    children: [
-      { name: '梨园', count: 28 },
-      { name: '北苑', count: 24 },
-      { name: '万达', count: 19 },
-    ],
-  },
-  {
-    name: '大兴区', count: 87,
-    children: [
-      { name: '亦庄', count: 35 },
-      { name: '黄村', count: 18 },
-    ],
-  },
-]);
+/* 城市/商圈来自实际小区数据，不使用演示区域及演示数量。 */
+const treeData = ref<CommunityCityFilter[]>([]);
+const selectedCityId = ref<number>();
 
 const selectedDistrict = ref<string>('');
 const selectedBizCircle = ref<string>('');
@@ -100,13 +37,21 @@ const allCount = computed(() => treeData.value.reduce((s, d) => s + d.count, 0))
 /* ── Query ── */
 const query = reactive({ keyword: '', page: 1, pageSize: 20 });
 
-onMounted(load);
+onMounted(async () => {
+  await Promise.all([load(), loadTree()]);
+});
+
+async function loadTree() {
+  treeData.value = await getCommunityFilters();
+}
 
 async function load() {
   loading.value = true;
   try {
     const params: any = { page: query.page, pageSize: query.pageSize };
     if (query.keyword) params.keyword = query.keyword;
+    if (selectedCityId.value) params.cityId = selectedCityId.value;
+    if (selectedBizCircle.value) params.businessCircle = selectedBizCircle.value;
     const res = await getCommunities(params);
     list.value = res.list;
     total.value = res.total;
@@ -122,24 +67,27 @@ function onPageChange(page: number) {
 
 /* ── Tree & search ── */
 function selectAll() {
+  selectedCityId.value = undefined;
   selectedDistrict.value = '';
   selectedBizCircle.value = '';
   query.keyword = '';
+  filterKeyword.value = '';
   query.page = 1;
   load();
 }
 
-function selectDistrict(name: string) {
-  selectedDistrict.value = name;
+function selectDistrict(city: CommunityCityFilter) {
+  selectedCityId.value = city.id;
+  selectedDistrict.value = city.name;
   selectedBizCircle.value = '';
-  query.keyword = name;
   query.page = 1;
   load();
 }
 
-function selectBizCircle(name: string) {
+function selectBizCircle(city: CommunityCityFilter, name: string) {
+  selectedCityId.value = city.id;
+  selectedDistrict.value = city.name;
   selectedBizCircle.value = name;
-  query.keyword = name;
   query.page = 1;
   load();
 }
@@ -155,7 +103,7 @@ function openCreate() {
   router.push('/house/community/create');
 }
 function editCommunity(item: Community) {
-  ElMessage.info('编辑功能待对接: ' + item.name);
+  router.push(`/house/community/edit/${item.id}`);
 }
 
 async function deleteCommunity(item: Community) {
@@ -165,18 +113,14 @@ async function deleteCommunity(item: Community) {
       cancelButtonText: '取消',
       type: 'warning',
     });
-    ElMessage.success('删除成功（占位）');
-    await load();
+    await deleteCommunityApi(item.id);
+    ElMessage.success('删除成功');
+    await Promise.all([load(), loadTree()]);
   } catch {
     // cancelled
   }
 }
 
-/* ── Helpers ── */
-function formatPrice(price?: number): string {
-  if (price === undefined || price === null) return '—';
-  return price.toLocaleString() + ' 元/㎡';
-}
 </script>
 
 <template>
@@ -194,7 +138,7 @@ function formatPrice(price?: number): string {
           </svg>
           <input v-model="filterKeyword" class="input" placeholder="搜索小区名称或地址…" @keyup.enter="onSearch" />
         </div>
-        <button class="btn btn-primary" @click="openCreate">
+        <button v-permission="['house:community:create']" class="btn btn-primary" @click="openCreate">
           <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
           </svg>
@@ -211,7 +155,7 @@ function formatPrice(price?: number): string {
           <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
           </svg>
-          <input v-model="treeKeyword" class="input-tree" placeholder="筛选区域…" />
+          <input v-model="treeKeyword" class="input-tree" placeholder="筛选城市/商圈…" />
         </div>
         <ul class="tree">
           <li :class="{ active: !selectedDistrict }">
@@ -220,10 +164,10 @@ function formatPrice(price?: number): string {
               <span class="tree-count">{{ allCount }}</span>
             </span>
           </li>
-          <li v-for="dist in filteredTreeData" :key="dist.name">
+          <li v-for="dist in filteredTreeData" :key="dist.id">
             <span
               :class="{ active: selectedDistrict === dist.name && !selectedBizCircle }"
-              @click="selectDistrict(dist.name)"
+              @click="selectDistrict(dist)"
             >
               {{ dist.name }}
               <span class="tree-count">{{ dist.count }}</span>
@@ -232,9 +176,9 @@ function formatPrice(price?: number): string {
               <li
                 v-for="biz in dist.children"
                 :key="biz.name"
-                :class="{ active: selectedBizCircle === biz.name }"
+                :class="{ active: selectedCityId === dist.id && selectedBizCircle === biz.name }"
               >
-                <span @click="selectBizCircle(biz.name)">
+                <span @click="selectBizCircle(dist, biz.name)">
                   {{ biz.name }}
                   <span class="tree-count">{{ biz.count }}</span>
                 </span>
@@ -252,7 +196,7 @@ function formatPrice(price?: number): string {
             共 <strong>{{ total }}</strong> 个小区
           </span>
           <span v-if="selectedDistrict" class="summary-chip">
-            区域筛选：<strong>{{ selectedDistrict }}{{ selectedBizCircle ? ' / ' + selectedBizCircle : '' }}</strong>
+            城市/商圈：<strong>{{ selectedDistrict }}{{ selectedBizCircle ? ' / ' + selectedBizCircle : '' }}</strong>
           </span>
         </div>
 
@@ -262,12 +206,12 @@ function formatPrice(price?: number): string {
             <div class="detail-card-header">
               <div class="detail-card-title">{{ item.name }}</div>
               <div class="detail-card-actions">
-                <button class="btn btn-sm btn-ghost" title="编辑" @click="editCommunity(item)">
+                <button v-permission="['house:community:edit']" class="btn btn-sm btn-ghost" title="编辑" @click="editCommunity(item)">
                   <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                   </svg>
                 </button>
-                <button class="btn btn-sm btn-ghost" title="删除" @click="deleteCommunity(item)">
+                <button v-permission="['house:community:delete']" class="btn btn-sm btn-ghost" title="删除" @click="deleteCommunity(item)">
                   <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
                   </svg>
@@ -302,16 +246,16 @@ function formatPrice(price?: number): string {
                   <span class="metric-value">{{ item.roomCount ?? '—' }}</span>
                 </div>
                 <div class="metric-chip metric-rent">
-                  <span class="metric-label">出租</span>
-                  <span class="metric-value">{{ item.unitCount ?? '—' }}</span>
+                  <span class="metric-label">出租房源</span>
+                  <span class="metric-value">{{ item.currentRentCount ?? '—' }}</span>
                 </div>
                 <div class="metric-chip metric-sale">
-                  <span class="metric-label">出售</span>
-                  <span class="metric-value">{{ item.buildingCount ?? '—' }}</span>
+                  <span class="metric-label">出售房源</span>
+                  <span class="metric-value">{{ item.currentSaleCount ?? '—' }}</span>
                 </div>
                 <div class="metric-chip metric-price">
                   <span class="metric-label">均价</span>
-                  <span class="metric-value">{{ formatPrice(item.longitude ? item.longitude : undefined) }}</span>
+                  <span class="metric-value" title="暂无均价数据">—</span>
                 </div>
               </div>
 

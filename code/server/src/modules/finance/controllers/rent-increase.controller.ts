@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { RentIncreaseService } from '../services/rent-increase.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreateRentIncreaseDto {
   @IsNumber()
@@ -62,6 +63,7 @@ export class RentIncreaseController {
   }
 
   @Post()
+  @RequirePermission('finance:bill:modify')
   async create(@Body() data: CreateRentIncreaseDto) {
     return this.service.create(data);
   }

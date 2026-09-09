@@ -3,6 +3,7 @@ import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean } from 'class-val
 import { Type } from 'class-transformer';
 import { DictService } from '../services/dict.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreateDictItemDto {
   @IsString()
@@ -70,16 +71,19 @@ export class DictController {
   }
 
   @Post('items')
+  @RequirePermission('system:dictionary:edit')
   async createItem(@Body() data: CreateDictItemDto) {
     return this.dictService.createItem(data);
   }
 
   @Put('items/:id')
+  @RequirePermission('system:dictionary:edit')
   async updateItem(@Param('id') id: string, @Body() data: UpdateDictItemDto) {
     return this.dictService.updateItem(+id, data);
   }
 
   @Delete('items/:id')
+  @RequirePermission('system:dictionary:edit')
   async removeItem(@Param('id') id: string) {
     return this.dictService.removeItem(+id);
   }

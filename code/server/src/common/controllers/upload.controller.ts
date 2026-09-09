@@ -7,11 +7,13 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+import { RequirePermission } from '../decorators/require-permission.decorator';
 
 @Controller('upload')
 @UseGuards(JwtAuthGuard)
 export class UploadController {
   @Post('image')
+  @RequirePermission('renting:add', 'sale:add', 'reserve:house:add')
   @UseInterceptors(FileInterceptor('file'))
   uploadImage(@UploadedFile() file: any) {
     // 开发环境直接返回 base64 占位 URL；生产环境应接入 OSS/S3

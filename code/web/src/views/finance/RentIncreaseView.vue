@@ -24,7 +24,7 @@ const stats = ref([
   { label: '本年涨价房源', value: 0, unit: '套' },
   { label: '平均涨幅', value: 0, unit: '%' },
   { label: '涨价金额合计', value: 0, prefix: '¥' },
-  { label: '待涨价房源', value: 0, unit: '套' },
+  { label: '待涨价房源', value: null, unit: '套' },
 ]);
 
 onMounted(load);
@@ -82,7 +82,8 @@ function computeStats() {
   stats.value[0].value = count;
   stats.value[1].value = Number(avgRate.toFixed(2));
   stats.value[2].value = totalIncrease;
-  stats.value[3].value = Math.max(0, 120 - count);
+  // 缺少待涨价基数接口，不显示虚构的 120 套。
+  stats.value[3].value = null;
 }
 
 function openCreate() {
@@ -100,7 +101,8 @@ async function submit() {
   await load();
 }
 
-function formatStat(v: number, prefix?: string, unit?: string) {
+function formatStat(v: number | null, prefix?: string, unit?: string) {
+  if (v === null) return '未统计';
   const str = v.toLocaleString('zh-CN');
   if (prefix) return `${prefix}${str}`;
   return `${str}${unit || ''}`;
@@ -115,7 +117,7 @@ function formatStat(v: number, prefix?: string, unit?: string) {
         <div class="page-desc">对比历年租金变化，分析涨价趋势与空间</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" @click="openCreate">新增涨价</button>
+        <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="openCreate">新增涨价</button>
         <button v-permission="['finance:export']" class="btn btn-default">导出</button>
       </div>
     </div>

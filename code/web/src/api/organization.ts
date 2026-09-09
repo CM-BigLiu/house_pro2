@@ -57,6 +57,10 @@ export function updateEmployee(id: number, data: Partial<Employee>) {
   return put<Employee>(`/system/employees/${id}`, data);
 }
 
+export function getEmployeeForEdit(id: number) {
+  return get<Employee>(`/system/employees/${id}/edit`);
+}
+
 export function deleteEmployee(id: number) {
   return del(`/system/employees/${id}`);
 }
@@ -81,8 +85,20 @@ export function getPermissions() {
   return get<Permission[]>('/system/permissions/tree');
 }
 
-export function getStores(params?: { cityId?: number }) {
-  return get<{ id: number; name: string; cityId?: number }[]>('/system/stores', { params });
+export function getStores(params?: { cityId?: number; keyword?: string; status?: string }) {
+  return get<Store[]>('/system/stores', { params });
+}
+
+export function getStoreForEdit(id: number) {
+  return get<Store>(`/system/stores/${id}/edit`);
+}
+
+export function createStore(data: Partial<Store>) {
+  return post<Store>('/system/stores', data);
+}
+
+export function updateStore(id: number, data: Partial<Store>) {
+  return put<Store>(`/system/stores/${id}`, data);
 }
 
 export function getCities() {
@@ -101,4 +117,10 @@ export interface Store {
   id: number;
   name: string;
   cityId?: number;
+  cityName?: string;
+  address?: string;
+  phone?: string;
+  manager?: string | { id: number; name: string };
+  employeeCount?: number;
+  status?: string;
 }

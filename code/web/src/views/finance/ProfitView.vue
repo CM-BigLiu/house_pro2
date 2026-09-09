@@ -83,7 +83,7 @@ function growthClass(val: number) {
         <div class="page-desc">按月份/房源维度核算公寓经营利润</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" @click="openCreate"><i data-lucide="plus"></i> 新增利润</button>
+        <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="openCreate"><i data-lucide="plus"></i> 新增利润</button>
         <button v-permission="['finance:export']" class="btn btn-default"><i data-lucide="download"></i> 导出报表</button>
         <button class="btn btn-default"><i data-lucide="circle-help"></i> 使用帮助</button>
       </div>

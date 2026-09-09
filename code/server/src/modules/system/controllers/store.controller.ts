@@ -15,6 +15,7 @@ import { StoreService } from '../services/store.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 import { Audit } from '../../../common/decorators/audit.decorator';
+import { PartialType } from '@nestjs/swagger';
 
 class CreateStoreDto {
   @IsString()
@@ -42,6 +43,8 @@ class CreateStoreDto {
   status?: string;
 }
 
+class UpdateStoreDto extends PartialType(CreateStoreDto) {}
+
 @Controller('system/stores')
 @UseGuards(JwtAuthGuard)
 export class StoreController {
@@ -50,6 +53,12 @@ export class StoreController {
   @Get()
   async findAll(@Query() query: any) {
     return this.storeService.findAll(query);
+  }
+
+  @Get(':id/edit')
+  @RequirePermission('system:store:edit')
+  async editDetail(@Param('id') id: string) {
+    return this.storeService.findOne(+id);
   }
 
   @Post()
@@ -62,7 +71,7 @@ export class StoreController {
   @Put(':id')
   @RequirePermission('system:store:edit')
   @Audit('system', 'store:update', { objectType: 'store' })
-  async update(@Param('id') id: string, @Body() dto: Partial<CreateStoreDto>) {
+  async update(@Param('id') id: string, @Body() dto: UpdateStoreDto) {
     return this.storeService.update(+id, dto);
   }
 

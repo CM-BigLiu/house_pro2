@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { PayoutService } from '../services/payout.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreatePayoutDto {
   @IsString()
@@ -76,6 +77,7 @@ export class PayoutController {
   }
 
   @Post()
+  @RequirePermission('finance:payout:create')
   async create(@Body() data: CreatePayoutDto, @CurrentUser() user: any) {
     return this.payoutService.create(data, user);
   }

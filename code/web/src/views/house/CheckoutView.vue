@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { getCheckouts, confirmCheckout, completeCheckout, type Checkout } from '@/api/checkout';
+import { getCheckout, getCheckouts, confirmCheckout, completeCheckout, type Checkout } from '@/api/checkout';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney, formatDate } from '@/utils/format';
+import { downloadCsv } from '@/utils/csv';
 
 const dictStore = useDictStore();
 const list = ref<Checkout[]>([]);
 const total = ref(0);
 const loading = ref(false);
 const query = reactive({ keyword: '', status: '', startDate: '', endDate: '', page: 1, pageSize: 20 });
+const detailVisible = ref(false);
+const detailLoading = ref(false);
+const detail = ref<Checkout | null>(null);
 
 const statusOptions = [
   { label: '全部', value: '' },
@@ -70,8 +74,19 @@ async function handleComplete(item: Checkout) {
   await load();
 }
 
-function handleDetail(item: Checkout) {
-  ElMessage.info(`查看退租详情: ${item.contractCode}`);
+async function handleDetail(item: Checkout) {
+  detailVisible.value = true;
+  detailLoading.value = true;
+  detail.value = null;
+  try { detail.value = await getCheckout(item.id); }
+  finally { detailLoading.value = false; }
+}
+
+function exportCurrent() {
+  downloadCsv(`退租记录-${new Date().toISOString().slice(0, 10)}.csv`, [
+    ['合同编号', '租客', '房源', '退租日期', '原因', '清算金额', '状态', '备注'],
+    ...list.value.map((item) => [item.contractCode, item.tenantName, item.houseInfo, item.checkoutDate, item.reason, item.settlementAmount, item.status, item.remark]),
+  ]);
 }
 
 function statusClass(status: string) {
@@ -93,7 +108,7 @@ function statusClass(status: string) {
         <div class="page-desc">管理租客退租登记、确认与费用清算</div>
       </div>
       <div class="page-actions">
-        <el-button v-permission="['checkout:export']">导出</el-button>
+        <el-button v-permission="['checkout:export']" @click="exportCurrent">导出</el-button>
       </div>
     </div>
 
@@ -192,6 +207,23 @@ function statusClass(status: string) {
         </div>
       </div>
     </div>
+
+    <el-dialog v-model="detailVisible" title="退租详情" width="620px">
+      <div v-loading="detailLoading" style="min-height: 180px;">
+        <el-descriptions v-if="detail" :column="2" border>
+          <el-descriptions-item label="合同编号">{{ detail.contractCode }}</el-descriptions-item>
+          <el-descriptions-item label="状态">{{ dictStore.getLabel('checkout_status', detail.status) || detail.status }}</el-descriptions-item>
+          <el-descriptions-item label="租客">{{ detail.tenantName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="退租日期">{{ formatDate(detail.checkoutDate) }}</el-descriptions-item>
+          <el-descriptions-item label="房源" :span="2">{{ detail.houseInfo || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="退租原因" :span="2">{{ detail.reason || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="清算金额">{{ formatMoney(detail.settlementAmount) }}</el-descriptions-item>
+          <el-descriptions-item label="登记时间">{{ detail.createdAt || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="备注" :span="2">{{ detail.remark || '-' }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+      <template #footer><el-button @click="detailVisible = false">关闭</el-button></template>
+    </el-dialog>
   </div>
 </template>
 

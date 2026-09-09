@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { IncomeCostService } from '../services/income-cost.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreateIncomeCostDto {
   @IsNumber()
@@ -82,6 +83,7 @@ export class IncomeCostController {
   }
 
   @Post()
+  @RequirePermission('finance:bill:modify')
   async create(@Body() data: CreateIncomeCostDto) {
     return this.service.create(data);
   }

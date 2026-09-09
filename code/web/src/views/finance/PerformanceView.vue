@@ -48,7 +48,7 @@ async function submit() {
         <div class="page-desc">按员工业绩指标统计提成与排名</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" @click="openCreate">新增业绩</button>
+        <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="openCreate">新增业绩</button>
         <button v-permission="['finance:export']" class="btn btn-default">导出</button>
       </div>
     </div>

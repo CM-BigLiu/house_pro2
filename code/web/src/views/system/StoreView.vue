@@ -70,7 +70,7 @@ function resetFilters() {
 }
 
 function openEdit(row: StoreDetail) {
-  router.push(`/system/store/create?edit=${row.id}`);
+  router.push(`/system/store/edit/${row.id}`);
 }
 
 async function remove(row: StoreDetail) {

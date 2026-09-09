@@ -98,7 +98,7 @@ function statusClass(status: string) {
       </el-table-column>
       <el-table-column label="操作" width="150">
         <template #default="{}">
-          <el-button size="small" type="primary" plain>收款</el-button>
+          <el-button v-permission="['finance:bill:modify']" size="small" type="primary" plain>收款</el-button>
           <el-button size="small">明细</el-button>
         </template>
       </el-table-column>

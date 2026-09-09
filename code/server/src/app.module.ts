@@ -17,6 +17,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { MaskingInterceptor } from './common/interceptors/masking.interceptor';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { UploadController } from './common/controllers/upload.controller';
+import { SeedModule } from './database/seeds/seed.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { UploadController } from './common/controllers/upload.controller';
     FinanceModule,
     DashboardModule,
     EventsModule,
+    SeedModule,
   ],
   controllers: [UploadController],
   providers: [

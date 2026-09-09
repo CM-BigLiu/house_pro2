@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 import { Audit } from '../../../common/decorators/audit.decorator';
+import { SkipMasking } from '../../../common/decorators/skip-masking.decorator';
 
 class CreateBlacklistDto {
   @IsString()
@@ -74,6 +75,7 @@ export class BlacklistController {
   constructor(private blacklistService: BlacklistService) {}
 
   @Get()
+  @RequirePermission('house:blacklist')
   async findAll(@Query() query: any, @CurrentUser() user: any) {
     return this.blacklistService.findAll(query, user);
   }
@@ -84,17 +86,33 @@ export class BlacklistController {
     @Query('idCard') idCard?: string,
     @Query('name') name?: string,
   ) {
-    return this.blacklistService.check(mobile, idCard, name);
+    const hits = await this.blacklistService.check(mobile, idCard, name);
+    return hits.map(({ id, name: hitName, type, reason, source, status }) => ({
+      id,
+      name: hitName,
+      type,
+      reason,
+      source,
+      status,
+    }));
+  }
+
+  @Get(':id')
+  @RequirePermission('house:blacklist:edit')
+  @SkipMasking()
+  async findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.blacklistService.findOne(+id, user);
   }
 
   @Post()
+  @RequirePermission('house:blacklist:create')
   @Audit('house', 'blacklist:create', { objectType: 'blacklist' })
   async create(@Body() data: CreateBlacklistDto, @CurrentUser() user: any) {
     return this.blacklistService.create(data, user);
   }
 
   @Put(':id')
-  @RequirePermission('system:employee:edit')
+  @RequirePermission('house:blacklist:edit')
   @Audit('house', 'blacklist:update', { objectType: 'blacklist' })
   async update(@Param('id') id: string, @Body() data: UpdateBlacklistDto, @CurrentUser() user: any) {
     return this.blacklistService.update(+id, data, user);

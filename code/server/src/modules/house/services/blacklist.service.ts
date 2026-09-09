@@ -17,17 +17,26 @@ export class BlacklistService {
     if (query.type) qb.where('b.type = :type', { type: query.type });
     if (query.status) qb.andWhere('b.status = :status', { status: query.status });
     applyDataScope(qb, user, 'b', { ownerField: 'createdBy' });
+    qb.orderBy('b.id', 'DESC');
+    const page = Math.max(1, Number(query.page) || 1);
+    const pageSize = Math.min(200, Math.max(1, Number(query.pageSize) || 20));
+    const keyword = typeof query.keyword === 'string' ? query.keyword.trim() : '';
+    if (keyword) {
+      // 身份证使用随机 IV 加密，须在数据权限过滤、自动解密后匹配，再分页。
+      const candidates = await qb.getMany();
+      const filtered = candidates.filter((item) =>
+        [item.name, item.mobile, item.idCard].some((value) => value?.includes(keyword)),
+      );
+      return {
+        list: filtered.slice((page - 1) * pageSize, page * pageSize),
+        total: filtered.length,
+      };
+    }
     const [list, total] = await qb
-      .skip(((query.page || 1) - 1) * (query.pageSize || 20))
-      .take(query.pageSize || 20)
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
       .getManyAndCount();
-    const filtered = query.keyword
-      ? list.filter((b) =>
-          [b.name, b.mobile].some((v) => v && v.includes(query.keyword)) ||
-          (b.idCard && b.idCard.includes(query.keyword)),
-        )
-      : list;
-    return { list: filtered, total };
+    return { list, total };
   }
 
   async check(mobile?: string, idCard?: string, name?: string) {
@@ -73,6 +82,14 @@ export class BlacklistService {
     }
 
     return rows;
+  }
+
+  async findOne(id: number, user: CurrentUserPayload) {
+    const qb = this.blacklistRepo.createQueryBuilder('b').where('b.id = :id', { id });
+    applyDataScope(qb, user, 'b', { ownerField: 'createdBy' });
+    const item = await qb.getOne();
+    if (!item) throw new ForbiddenException('无权查看或记录不存在');
+    return item;
   }
 
   async create(data: Partial<Blacklist>, user?: CurrentUserPayload) {

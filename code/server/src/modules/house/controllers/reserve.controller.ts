@@ -1,9 +1,11 @@
 import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ReserveService } from '../services/reserve.service';
+import { ReservePropertyService } from '../services/reserve-property.service';
+import { ReserveClientService } from '../services/reserve-client.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreateReservePropertyDto {
   @IsNumber()
@@ -162,25 +164,27 @@ class CreateReserveClientDto {
 @Controller('house/reserves')
 @UseGuards(JwtAuthGuard)
 export class ReserveController {
-  constructor(private reserveService: ReserveService) {}
+  constructor(private propertyService: ReservePropertyService, private clientService: ReserveClientService) {}
 
   @Get('properties')
   async properties(@Query() query: any, @CurrentUser() user: any) {
-    return this.reserveService.findProperties(query, user);
+    return this.propertyService.findAll(query, user);
   }
 
   @Post('properties')
-  async createProperty(@Body() data: CreateReservePropertyDto) {
-    return this.reserveService.createProperty(data);
+  @RequirePermission('reserve:house:add')
+  async createProperty(@Body() data: CreateReservePropertyDto, @CurrentUser() user: any) {
+    return this.propertyService.create(data, user);
   }
 
   @Get('clients')
   async clients(@Query() query: any, @CurrentUser() user: any) {
-    return this.reserveService.findClients(query, user);
+    return this.clientService.findAll(query, user);
   }
 
   @Post('clients')
-  async createClient(@Body() data: CreateReserveClientDto) {
-    return this.reserveService.createClient(data);
+  @RequirePermission('reserve:client:add')
+  async createClient(@Body() data: CreateReserveClientDto, @CurrentUser() user: any) {
+    return this.clientService.create(data, user);
   }
 }

@@ -2,9 +2,11 @@
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { getReserveProperties, type ReserveProperty } from '@/api/reserve-property';
+import { getReserveProperties, signReserveProperty, transferReserveProperty, type ReserveProperty } from '@/api/reserve-property';
+import { getEmployees, type Employee } from '@/api/organization';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
+import { downloadCsv } from '@/utils/csv';
 
 const router = useRouter();
 const dictStore = useDictStore();
@@ -12,6 +14,15 @@ const list = ref<ReserveProperty[]>([]);
 const total = ref(0);
 const loading = ref(false);
 const query = reactive({ keyword: '', status: '', page: 1, pageSize: 20 });
+const selected = ref<ReserveProperty | null>(null);
+const signVisible = ref(false);
+const transferVisible = ref(false);
+const actionLoading = ref(false);
+const employees = ref<Employee[]>([]);
+const transferSalesmanId = ref<number>();
+const signForm = reactive({
+  contractCode: '', bizType: 'entire' as 'entire' | 'shared', leaseStart: '', leaseEnd: '', landlordRent: 0, deposit: 0,
+});
 
 onMounted(async () => {
   await dictStore.ensureLoaded(['house_status', 'disk_type', 'source_channel']);
@@ -30,7 +41,49 @@ async function load() {
 }
 
 function openEdit(item: ReserveProperty) {
-  ElMessage.info('编辑功能待对接: ' + item.title);
+  router.push(`/house/reserve-house/edit/${item.id}`);
+}
+
+function openSign(item: ReserveProperty) {
+  selected.value = item;
+  Object.assign(signForm, { contractCode: '', bizType: 'entire', leaseStart: '', leaseEnd: '', landlordRent: Number(item.ownerQuote || item.expectedPrice || 0), deposit: 0 });
+  signVisible.value = true;
+}
+
+async function submitSign() {
+  if (!selected.value || !signForm.leaseStart || !signForm.leaseEnd || signForm.landlordRent < 0) return ElMessage.warning('请完整填写合同期限与租金');
+  actionLoading.value = true;
+  try {
+    const result = await signReserveProperty(selected.value.id, signForm);
+    ElMessage.success(`拿房签约成功，合同编号：${result.contractCode}`);
+    signVisible.value = false;
+    await load();
+  } finally { actionLoading.value = false; }
+}
+
+async function openTransfer(item: ReserveProperty) {
+  selected.value = item;
+  transferSalesmanId.value = item.salesmanId;
+  employees.value = (await getEmployees({ storeId: item.storeId })).list.filter((employee) => employee.status === 'normal');
+  transferVisible.value = true;
+}
+
+async function submitTransfer() {
+  if (!selected.value || !transferSalesmanId.value) return ElMessage.warning('请选择目标业务员');
+  actionLoading.value = true;
+  try {
+    await transferReserveProperty(selected.value.id, transferSalesmanId.value);
+    ElMessage.success('业务员已转移');
+    transferVisible.value = false;
+    await load();
+  } finally { actionLoading.value = false; }
+}
+
+function exportCurrent() {
+  downloadCsv(`储备房源-${new Date().toISOString().slice(0, 10)}.csv`, [
+    ['标题', '小区', '地址', '门牌号', '户型', '业主', '电话', '报价', '状态'],
+    ...list.value.map((item) => [item.title, item.communityName, item.address, item.roomNo, item.layout, item.ownerName, item.ownerPhone, item.ownerQuote, item.status]),
+  ]);
 }
 
 function diskClass(type: string) {
@@ -48,7 +101,7 @@ function diskClass(type: string) {
       </div>
       <div class="page-actions">
         <button v-permission="['reserve:house:add']" class="btn btn-primary" @click="router.push('/house/reserve-house/create')">录入房源</button>
-        <button v-permission="['reserve:house:export']" class="btn btn-default">导出</button>
+        <button v-permission="['reserve:house:export']" class="btn btn-default" @click="exportCurrent">导出</button>
       </div>
     </div>
 
@@ -104,9 +157,9 @@ function diskClass(type: string) {
           </div>
         </div>
         <div class="detail-card-footer">
-          <el-button v-permission="['reserve:house:take']" size="small" type="primary" plain>拿房签约</el-button>
-          <el-button v-permission="['reserve:house:transfer']" size="small">转业务员</el-button>
-          <el-button size="small" type="primary" plain @click="openEdit(item)">编辑</el-button>
+          <el-button v-permission="['reserve:house:take']" size="small" type="primary" plain :disabled="!['not_rented', 'pause'].includes(item.status)" @click="openSign(item)">拿房签约</el-button>
+          <el-button v-permission="['reserve:house:transfer']" size="small" :disabled="['taken', 'signed'].includes(item.status)" @click="openTransfer(item)">转业务员</el-button>
+          <el-button v-permission="['reserve:house:add']" size="small" type="primary" plain @click="openEdit(item)">编辑</el-button>
         </div>
       </div>
     </div>
@@ -122,7 +175,26 @@ function diskClass(type: string) {
       />
     </div>
 
-    <!-- Dialog -->
+    <el-dialog v-model="signVisible" title="拿房签约" width="520px">
+      <el-form :model="signForm" label-width="100px">
+        <el-form-item label="合同编号"><el-input v-model="signForm.contractCode" placeholder="留空由系统生成" /></el-form-item>
+        <el-form-item label="租赁方式" required><el-radio-group v-model="signForm.bizType"><el-radio value="entire">整租</el-radio><el-radio value="shared">合租</el-radio></el-radio-group></el-form-item>
+        <el-form-item label="合同期限" required>
+          <el-date-picker v-model="signForm.leaseStart" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" style="width: 48%;" />
+          <span style="margin: 0 8px;">至</span>
+          <el-date-picker v-model="signForm.leaseEnd" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" style="width: 48%;" />
+        </el-form-item>
+        <el-form-item label="房东租金" required><el-input-number v-model="signForm.landlordRent" :min="0" style="width: 100%;" /></el-form-item>
+        <el-form-item label="押金"><el-input-number v-model="signForm.deposit" :min="0" style="width: 100%;" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="signVisible = false">取消</el-button><el-button type="primary" :loading="actionLoading" @click="submitSign">确认签约并流转</el-button></template>
+    </el-dialog>
+    <el-dialog v-model="transferVisible" title="转业务员" width="440px">
+      <el-select v-model="transferSalesmanId" filterable placeholder="请选择当前门店在职员工" style="width: 100%;">
+        <el-option v-for="employee in employees" :key="employee.id" :label="`${employee.name}（${employee.mobile}）`" :value="employee.id" />
+      </el-select>
+      <template #footer><el-button @click="transferVisible = false">取消</el-button><el-button type="primary" :loading="actionLoading" @click="submitTransfer">确认转移</el-button></template>
+    </el-dialog>
   </div>
 </template>
 

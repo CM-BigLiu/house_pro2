@@ -21,6 +21,8 @@ export interface SaleProperty {
   elevator: string;
   buildYear?: number;
   totalPrice: number;
+  salePrice?: number;
+  allowedStatuses?: string[];
   unitPrice?: number;
   floorPrice?: number;
   taxType?: string;
@@ -43,16 +45,16 @@ export interface SaleProperty {
   createdAt: string;
 }
 
-export function getSaleProperties(params?: { keyword?: string; status?: string }) {
+export function getSaleProperties(params?: { keyword?: string; status?: string; page?: number; pageSize?: number }) {
   return get<{ list: SaleProperty[]; total: number }>('/house/sale-properties', { params });
 }
 
 export function createSaleProperty(data: Partial<SaleProperty>) {
-  return post<SaleProperty>('/house/sale-properties', data);
+  return post<SaleProperty>('/house/sale-properties', salePayload(data));
 }
 
 export function updateSaleProperty(id: number, data: Partial<SaleProperty>) {
-  return put<SaleProperty>(`/house/sale-properties/${id}`, data);
+  return put<SaleProperty>(`/house/sale-properties/${id}`, salePayload(data, true));
 }
 
 // PRD 11 章统一房源接口（/api/property/*）
@@ -70,4 +72,24 @@ export function getPropertyDetail(id: number, transType = 2) {
 
 export function updateProperty(id: number, data: Partial<SaleProperty> & { transType?: number }) {
   return put<SaleProperty>(`/property/update/${id}`, data);
+}
+
+export function salePayload(data: Partial<SaleProperty>, editing = false) {
+  const { totalPrice } = data;
+  const payload = { ...data };
+  for (const key of ['totalPrice', 'communityName', 'id', 'createdAt', 'status', 'allowedStatuses'] as const) delete payload[key];
+  if (editing) { delete payload.code; delete payload.storeId; }
+  return { ...payload, ...(totalPrice !== undefined ? { salePrice: totalPrice } : {}) };
+}
+
+export function getSalePropertyForEdit(id: number) {
+  return get<SaleProperty>(`/house/sale-properties/${id}/edit`);
+}
+
+export function changeSaleStatus(id: number, status: string) {
+  return put<SaleProperty>(`/house/sale-properties/${id}/status`, { status });
+}
+
+export function exportSalePage(params: { keyword?: string; status?: string; page?: number; pageSize?: number }) {
+  return get<{ list: SaleProperty[]; total: number }>('/house/sale-properties/export', { params });
 }

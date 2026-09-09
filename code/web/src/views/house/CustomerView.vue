@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { getCustomers, type Customer } from '@/api/customer';
 import { useDictStore } from '@/stores/dict';
@@ -9,217 +9,93 @@ const dictStore = useDictStore();
 const list = ref<Customer[]>([]);
 const loading = ref(false);
 const total = ref(0);
-const query = reactive({ keyword: '', identity: '', status: '', district: '', budgetMin: '', budgetMax: '', page: 1, pageSize: 10 });
-const currentPage = ref(1);
-const pageSize = ref(10);
 const activeTab = ref('all');
-
-const statusMap: Record<string, string> = {
-  all: '全部客户',
-  rent_a: '求租 A',
-  rent_b: '求租 B',
-  buy: '求购',
-  done: '已成交',
-  invalid: '已失效',
-};
-
-const stats = computed(() => {
-  const all = list.value.length;
-  const rent = list.value.filter((i: Customer) => i.identity === 'tenant').length;
-  const buy = list.value.filter((i: Customer) => i.identity === 'shareholder').length;
-  return { all, rent, buy };
-});
+const query = reactive({ keyword: '', customerType: '', status: '', desiredDistrict: '', budgetMin: '', budgetMax: '', page: 1, pageSize: 10 });
+const statusTabs = [
+  { value: 'all', label: '全部客户' }, { value: 'active', label: '有效客户' },
+  { value: 'done', label: '已成交' }, { value: 'invalid', label: '已失效' },
+  { value: 'blacklist', label: '黑名单' },
+];
+const stats = computed(() => ({
+  all: total.value,
+  rent: list.value.filter((item) => item.customerType === 'tenant').length,
+  buy: list.value.filter((item) => item.customerType === 'buyer').length,
+}));
 
 onMounted(async () => {
   await dictStore.ensureLoaded(['identity', 'customer_status', 'source_channel']);
   await load();
 });
-
 async function load() {
   loading.value = true;
   try {
-    const res = await getCustomers({ keyword: query.keyword, identity: query.identity });
+    const res = await getCustomers(query);
     list.value = res.list;
-    total.value = res.total ?? res.list.length;
-  } finally {
-    loading.value = false;
-  }
+    total.value = res.total;
+  } finally { loading.value = false; }
 }
-
-function onTabChange(tab: string) {
-  activeTab.value = tab;
-  if (tab === 'all') query.status = '';
-  else query.status = tab;
-  currentPage.value = 1;
+function onTabChange(value: string) {
+  activeTab.value = value;
+  query.status = value === 'all' ? '' : value;
+  query.page = 1;
   load();
 }
-
-function onSearch() {
-  currentPage.value = 1;
-  load();
-}
-
-function onReset() {
-  Object.assign(query, { keyword: '', identity: '', status: '', district: '', budgetMin: '', budgetMax: '', page: 1, pageSize: 10 });
+function search() { query.page = 1; load(); }
+function reset() {
+  Object.assign(query, { keyword: '', customerType: '', status: '', desiredDistrict: '', budgetMin: '', budgetMax: '', page: 1, pageSize: 10 });
   activeTab.value = 'all';
-  currentPage.value = 1;
   load();
 }
-
-function onPageChange(page: number) {
-  currentPage.value = page;
-  load();
+function openEdit(item: Customer) { router.push(`/house/customer/edit/${item.id}`); }
+function customerTypeLabel(type: string) {
+  return ({ tenant: '租客', buyer: '买家', landlord: '业主', reserve: '储备客源' } as Record<string, string>)[type]
+    || dictStore.getLabel('identity', type) || type;
 }
-
-function openCreate() {
-  router.push('/house/customer/create');
+function budgetText(item: Customer) {
+  if (item.budgetMin == null && item.budgetMax == null) return '—';
+  return `${item.budgetMin ?? 0} - ${item.budgetMax ?? '不限'}`;
 }
-
-function statusPillClass(status: string) {
-  const map: Record<string, string> = {
-    not_rented: 'pill-orange',
-    pending: 'pill-orange',
-    following: 'pill-blue',
-    rented: 'pill-green',
-    sold: 'pill-green',
-    done: 'pill-green',
-    invalid: 'pill-gray',
-  };
-  return map[status] || 'pill-gray';
+function statusClass(status: string) {
+  return ({ active: 'pill-blue', done: 'pill-green', invalid: 'pill-gray', blacklist: 'pill-red' } as Record<string, string>)[status] || 'pill-gray';
 }
-
-function identityClass(id: string) {
-  const map: Record<string, string> = {
-    tenant: 'pill-blue',
-    landlord: 'pill-green',
-    shareholder: 'pill-purple',
-    supplier: 'pill-orange',
-  };
-  return map[id] || 'pill-gray';
+function statusLabel(status: string) {
+  return ({ active: '有效', done: '已成交', invalid: '已失效', blacklist: '黑名单' } as Record<string, string>)[status] || status;
 }
 </script>
 
 <template>
   <div class="house-view">
-    <!-- Page Header -->
     <div class="page-header">
-      <div class="page-title">客源管理</div>
-      <div class="page-actions">
-        <button class="btn btn-primary" @click="openCreate">新增客源</button>
-      </div>
+      <div><div class="page-title">客源管理</div><div class="page-desc">统一维护租客、买家和业主资料</div></div>
+      <div class="page-actions"><button v-permission="['house:customer:create']" class="btn btn-primary" @click="router.push('/house/customer/create')">新增客源</button></div>
     </div>
-
-    <!-- Status Tabs -->
     <div class="status-tabs">
-      <button
-        v-for="(label, key) in statusMap"
-        :key="key"
-        :class="['status-tab', { active: activeTab === key }]"
-        @click="onTabChange(key)"
-      >
-        {{ label }}
-      </button>
+      <button v-for="tab in statusTabs" :key="tab.value" :class="['status-tab', { active: activeTab === tab.value }]" @click="onTabChange(tab.value)">{{ tab.label }}</button>
     </div>
-
-    <!-- Filter Bar -->
     <div class="filter-bar">
-      <input
-        v-model="query.keyword"
-        class="filter-input"
-        placeholder="姓名 / 电话"
-        @keyup.enter="onSearch"
-      />
-      <select v-model="query.identity" class="filter-select">
-        <option value="">需求类型</option>
-        <option value="tenant">求租</option>
-        <option value="shareholder">求购</option>
-      </select>
-      <div class="filter-range">
-        <input v-model="query.budgetMin" class="filter-input range-input" placeholder="预算 min" />
-        <span class="range-sep">~</span>
-        <input v-model="query.budgetMax" class="filter-input range-input" placeholder="预算 max" />
-      </div>
-      <select v-model="query.district" class="filter-select">
-        <option value="">区域</option>
-      </select>
-      <button class="btn btn-primary btn-sm" @click="onSearch">筛选</button>
-      <button class="btn btn-ghost btn-sm" @click="onReset">重置</button>
+      <input v-model="query.keyword" class="filter-input" placeholder="姓名 / 电话 / 合同编号" @keyup.enter="search" />
+      <select v-model="query.customerType" class="filter-select"><option value="">全部类型</option><option value="tenant">租客</option><option value="buyer">买家</option><option value="landlord">业主</option></select>
+      <div class="filter-range"><input v-model="query.budgetMin" type="number" min="0" class="filter-input range-input" placeholder="预算 min" /><span class="range-sep">~</span><input v-model="query.budgetMax" type="number" min="0" class="filter-input range-input" placeholder="预算 max" /></div>
+      <input v-model="query.desiredDistrict" class="filter-input" placeholder="期望区域" />
+      <button class="btn btn-primary btn-sm" @click="search">筛选</button><button class="btn btn-ghost btn-sm" @click="reset">重置</button>
     </div>
-
-    <!-- Summary Row -->
-    <div class="summary-row">
-      <span class="summary-chip">客源总数 {{ stats.all }}</span>
-      <span class="summary-chip">· 求租 {{ stats.rent }}</span>
-      <span class="summary-chip">· 求购 {{ stats.buy }}</span>
-    </div>
-
-    <!-- Data Table -->
-    <div class="table-wrap">
+    <div class="summary-row"><span class="summary-chip">符合条件 {{ stats.all }}</span><span class="summary-chip">· 当前页租客 {{ stats.rent }}</span><span class="summary-chip">· 当前页买家 {{ stats.buy }}</span></div>
+    <div class="table-wrap" v-loading="loading">
       <table class="data-table">
-        <thead>
-          <tr>
-            <th>姓名</th>
-            <th>电话</th>
-            <th>需求类型</th>
-            <th>预算范围</th>
-            <th>期望区域</th>
-            <th>跟进人</th>
-            <th>状态</th>
-            <th>跟进时间</th>
-            <th>操作</th>
-          </tr>
-        </thead>
+        <thead><tr><th>姓名</th><th>电话</th><th>客户类型</th><th>预算范围</th><th>期望区域</th><th>跟进人</th><th>状态</th><th>登记时间</th><th>操作</th></tr></thead>
         <tbody>
-          <tr v-if="list.length === 0">
-            <td colspan="9" class="empty-row">暂无数据</td>
-          </tr>
+          <tr v-if="!list.length"><td colspan="9" class="empty-row">暂无数据</td></tr>
           <tr v-for="item in list" :key="item.id">
-            <td>
-              <div class="cell-sub">{{ item.name }}</div>
-            </td>
-            <td>{{ item.phone }}</td>
-            <td>
-              <span :class="['pill', identityClass(item.identity)]">
-                {{ dictStore.getLabel('identity', item.identity) }}
-              </span>
-            </td>
-            <td>—</td>
-            <td>—</td>
-            <td>{{ item.employeeName || '—' }}</td>
-            <td>
-              <span :class="['pill', statusPillClass(item.status)]">
-                {{ dictStore.getLabel('customer_status', item.status) }}
-              </span>
-            </td>
-            <td>{{ item.createdAt || '—' }}</td>
-            <td class="operation-cell">
-              <button class="btn btn-sm btn-ghost">编辑</button>
-            </td>
+            <td><div class="cell-main">{{ item.name }}</div><div v-if="item.relatedPropertyCode" class="cell-sub">{{ item.relatedPropertyCode }}</div></td>
+            <td>{{ item.mobile || '—' }}</td><td><span class="pill pill-blue">{{ customerTypeLabel(item.customerType) }}</span></td>
+            <td>{{ budgetText(item) }}</td><td>{{ item.desiredDistrict || '—' }}</td><td>{{ item.employeeName || '—' }}</td>
+            <td><span :class="['pill', statusClass(item.status)]">{{ statusLabel(item.status) }}</span></td><td>{{ item.createdAt?.slice(0, 10) || '—' }}</td>
+            <td><button v-permission="['house:customer:edit']" class="btn btn-sm btn-ghost" @click="openEdit(item)">编辑</button></td>
           </tr>
         </tbody>
       </table>
     </div>
-
-    <!-- Pagination -->
-    <div class="table-footer">
-      <div class="pagination">
-        <button
-          class="page-btn"
-          :disabled="currentPage <= 1"
-          @click="onPageChange(currentPage - 1)"
-        >
-          上一页
-        </button>
-        <span class="page-info">第 {{ currentPage }} 页 / 共 {{ Math.ceil(total / pageSize) }} 页</span>
-        <button
-          class="page-btn"
-          :disabled="currentPage >= Math.ceil(total / pageSize)"
-          @click="onPageChange(currentPage + 1)"
-        >
-          下一页
-        </button>
-      </div>
-    </div>
+    <div class="table-footer"><span>共 {{ total }} 条</span><div class="pagination"><button class="page-btn" :disabled="query.page <= 1" @click="query.page--; load()">上一页</button><span class="page-info">第 {{ query.page }} 页 / 共 {{ Math.max(1, Math.ceil(total / query.pageSize)) }} 页</span><button class="page-btn" :disabled="query.page >= Math.ceil(total / query.pageSize)" @click="query.page++; load()">下一页</button></div></div>
   </div>
 </template>
 

@@ -38,6 +38,7 @@ import { CheckoutService } from './services/checkout.service';
 import { DepositService } from './services/deposit.service';
 import { Checkout } from './entities/checkout.entity';
 import { Deposit } from './entities/deposit.entity';
+import { Employee } from '../system/entities/employee.entity';
 
 @Module({
   imports: [
@@ -45,7 +46,7 @@ import { Deposit } from './entities/deposit.entity';
       Community, Building, Unit, Floor, RoomCode,
       SaleProperty, RentalSet, RentalRoom,
       ReserveProperty, ReserveClient, Customer, Blacklist, FollowUp,
-      OperationLog, Checkout, Deposit,
+      OperationLog, Checkout, Deposit, Employee,
     ]),
   ],
   controllers: [CommunityController, CommunityAliasController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController, OperationLogController, PropertyController, ReserveAliasController, CheckoutController, DepositController],

@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { ApprovalService } from '../services/approval.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class SubmitApprovalDto {
   @IsString()
@@ -56,6 +57,7 @@ export class ApprovalController {
   }
 
   @Post()
+  @RequirePermission('sale:changeStatus', 'renting:checkout', 'finance:bill:modify', 'system:employee:edit')
   async submit(@Body() dto: SubmitApprovalDto, @CurrentUser() user: CurrentUserPayload) {
     return this.approvalService.submit({
       entityType: dto.entityType,
@@ -69,6 +71,7 @@ export class ApprovalController {
   }
 
   @Post(':id/approve')
+  @RequirePermission('checkout:confirm', 'finance:ticket:approve', 'system:role:edit', 'sale:changeStatus')
   async approve(
     @Param('id') id: string,
     @Body() dto: ReviewApprovalDto,
@@ -78,6 +81,7 @@ export class ApprovalController {
   }
 
   @Post(':id/reject')
+  @RequirePermission('checkout:confirm', 'finance:ticket:approve', 'system:role:edit', 'sale:changeStatus')
   async reject(
     @Param('id') id: string,
     @Body() dto: ReviewApprovalDto,

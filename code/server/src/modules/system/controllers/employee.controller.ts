@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Body, Put, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { IsString, IsNotEmpty, IsOptional, IsArray, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { EmployeeService } from '../services/employee.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { Audit } from '../../../common/decorators/audit.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
+import { SkipMasking } from '../../../common/decorators/skip-masking.decorator';
 
 class CreateEmployeeDto {
   @IsString()
@@ -33,6 +35,16 @@ class CreateEmployeeDto {
   @IsOptional()
   @Type(() => Number)
   storeIds?: number[];
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsOptional()
+  @Type(() => Number)
+  positionIds?: number[];
+
+  @IsString()
+  @IsOptional()
+  entryDate?: string;
 }
 
 class UpdateEmployeeDto {
@@ -63,6 +75,16 @@ class UpdateEmployeeDto {
   @IsOptional()
   @Type(() => Number)
   storeIds?: number[];
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsOptional()
+  @Type(() => Number)
+  positionIds?: number[];
+
+  @IsString()
+  @IsOptional()
+  entryDate?: string;
 }
 
 @Controller('system/employees')
@@ -75,13 +97,22 @@ export class EmployeeController {
     return this.employeeService.findAll(query);
   }
 
+  @Get(':id/edit')
+  @RequirePermission('system:employee:edit')
+  @SkipMasking()
+  async editDetail(@Param('id', ParseIntPipe) id: number) {
+    return this.employeeService.findOne(id);
+  }
+
   @Post()
+  @RequirePermission('system:employee:edit')
   @Audit('system', 'employee:create', { objectType: 'employee' })
   async create(@Body() data: CreateEmployeeDto) {
     return this.employeeService.create(data);
   }
 
   @Put(':id')
+  @RequirePermission('system:employee:edit')
   @Audit('system', 'employee:update', { objectType: 'employee' })
   async update(@Param('id') id: string, @Body() data: UpdateEmployeeDto) {
     return this.employeeService.update(+id, data);

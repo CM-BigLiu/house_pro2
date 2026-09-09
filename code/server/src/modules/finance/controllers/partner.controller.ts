@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { PartnerService } from '../services/partner.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreatePartnerDto {
   @IsNumber()
@@ -93,11 +94,13 @@ export class PartnerController {
   }
 
   @Post()
+  @RequirePermission('finance:bill:modify')
   async create(@Body() data: CreatePartnerDto) {
     return this.service.create(data);
   }
 
   @Put(':id')
+  @RequirePermission('finance:bill:modify')
   async update(@Param('id') id: string, @Body() data: UpdatePartnerDto) {
     return this.service.update(+id, data);
   }

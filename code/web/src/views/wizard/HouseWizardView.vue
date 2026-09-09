@@ -9,6 +9,7 @@ import { checkBlacklist } from '@/api/blacklist';
 import { generateHouseCode } from '@/utils/code';
 import { useDictStore } from '@/stores/dict';
 import { useUserStore } from '@/stores/user';
+import { formatHouseAddress } from '@/utils/address';
 
 const router = useRouter();
 const dictStore = useDictStore();
@@ -78,8 +79,12 @@ const steps = [
 
 const currentCommunity = computed(() => communityOptions.value.find((c) => c.id === form.communityId));
 const currentAddress = computed(() => {
-  const parts = [currentCommunity.value?.name, form.building && `${form.building}栋`, form.unit && `${form.unit}单元`, form.roomNo].filter(Boolean);
-  return parts.join(' ') || '';
+  return formatHouseAddress({
+    community: currentCommunity.value?.name,
+    building: form.building,
+    unit: form.unit,
+    roomNo: form.roomNo,
+  });
 });
 
 async function handleImageUpload(options: any) {
@@ -500,8 +505,8 @@ function generateCode(prefix: string) {
               </el-row>
               <el-form-item label="租赁方式">
                 <el-radio-group v-model="form.bizType">
-                  <el-radio label="entire">整租</el-radio>
-                  <el-radio label="shared">合租</el-radio>
+                  <el-radio value="entire">整租</el-radio>
+                  <el-radio value="shared">合租</el-radio>
                 </el-radio-group>
               </el-form-item>
             </template>
@@ -530,8 +535,8 @@ function generateCode(prefix: string) {
                 <el-col :span="12">
                   <el-form-item label="电梯">
                     <el-radio-group v-model="form.elevator">
-                      <el-radio label="yes">有</el-radio>
-                      <el-radio label="no">无</el-radio>
+                      <el-radio value="yes">有</el-radio>
+                      <el-radio value="no">无</el-radio>
                     </el-radio-group>
                   </el-form-item>
                 </el-col>
@@ -560,8 +565,8 @@ function generateCode(prefix: string) {
                 <el-col :span="12">
                   <el-form-item label="公私盘">
                     <el-radio-group v-model="form.diskType">
-                      <el-radio label="public">公盘</el-radio>
-                      <el-radio label="private">私盘</el-radio>
+                      <el-radio value="public">公盘</el-radio>
+                      <el-radio value="private">私盘</el-radio>
                     </el-radio-group>
                   </el-form-item>
                 </el-col>

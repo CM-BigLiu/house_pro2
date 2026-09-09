@@ -38,6 +38,12 @@ export class FinanceFlow {
   @Column({ length: 100, nullable: true })
   bizType: string;
 
+  @Column({ length: 30, nullable: true })
+  paymentType: string;
+
+  @Column({ type: 'date', nullable: true })
+  occurredOn: string;
+
   @Column({ length: 255, nullable: true })
   remark: string;
 

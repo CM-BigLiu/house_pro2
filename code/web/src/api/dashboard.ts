@@ -2,10 +2,11 @@ import { get } from '@/utils/request';
 
 export interface KpiItem {
   label: string;
-  value: number;
+  value: number | string;
   unit?: string;
   trend?: number;
   trendLabel?: string;
+  color?: string;
 }
 
 export interface WarningCard {

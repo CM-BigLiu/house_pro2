@@ -12,6 +12,16 @@ export interface Bill {
   billDate: string;
   dueDate: string;
   createdAt: string;
+  bizType: string;
+  bizId?: string;
+  billSource: string;
+  payer?: string;
+  payee?: string;
+  actualAmount?: number;
+  paymentCount?: string;
+  billPeriod?: string;
+  overdueFee?: number;
+  roomCode?: string;
 }
 
 export interface Flow {
@@ -24,6 +34,13 @@ export interface Flow {
   customerName?: string;
   flowDate: string;
   createdAt: string;
+  direction: 'income' | 'expense';
+  bizType?: string;
+  remark?: string;
+  occurredOn?: string;
+  status?: string;
+  audited?: boolean;
+  isRed?: boolean;
 }
 
 export interface PaymentPlan {
@@ -93,6 +110,10 @@ export function createBill(data: Partial<Bill>) {
   return post<Bill>('/finance/bills', data);
 }
 
+export function getBillForEdit(id: number) { return get<Bill>(`/finance/bills/${id}/edit`); }
+export function updateBill(id: number, data: Partial<Bill>) { return put<Bill>(`/finance/bills/${id}`, data); }
+export function voidBill(id: number) { return post<Bill>(`/finance/bills/${id}/void`); }
+
 export function getFlows(params?: { keyword?: string; type?: string }) {
   return get<{ list: Flow[]; total: number }>('/finance/flows', { params });
 }
@@ -100,6 +121,9 @@ export function getFlows(params?: { keyword?: string; type?: string }) {
 export function createFlow(data: Partial<Flow>) {
   return post<Flow>('/finance/flows', data);
 }
+
+export function getFlowForEdit(id: number) { return get<Flow>(`/finance/flows/${id}/edit`); }
+export function updateFlow(id: number, data: Partial<Flow>) { return put<Flow>(`/finance/flows/${id}`, data); }
 
 export function getPaymentPlans(params?: { keyword?: string; planType?: string; status?: string }) {
   return get<{ list: PaymentPlan[]; total: number }>('/finance/plans', { params });

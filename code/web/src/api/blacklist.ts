@@ -13,12 +13,18 @@ export interface Blacklist {
   createdAt: string;
 }
 
+export type BlacklistHit = Pick<Blacklist, 'id' | 'name' | 'type' | 'reason' | 'source' | 'status'>;
+
 export function getBlacklist(params?: { keyword?: string; type?: string; status?: string }) {
   return get<{ list: Blacklist[]; total: number }>('/house/blacklist', { params });
 }
 
 export function checkBlacklist(mobile?: string, idCard?: string, name?: string) {
-  return get<Blacklist[]>('/house/blacklist/check', { params: { mobile, idCard, name } });
+  return get<BlacklistHit[]>('/house/blacklist/check', { params: { mobile, idCard, name } });
+}
+
+export function getBlacklistItem(id: number | string) {
+  return get<Blacklist>(`/house/blacklist/${id}`);
 }
 
 export function createBlacklist(data: Partial<Blacklist>) {

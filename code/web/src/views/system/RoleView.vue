@@ -63,37 +63,25 @@ const localAssignedStores = ref<number[]>([]);
 const localCustomScope = ref('');
 
 /* ── perm tree helpers ── */
-/** Flatten all leaf (action) permission IDs from the tree */
-function collectLeafIds(nodes: Permission[]): number[] {
-  const ids: number[] = [];
-  function walk(list: Permission[]) {
-    for (const n of list) {
-      if (n.children && n.children.length) {
-        walk(n.children);
-      } else if (n.type === 'action') {
-        ids.push(n.id);
-      }
-    }
-  }
-  walk(nodes);
-  return ids;
+/** A menu grant and its operation grants must be saved together. */
+function collectNodeIds(node: Permission): number[] {
+  return [node.id, ...(node.children || []).flatMap(collectNodeIds)];
 }
 
 function isIndeterminate(node: Permission): boolean {
   if (!node.children || !node.children.length) return false;
-  const leafIds = collectLeafIds(node.children);
-  const checked = leafIds.filter(id => localPermIds.value.includes(id));
-  return checked.length > 0 && checked.length < leafIds.length;
+  const ids = collectNodeIds(node);
+  const checked = ids.filter(id => localPermIds.value.includes(id));
+  return checked.length > 0 && checked.length < ids.length;
 }
 
 function isAllChecked(node: Permission): boolean {
   if (!node.children || !node.children.length) return localPermIds.value.includes(node.id);
-  const leafIds = collectLeafIds(node.children);
-  return leafIds.length > 0 && leafIds.every(id => localPermIds.value.includes(id));
+  return collectNodeIds(node).every(id => localPermIds.value.includes(id));
 }
 
 function toggleNode(node: Permission) {
-  const ids = node.children?.length ? collectLeafIds(node.children) : [node.id];
+  const ids = collectNodeIds(node);
   const allChecked = ids.every(id => localPermIds.value.includes(id));
   if (allChecked) {
     localPermIds.value = localPermIds.value.filter(id => !ids.includes(id));
@@ -106,26 +94,45 @@ function toggleNode(node: Permission) {
 
 function toggleAction(action: Permission) {
   const idx = localPermIds.value.indexOf(action.id);
-  if (idx === -1) localPermIds.value.push(action.id);
+  if (idx === -1) {
+    localPermIds.value.push(action.id);
+    let parentId = action.parentId;
+    while (parentId) {
+      if (!localPermIds.value.includes(parentId)) localPermIds.value.push(parentId);
+      parentId = parentById.value.get(parentId)?.parentId;
+    }
+  }
   else localPermIds.value.splice(idx, 1);
 }
 
 /* ── grouped permissions for the grid view ── */
 interface PermGroup {
   module: string;
-  children: Permission[];
+  menus: { node: Permission; actions: Permission[] }[];
 }
 
 const permGroups = computed<PermGroup[]>(() => {
-  const map = new Map<string, Permission[]>();
-  for (const p of permissions.value) {
-    if (p.type !== 'menu') continue;
-    if (!p.children || !p.children.length) continue;
-    const key = p.module || p.name;
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(p);
-  }
-  return Array.from(map.entries()).map(([module, children]) => ({ module, children }));
+  return permissions.value
+    .filter((root) => root.type === 'menu')
+    .map((root) => {
+      const menuNodes = (root.children || []).filter((node) => node.type === 'menu');
+      const nodes = menuNodes.length ? menuNodes : [root];
+      return {
+        module: root.name,
+        menus: nodes.map((node) => ({ node, actions: collectActions(node) })),
+      };
+    });
+});
+
+function collectActions(node: Permission): Permission[] {
+  return (node.children || []).flatMap((child) => child.type === 'action' ? [child] : collectActions(child));
+}
+
+const parentById = computed(() => {
+  const map = new Map<number, Permission>();
+  const walk = (nodes: Permission[]) => nodes.forEach((node) => { map.set(node.id, node); walk(node.children || []); });
+  walk(permissions.value);
+  return map;
 });
 
 const scopeRadios = [
@@ -245,18 +252,18 @@ function userCount(role: Role): number {
               <div v-for="group in permGroups" :key="group.module" class="perm-group">
                 <div class="perm-group-title">{{ group.module }}</div>
                 <div class="perm-tree">
-                  <div v-for="menu in group.children" :key="menu.id" class="perm-parent">
+                  <div v-for="menu in group.menus" :key="menu.node.id" class="perm-parent">
                     <label class="perm-parent-label">
                       <input
                         type="checkbox"
-                        :checked="isAllChecked(menu)"
-                        :indeterminate.prop="isIndeterminate(menu)"
-                        @change="toggleNode(menu)"
+                        :checked="isAllChecked(menu.node)"
+                        :indeterminate.prop="isIndeterminate(menu.node)"
+                        @change="toggleNode(menu.node)"
                       />
-                      <span>{{ menu.name }}</span>
+                      <span>{{ menu.node.name }}</span>
                     </label>
-                    <div v-if="menu.children && menu.children.length" class="perm-actions">
-                      <label v-for="act in menu.children" :key="act.id" class="perm-action-item">
+                    <div v-if="menu.actions.length" class="perm-actions">
+                      <label v-for="act in menu.actions" :key="act.id" class="perm-action-item">
                         <input
                           type="checkbox"
                           :checked="localPermIds.includes(act.id)"

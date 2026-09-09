@@ -30,6 +30,18 @@ export class Customer {
   @Column({ length: 100, nullable: true })
   relatedPropertyCode: string;
 
+  @Column({ length: 100, nullable: true })
+  desiredDistrict: string;
+
+  @Column({ type: 'decimal', precision: 14, scale: 2, nullable: true })
+  budgetMin: number;
+
+  @Column({ type: 'decimal', precision: 14, scale: 2, nullable: true })
+  budgetMax: number;
+
+  @Column({ length: 500, nullable: true })
+  remark: string;
+
   @Column({ type: 'date', nullable: true })
   contractEndDate: string;
 

@@ -76,6 +76,9 @@ export const dictSeedData: Record<string, { value: string; label: string; group?
     { value: 'ads', label: '看到我们广告' },
   ],
   house_status: [
+    { value: 'pre_publish', label: '待发布' },
+    { value: 'published', label: '已发布' },
+    { value: 'bargain', label: '议价中' },
     { value: 'not_rented', label: '未租' },
     { value: 'rented', label: '已租' },
     { value: 'sold', label: '已售' },
@@ -107,6 +110,7 @@ export const dictSeedData: Record<string, { value: string; label: string; group?
     { value: 'to_entire', label: '转到整租' },
     { value: 'to_central', label: '转到集中' },
     { value: 'deposit', label: '已定' },
+    { value: 'sold', label: '已成交' },
   ],
   house_tag: [
     { value: 'subway', label: '近地铁' },
@@ -141,6 +145,7 @@ export const dictSeedData: Record<string, { value: string; label: string; group?
   identity: [
     { value: 'tenant', label: '租客' },
     { value: 'landlord', label: '房东' },
+    { value: 'buyer', label: '买家' },
     { value: 'shareholder', label: '股东' },
     { value: 'supplier', label: '供应商' },
     { value: 'decorator', label: '装修公司' },
@@ -148,6 +153,8 @@ export const dictSeedData: Record<string, { value: string; label: string; group?
     { value: 'other', label: '其他' },
   ],
   billing_category: [
+    { value: 'rent', label: '租金' },
+    { value: 'commission', label: '佣金' },
     { value: 'property_fee', label: '物业费' },
     { value: 'rent_deposit', label: '房租或押金类收入' },
     { value: 'arrear', label: '欠款类收入' },

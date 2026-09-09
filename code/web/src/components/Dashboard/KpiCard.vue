@@ -7,7 +7,13 @@ withDefaults(defineProps<{
   trendLabel?: string;
   color?: 'pink' | 'yellow' | 'green' | 'blue' | 'purple';
   sparkline?: number[];
-}>(), { color: 'blue' });
+}>(), {
+  unit: '',
+  trend: undefined,
+  trendLabel: '',
+  color: 'blue',
+  sparkline: () => [],
+});
 
 const colorMap: Record<string, { bg: string; bar: string; grad: string }> = {
   pink:  { bg: '#fff0f5', bar: '#f472b6', grad: 'linear-gradient(180deg, #fce7f3 0%, #fff0f5 100%)' },

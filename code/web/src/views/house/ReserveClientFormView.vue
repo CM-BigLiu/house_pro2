@@ -1,13 +1,19 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, ref, reactive, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { createReserveClient, type ReserveClient } from '@/api/reserve-client';
+import { createReserveClient, getReserveClientForEdit, updateReserveClient, type ReserveClient } from '@/api/reserve-client';
 import { useDictStore } from '@/stores/dict';
+import { useUserStore } from '@/stores/user';
 
 const router = useRouter();
+const route = useRoute();
 const dictStore = useDictStore();
+const userStore = useUserStore();
 const submitting = ref(false);
+const loading = ref(false);
+const editId = computed(() => Number(route.params.id) || 0);
+const isEdit = computed(() => editId.value > 0);
 
 const form = reactive<Partial<ReserveClient>>({
   clientName: '', clientMobile: '', desiredLocation: '', demandType: 'rent',
@@ -18,14 +24,26 @@ const form = reactive<Partial<ReserveClient>>({
 
 onMounted(async () => {
   await dictStore.ensureLoaded(['customer_status', 'source_channel', 'demand_type', 'urgency', 'disk_type']);
+  if (isEdit.value) {
+    loading.value = true;
+    try {
+      Object.assign(form, await getReserveClientForEdit(editId.value));
+    } catch {
+      router.push('/house/reserve-client');
+    } finally {
+      loading.value = false;
+    }
+  }
 });
 
 async function submit() {
   if (!form.clientName?.trim()) return ElMessage.warning('请填写姓名');
+  if (!form.demandType) return ElMessage.warning('请选择需求类型');
   submitting.value = true;
   try {
-    await createReserveClient(form);
-    ElMessage.success('创建成功');
+    if (isEdit.value) await updateReserveClient(editId.value, form);
+    else await createReserveClient({ ...form, storeId: userStore.userInfo?.storeIds?.[0] || 0 });
+    ElMessage.success(isEdit.value ? '保存成功' : '创建成功');
     router.push('/house/reserve-client');
   } finally {
     submitting.value = false;
@@ -37,8 +55,8 @@ async function submit() {
   <div class="form-page">
     <div class="page-header">
       <div>
-        <div class="page-title">录入储备客源</div>
-        <div class="page-desc">填写潜在客户信息与意向需求</div>
+        <div class="page-title">{{ isEdit ? '编辑储备客源' : '录入储备客源' }}</div>
+        <div class="page-desc">维护意向需求资料；签约和跟进请在列表执行</div>
       </div>
       <div class="page-actions">
         <button class="btn btn-default" @click="router.push('/house/reserve-client')">返回</button>
@@ -46,7 +64,7 @@ async function submit() {
       </div>
     </div>
 
-    <div class="card" style="padding: 24px;">
+    <div class="card" style="padding: 24px;" v-loading="loading">
       <el-form :model="form" label-width="90px">
         <el-row :gutter="16">
           <el-col :span="12">

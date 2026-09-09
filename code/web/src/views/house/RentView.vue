@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDate, getPayReminder, type PayReminder } from '@/utils/rental-schedule';
 import { ref, onMounted, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -6,6 +7,7 @@ import { getRentalSets, type RentalSet } from '@/api/rental';
 import { createCheckout } from '@/api/checkout';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
+import { formatBuilding, formatHouseAddress, formatUnit } from '@/utils/address';
 
 const router = useRouter();
 const dictStore = useDictStore();
@@ -32,7 +34,7 @@ const summary = computed(() => {
 });
 
 onMounted(async () => {
-  await dictStore.ensureLoaded(['house_status', 'room_status', 'decoration', 'payment_method', 'lease_term']);
+  await dictStore.ensureLoaded(['house_status', 'room_status', 'decoration', 'payment_method', 'lease_term', 'room_type']);
   await load();
 });
 
@@ -90,11 +92,11 @@ async function checkout(item: RentalSet) {
     return; // 取消
   }
   try {
-    const houseInfo = [item.communityName, item.building ? item.building + '栋' : '', item.unit ? item.unit + '单元' : '', item.roomNo].filter(Boolean).join(' ');
+    const houseInfo = formatHouseAddress({ community: item.communityName, building: item.building, unit: item.unit, roomNo: item.roomNo });
     await createCheckout({
       houseInfo,
       tenantName: item.tenantName || '',
-      checkoutDate: new Date().toISOString().slice(0, 10),
+      checkoutDate: formatDate(new Date()),
       reason: '',
     });
     ElMessage.success('退租申请已提交，请在退租管理中确认');
@@ -104,13 +106,12 @@ async function checkout(item: RentalSet) {
   }
 }
 
-function editRoom(rm: any) {
-  ElMessageBox.confirm(`编辑房间「${rm.roomNo}」信息`, '编辑房间')
-    .then(() => ElMessage.info('房间编辑功能开发中'));
+function editRoom(item: RentalSet) {
+  router.push(`/house/rent/edit/${item.id}`);
 }
 
 async function checkoutRoom(item: RentalSet, rm: any) {
-  const houseInfo = [item.communityName, item.building ? item.building + '栋' : '', item.unit ? item.unit + '单元' : '', item.roomNo, rm.roomNo + '室'].filter(Boolean).join(' ');
+  const houseInfo = `${formatHouseAddress({ community: item.communityName, building: item.building, unit: item.unit, roomNo: item.roomNo })} ${rm.roomNo}室`.trim();
   try {
     await ElMessageBox.confirm(
       `确认对房间「${rm.roomNo}」${rm.tenantName ? `（租客：${rm.tenantName}）` : ''}进行退租操作？`,
@@ -120,7 +121,7 @@ async function checkoutRoom(item: RentalSet, rm: any) {
     await createCheckout({
       houseInfo,
       tenantName: rm.tenantName || '',
-      checkoutDate: new Date().toISOString().slice(0, 10),
+      checkoutDate: formatDate(new Date()),
       reason: '',
     });
     ElMessage.success('退租申请已提交，请在退租管理中确认');
@@ -163,86 +164,6 @@ function isExpiringSoon(dateStr: string): boolean {
   const diff = target.getTime() - now.getTime();
   const days = diff / (1000 * 60 * 60 * 24);
   return days > 0 && days <= 30;
-}
-
-// ---------- 缴费提醒 ----------
-const PAYMENT_MONTHS: Record<string, number> = {
-  monthly: 1,
-  quarterly: 3,
-  semi_annual: 6,
-  annual: 12,
-};
-
-function addMonths(date: Date, months: number): Date {
-  const d = new Date(date.getTime());
-  const day = d.getDate();
-  d.setDate(1);
-  d.setMonth(d.getMonth() + months);
-  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  d.setDate(Math.min(day, lastDay));
-  return d;
-}
-
-function formatDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
-}
-
-export interface PayReminder {
-  type: 'pay' | 'overdue';
-  date: string;
-  label: string;
-}
-
-// 根据起租日 + 结束日 + 付款方式计算缴费提醒
-// 返回 null 表示无需提醒（无起租日/付款方式，或租期已结束）
-function getPayReminder(startStr?: string, endStr?: string, method?: string): PayReminder | null {
-  if (!startStr || !method) return null;
-  const start = new Date(startStr);
-  const end = endStr ? new Date(endStr) : null;
-  const step = PAYMENT_MONTHS[method] || 1;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const dates: Date[] = [];
-  let idx = 0;
-  while (idx < 120) {
-    const d = addMonths(start, idx * step);
-    if (end && d.getTime() >= end.getTime()) break;
-    dates.push(d);
-    idx++;
-  }
-  if (!dates.length) return null;
-
-  let next: Date | null = null;
-  let prev: Date | null = null;
-  for (const d of dates) {
-    if (d.getTime() >= today.getTime()) {
-      next = d;
-      break;
-    }
-    prev = d;
-  }
-  if (!next) {
-    // 没有未来的交租日，但上一期已过期且租期尚未结束 → 欠费
-    if (prev && end && end.getTime() > today.getTime()) {
-      return { type: 'overdue', date: formatDate(prev), label: '欠费' };
-    }
-    return null; // 租期已结束
-  }
-
-  const days = Math.round((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  // 5 天内到期（含今天）→ 缴费
-  if (days >= 0 && days <= 5) {
-    return { type: 'pay', date: formatDate(next), label: '缴费' };
-  }
-  // 上一期交租日已过 → 欠费
-  if (prev) {
-    return { type: 'overdue', date: formatDate(prev), label: '欠费' };
-  }
-  return null;
 }
 
 // 公司 → 房东（承租）提醒
@@ -326,14 +247,14 @@ function roomReminder(rm: any): PayReminder | null {
         <div class="detail-card-header">
           <div class="detail-card-title">
             <span class="title-main">{{ item.communityName }}</span>
-            <span class="title-comment">// {{ item.address || item.communityName }} {{ item.building }}栋{{ item.unit }}单元<span v-if="item.buildingArea"> · {{ item.buildingArea }}㎡</span></span>
+            <span class="title-comment">// {{ item.address || item.communityName }} {{ formatBuilding(item.building) }} {{ formatUnit(item.unit) }}<span v-if="item.buildingArea"> · {{ item.buildingArea }}㎡</span></span>
             <span class="pill pill-green" v-if="item.bizType === 'entire'">整租</span>
             <span class="pill pill-purple" v-else>合租</span>
             <span class="tag tag-gray">{{ item.layout || '-' }}</span>
             <span
               v-if="item.bizType === 'shared' && landlordReminder(item)"
               :class="['pay-tag', landlordReminder(item)!.type === 'pay' ? 'pay-tag-pay' : 'pay-tag-overdue']"
-              :title="`公司给房东交租 · 交租日 ${landlordReminder(item)!.date}`"
+              :title="`公司给房东交租 · 计划日期 ${landlordReminder(item)!.date} · 实收状态请以账单为准`"
             >房东{{ landlordReminder(item)!.label }}</span>
           </div>
         </div>
@@ -375,7 +296,7 @@ function roomReminder(rm: any): PayReminder | null {
                 <span
                   v-if="tenantReminder(item)"
                   :class="['pay-tag', tenantReminder(item)!.type === 'pay' ? 'pay-tag-pay' : 'pay-tag-overdue']"
-                  :title="`房客给公司交租 · 交租日 ${tenantReminder(item)!.date}`"
+                  :title="`房客给公司交租 · 计划日期 ${tenantReminder(item)!.date} · 实收状态请以账单为准`"
                 >{{ tenantReminder(item)!.label }}</span>
               </span>
             </div>
@@ -386,7 +307,7 @@ function roomReminder(rm: any): PayReminder | null {
                 <span
                   v-if="landlordReminder(item)"
                   :class="['pay-tag', landlordReminder(item)!.type === 'pay' ? 'pay-tag-pay' : 'pay-tag-overdue']"
-                  :title="`公司给房东交租 · 交租日 ${landlordReminder(item)!.date}`"
+                  :title="`公司给房东交租 · 计划日期 ${landlordReminder(item)!.date} · 实收状态请以账单为准`"
                 >{{ landlordReminder(item)!.label }}</span>
               </span>
             </div>
@@ -425,7 +346,7 @@ function roomReminder(rm: any): PayReminder | null {
               </div>
               <div class="room-field">
                 <span class="field-label">户型</span>
-                <span class="field-value">{{ rm.roomType || '-' }}</span>
+                <span class="field-value">{{ dictStore.getLabel('room_type', rm.roomType) }}</span>
               </div>
               <div class="room-field">
                 <span class="field-label">租金</span>
@@ -434,7 +355,7 @@ function roomReminder(rm: any): PayReminder | null {
                   <span
                     v-if="rm.status === 'rented' && roomReminder(rm)"
                     :class="['pay-tag', roomReminder(rm)!.type === 'pay' ? 'pay-tag-pay' : 'pay-tag-overdue']"
-                    :title="`房客给公司交租 · 交租日 ${roomReminder(rm)!.date}`"
+                    :title="`房客给公司交租 · 计划日期 ${roomReminder(rm)!.date} · 实收状态请以账单为准`"
                   >{{ roomReminder(rm)!.label }}</span>
                 </span>
               </div>
@@ -453,8 +374,8 @@ function roomReminder(rm: any): PayReminder | null {
                 </span>
               </div>
               <div class="room-actions">
-                <button class="btn btn-ghost btn-xs" @click.stop="editRoom(rm)">编辑</button>
-                <button v-if="rm.status === 'rented'" class="btn btn-ghost btn-xs btn-danger-text" @click.stop="checkoutRoom(item, rm)">退租</button>
+                <button v-permission="['renting:edit']" class="btn btn-ghost btn-xs" @click.stop="editRoom(item)">编辑</button>
+                <button v-if="rm.status === 'rented'" v-permission="['renting:checkout']" class="btn btn-ghost btn-xs btn-danger-text" @click.stop="checkoutRoom(item, rm)">退租</button>
               </div>
             </div>
           </div>

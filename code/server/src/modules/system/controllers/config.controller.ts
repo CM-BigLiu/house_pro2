@@ -3,6 +3,7 @@ import { IsArray, IsNumber, IsOptional, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ConfigService } from '../services/config.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class ConfigItemDto {
   @IsNumber()
@@ -35,6 +36,7 @@ export class ConfigController {
   }
 
   @Post('batch')
+  @RequirePermission('system:config')
   async batchUpdate(@Body() data: BatchConfigDto) {
     return this.configService.batchUpdate(data?.configs || []);
   }

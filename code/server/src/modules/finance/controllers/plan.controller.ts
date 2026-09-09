@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import { PlanService } from '../services/plan.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreatePlanDto {
   @IsNumber()
@@ -61,6 +62,7 @@ export class PlanController {
   }
 
   @Post()
+  @RequirePermission('finance:bill:modify')
   async create(@Body() data: CreatePlanDto) {
     return this.planService.create(data);
   }

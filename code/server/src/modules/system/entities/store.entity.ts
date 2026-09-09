@@ -6,6 +6,7 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToMany,
 } from 'typeorm';
 import { City } from './city.entity';
 import { Employee } from './employee.entity';
@@ -37,6 +38,9 @@ export class Store {
 
   @Column({ name: 'manager_id', nullable: true })
   managerId: number;
+
+  @ManyToMany(() => Employee, (employee) => employee.stores)
+  employees: Employee[];
 
   @Column({ nullable: true })
   groupCode: string;

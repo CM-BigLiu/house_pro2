@@ -59,6 +59,24 @@ export class RentalSet {
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   landlordRent: number;
 
+  @Column({ length: 100, nullable: true })
+  landlordName: string;
+
+  @Column({ length: 30, nullable: true })
+  landlordPhone: string;
+
+  @Column({ length: 100, nullable: true })
+  tenantName: string;
+
+  @Column({ length: 30, nullable: true })
+  tenantPhone: string;
+
+  @Column({ length: 50, nullable: true })
+  tenantPaymentMethod: string;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true, default: 0 })
+  deposit: number;
+
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true, default: 0 })
   rent: number;
 

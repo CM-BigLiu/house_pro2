@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, reactive, onMounted, computed } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { createSaleProperty, type SaleProperty } from '@/api/sale';
+import { createSaleProperty, updateSaleProperty, getSalePropertyForEdit, type SaleProperty } from '@/api/sale';
 import { getCommunities, type Community } from '@/api/community';
 import { generateHouseCode } from '@/utils/code';
 import { useDictStore } from '@/stores/dict';
 
 const router = useRouter();
+const route = useRoute();
+const editId = computed(() => Number(route.params.id) || undefined);
+const loading = ref(false);
 const dictStore = useDictStore();
 const submitting = ref(false);
 
@@ -15,12 +18,12 @@ const communityOptions = ref<Community[]>([]);
 const communitiesLoading = ref(false);
 
 const form = reactive<Partial<SaleProperty>>({
-  code: generateHouseCode('SJ'), title: '', communityName: '', communityId: undefined, building: '', unit: '', floor: '', roomNo: '',
+  code: generateHouseCode('SJ'), title: '', communityName: '', communityId: undefined, propertyType: '', building: '', unit: '', floor: '', roomNo: '',
   layoutRooms: 1, layoutHalls: 1, layoutBathrooms: 1, layoutBalconies: 0,
   buildingArea: 0, orientation: '', decoration: '', elevator: 'yes', buildYear: undefined,
   totalPrice: 0, unitPrice: 0, floorPrice: 0, taxType: '', debt: 0, certificateType: '',
   sourceChannel: '', tags: [], description: '', ownerName: '', ownerPhone: '', ownerPhoneBackup: '',
-  maintainerId: undefined, storeId: 1, status: 'pre_publish', qualityScore: 0, qualityLevel: '',
+  maintainerId: undefined, storeId: undefined, status: 'pre_publish', qualityScore: 0, qualityLevel: '',
   verified: false, isCitywideSale: false, images: [],
 });
 const tagInput = ref('');
@@ -28,6 +31,19 @@ const tagInput = ref('');
 onMounted(async () => {
   await dictStore.ensureLoaded(['house_status', 'decoration_level', 'orientation', 'source_channel', 'tax_type', 'certificate_type']);
   await loadCommunities();
+  if (editId.value) {
+    loading.value = true;
+    try {
+      const data = await getSalePropertyForEdit(editId.value);
+      Object.assign(form, Object.fromEntries(Object.keys(form).map((key) => [key, (data as unknown as Record<string, unknown>)[key] ?? (form as Record<string, unknown>)[key]])));
+      if (data.communityId && !communityOptions.value.some((c) => c.id === data.communityId)) {
+        communityOptions.value.push({ id: data.communityId, name: data.communityName } as Community);
+      }
+    } catch {
+      ElMessage.error('加载售房数据失败');
+      router.push('/house/sale');
+    } finally { loading.value = false; }
+  }
 });
 
 async function loadCommunities(keyword = '') {
@@ -56,12 +72,21 @@ function removeTag(tag: string) {
 }
 
 async function submit() {
+  if (submitting.value || loading.value) return;
+  for (const [key, label] of [['propertyType', '房源类型'], ['building', '楼栋'], ['unit', '单元'], ['floor', '楼层'], ['roomNo', '房号'], ['orientation', '朝向'], ['decoration', '装修'], ['sourceChannel', '来源']] as const) {
+    if (!form[key]?.trim()) return ElMessage.warning('请填写' + label);
+  }
+  if (!form.communityId) return ElMessage.warning('请选择小区');
+  if (!form.buildingArea || form.buildingArea <= 0) return ElMessage.warning('面积必须大于 0');
+  if (!form.totalPrice || form.totalPrice <= 0) return ElMessage.warning('售价必须大于 0');
+  if (!/^1\d{10}$/.test(form.ownerPhone || '')) return ElMessage.warning('请填写 11 位业主手机号');
   if (!form.title?.trim()) return ElMessage.warning('请填写标题');
   if (!form.ownerName?.trim()) return ElMessage.warning('请填写业主');
   submitting.value = true;
   try {
-    await createSaleProperty(form);
-    ElMessage.success('创建成功');
+    if (editId.value) await updateSaleProperty(editId.value, form);
+    else await createSaleProperty(form);
+    ElMessage.success(editId.value ? '修改成功' : '创建成功');
     router.push('/house/sale');
   } finally {
     submitting.value = false;
@@ -70,15 +95,15 @@ async function submit() {
 </script>
 
 <template>
-  <div class="form-page">
+  <div class="form-page" v-loading="loading">
     <div class="page-header">
       <div>
-        <div class="page-title">新房源录入</div>
+        <div class="page-title">{{ editId ? '编辑售房' : '新房源录入' }}</div>
         <div class="page-desc">填写在售房源详细信息</div>
       </div>
       <div class="page-actions">
         <button class="btn btn-default" @click="router.push('/house/sale')">返回</button>
-        <button class="btn btn-primary" :disabled="submitting" @click="submit">保存</button>
+        <button class="btn btn-primary" :disabled="submitting || loading" @click="submit">保存</button>
       </div>
     </div>
 
@@ -88,7 +113,7 @@ async function submit() {
           <el-col :span="12">
             <el-form-item label="房源编码" required>
               <el-input v-model="form.code" readonly placeholder="系统自动生成">
-                <template #append>
+                <template v-if="!editId" #append>
                   <el-button @click="form.code = generateHouseCode('SJ')">重新生成</el-button>
                 </template>
               </el-input>
@@ -192,8 +217,8 @@ async function submit() {
           <el-col :span="8">
             <el-form-item label="电梯">
               <el-radio-group v-model="form.elevator">
-                <el-radio label="yes">有</el-radio>
-                <el-radio label="no">无</el-radio>
+                <el-radio value="yes">有</el-radio>
+                <el-radio value="no">无</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
