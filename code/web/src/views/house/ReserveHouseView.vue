@@ -117,7 +117,7 @@ function diskClass(type: string) {
       </div>
 
       <el-input v-model="query.keyword" placeholder="小区/业主/电话" clearable @keyup.enter="load" class="filter-input" />
-      <el-button type="primary" @click="load">查询</el-button>
+      <button type="button" class="btn btn-primary" @click="load">查询</button>
     </div>
 
     <!-- Loading -->
@@ -157,9 +157,9 @@ function diskClass(type: string) {
           </div>
         </div>
         <div class="detail-card-footer">
-          <el-button v-permission="['reserve:house:take']" size="small" type="primary" plain :disabled="!['not_rented', 'pause'].includes(item.status)" @click="openSign(item)">拿房签约</el-button>
-          <el-button v-permission="['reserve:house:transfer']" size="small" :disabled="['taken', 'signed'].includes(item.status)" @click="openTransfer(item)">转业务员</el-button>
-          <el-button v-permission="['reserve:house:add']" size="small" type="primary" plain @click="openEdit(item)">编辑</el-button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:house:take']" :disabled="!['not_rented', 'pause'].includes(item.status)" @click="openSign(item)">拿房签约</button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:house:transfer']" :disabled="['taken', 'signed'].includes(item.status)" @click="openTransfer(item)">转业务员</button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:house:add']" @click="openEdit(item)">编辑</button>
         </div>
       </div>
     </div>
@@ -187,13 +187,13 @@ function diskClass(type: string) {
         <el-form-item label="房东租金" required><el-input-number v-model="signForm.landlordRent" :min="0" style="width: 100%;" /></el-form-item>
         <el-form-item label="押金"><el-input-number v-model="signForm.deposit" :min="0" style="width: 100%;" /></el-form-item>
       </el-form>
-      <template #footer><el-button @click="signVisible = false">取消</el-button><el-button type="primary" :loading="actionLoading" @click="submitSign">确认签约并流转</el-button></template>
+      <template #footer><button type="button" class="btn btn-default" @click="signVisible = false">取消</button><button type="button" class="btn btn-primary" :aria-busy="actionLoading" :disabled="actionLoading" @click="submitSign">确认签约并流转</button></template>
     </el-dialog>
     <el-dialog v-model="transferVisible" title="转业务员" width="440px">
       <el-select v-model="transferSalesmanId" filterable placeholder="请选择当前门店在职员工" style="width: 100%;">
         <el-option v-for="employee in employees" :key="employee.id" :label="`${employee.name}（${employee.mobile}）`" :value="employee.id" />
       </el-select>
-      <template #footer><el-button @click="transferVisible = false">取消</el-button><el-button type="primary" :loading="actionLoading" @click="submitTransfer">确认转移</el-button></template>
+      <template #footer><button type="button" class="btn btn-default" @click="transferVisible = false">取消</button><button type="button" class="btn btn-primary" :aria-busy="actionLoading" :disabled="actionLoading" @click="submitTransfer">确认转移</button></template>
     </el-dialog>
   </div>
 </template>

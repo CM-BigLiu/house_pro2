@@ -44,7 +44,11 @@ export class SaleService {
       if (result[key] != null) result[key] = Number(result[key]);
     }
     return { ...result, totalPrice: Number(item.salePrice), communityName: item.community?.name || '',
-      allowedStatuses: this.states.getAllowedTransitions('sale_property', item.status === 'bargain' ? SaleStatus.PRICE_NEGOTIATION : item.status) };
+      allowedStatuses: this.states.getAllowedTransitions('sale_property', this.normalizeStatus(item.status)) };
+  }
+
+  private normalizeStatus(status: string) {
+    return ({ selling: SaleStatus.PUBLISHED, bargain: SaleStatus.PRICE_NEGOTIATION })[status] || status;
   }
 
   async findAll(query: any, user: CurrentUserPayload) {
@@ -59,6 +63,8 @@ export class SaleService {
     }
     if (query.status === SaleStatus.PRICE_NEGOTIATION) {
       qb.andWhere('s.status IN (:...statuses)', { statuses: [SaleStatus.PRICE_NEGOTIATION, 'bargain'] });
+    } else if (query.status === SaleStatus.PUBLISHED) {
+      qb.andWhere('s.status IN (:...statuses)', { statuses: [SaleStatus.PUBLISHED, 'selling'] });
     } else if (query.status) {
       qb.andWhere('s.status = :status', { status: query.status });
     }
@@ -107,7 +113,7 @@ export class SaleService {
   async changeStatus(id: number, status: SaleStatus, user: CurrentUserPayload) {
     this.require(user, 'sale:changeStatus');
     const existing = await this.findOne(id, user);
-    const from = existing.status === 'bargain' ? SaleStatus.PRICE_NEGOTIATION : existing.status;
+    const from = this.normalizeStatus(existing.status);
     if (!this.states.canTransition('sale_property', from, status)) throw new BadRequestException('不允许该状态流转');
     const result = await this.saleRepo.update({ id, status: existing.status }, { status });
     if (!result.affected) throw new ConflictException('房源状态已变化，请刷新后重试');

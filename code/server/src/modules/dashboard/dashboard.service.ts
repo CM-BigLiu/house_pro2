@@ -144,7 +144,7 @@ export class DashboardService {
     };
   }
 
-  async getTodos(user: CurrentUserPayload) {
+  async getTodos(user: CurrentUserPayload, all = false) {
     const todos: { id: string; title: string; priority: 'high' | 'medium' | 'low'; date: string }[] = [];
     const today = new Date().toISOString().split('T')[0];
     const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -154,8 +154,8 @@ export class DashboardService {
       .select(['rr.id AS id', 'rr.leaseEnd AS leaseEnd', 'set.address AS address'])
       .where('rr.status = :status', { status: 'rented' })
       .andWhere('rr.leaseEnd BETWEEN :start AND :end', { start: today, end: future })
-      .orderBy('rr.leaseEnd', 'ASC')
-      .limit(5);
+      .orderBy('rr.leaseEnd', 'ASC');
+    if (!all) dueSoonQb.limit(5);
     applyDataScope(dueSoonQb, user, 'set', { ownerField: 'creatorId', groupField: 'groupId' });
     const dueSoon = await dueSoonQb.getRawMany();
     dueSoon.forEach((item: any) => {
@@ -172,8 +172,8 @@ export class DashboardService {
         .select(['b.id AS id', 'b.dueDate AS dueDate', 'b.payer AS payer', 'b.amount AS amount'])
         .where('b.dueDate < :today', { today })
         .andWhere('b.status IN (:...status)', { status: ['pending_receive', 'partial'] })
-        .orderBy('b.dueDate', 'ASC')
-        .limit(5);
+        .orderBy('b.dueDate', 'ASC');
+      if (!all) overdueQb.limit(5);
       applyDataScope(overdueQb, user, 'b', { ownerField: 'creatorId' });
       const overdue = await overdueQb.getRawMany();
       overdue.forEach((item: any) => {

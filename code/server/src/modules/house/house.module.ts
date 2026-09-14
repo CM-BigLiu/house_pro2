@@ -39,9 +39,13 @@ import { DepositService } from './services/deposit.service';
 import { Checkout } from './entities/checkout.entity';
 import { Deposit } from './entities/deposit.entity';
 import { Employee } from '../system/entities/employee.entity';
+import { SystemModule } from '../system/system.module';
+import { PropertyDetailController } from './controllers/property-detail.controller';
+import { PropertyDetailService } from './services/property-detail.service';
 
 @Module({
   imports: [
+    SystemModule,
     TypeOrmModule.forFeature([
       Community, Building, Unit, Floor, RoomCode,
       SaleProperty, RentalSet, RentalRoom,
@@ -49,8 +53,8 @@ import { Employee } from '../system/entities/employee.entity';
       OperationLog, Checkout, Deposit, Employee,
     ]),
   ],
-  controllers: [CommunityController, CommunityAliasController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController, OperationLogController, PropertyController, ReserveAliasController, CheckoutController, DepositController],
-  providers: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService, CheckoutService, DepositService],
+  controllers: [PropertyDetailController, CommunityController, CommunityAliasController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController, OperationLogController, PropertyController, ReserveAliasController, CheckoutController, DepositController],
+  providers: [PropertyDetailService, CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService, CheckoutService, DepositService],
   exports: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService, CheckoutService, DepositService],
 })
 export class HouseModule {}

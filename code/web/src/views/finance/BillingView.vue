@@ -3,7 +3,8 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { useDictStore } from '@/stores/dict';
-import { getInvoices, updateInvoice, type Invoice } from '@/api/finance';
+import { getInvoices, type Invoice } from '@/api/finance';
+import { requestStatusChange } from '@/api/approval';
 
 const router = useRouter();
 const dictStore = useDictStore();
@@ -25,10 +26,9 @@ async function loadData() {
   }
 }
 
-async function approve(row: Invoice) {
-  await updateInvoice(row.id, { status: 'done' });
-  ElMessage.success('审批通过');
-  await loadData();
+async function submitApproval(row: Invoice) {
+  await requestStatusChange('invoice', row.id, 'processing', row.remark);
+  ElMessage.success('审批申请已提交，请到审批中心处理');
 }
 
 function statusClass(status: string) {
@@ -55,7 +55,7 @@ function invoiceTypeLabel(row: Invoice) {
       </div>
       <div class="page-actions">
         <button v-permission="['finance:ticket:apply']" class="btn btn-primary" @click="router.push('/finance/billing/create')">开票申请</button>
-        <el-button v-permission="['finance:export']">导出</el-button>
+        <button type="button" class="btn btn-default" v-permission="['finance:export']">导出</button>
       </div>
     </div>
 
@@ -77,8 +77,12 @@ function invoiceTypeLabel(row: Invoice) {
       </el-table-column>
       <el-table-column label="操作" width="150">
         <template #default="{ row }">
-          <el-button v-permission="['finance:ticket:approve']" size="small" type="primary" plain @click="approve(row)">审批</el-button>
-          <el-button size="small">详情</el-button>
+          <button class="btn btn-ghost btn-sm" type="button"
+            v-permission="['finance:ticket:approve']"
+            :disabled="row.status !== 'pending'"
+            @click="submitApproval(row)"
+          >提交审批</button>
+          <button type="button" class="btn btn-ghost btn-sm">详情</button>
         </template>
       </el-table-column>
     </el-table>

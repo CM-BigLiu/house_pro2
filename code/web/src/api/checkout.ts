@@ -6,12 +6,21 @@ export interface Checkout {
   contractCode: string;
   tenantName?: string;
   houseInfo?: string;
+  rentalSetId?: number;
+  rentalRoomId?: number;
   checkoutDate?: string;
   status: 'pending' | 'confirmed' | 'completed';
   settlementAmount?: number;
   reason?: string;
   remark?: string;
   createdAt?: string;
+  canComplete?: boolean;
+  pendingDepositCount?: number;
+  expectedDepositAmount?: number;
+  depositCount?: number;
+  settlementBlockReason?: string;
+  confirmedAt?: string;
+  completedAt?: string;
 }
 
 export interface CheckoutQuery {
@@ -26,6 +35,8 @@ export interface CheckoutQuery {
 export interface CreateCheckoutParams {
   houseInfo: string;
   tenantName: string;
+  rentalSetId: number;
+  rentalRoomId?: number;
   checkoutDate?: string;
   reason?: string;
   settlementAmount?: number;

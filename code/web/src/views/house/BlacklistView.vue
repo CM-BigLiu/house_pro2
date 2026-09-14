@@ -77,7 +77,7 @@ function handleSearch() {
       <el-select v-model="query.status" placeholder="状态" clearable @change="handleSearch" class="filter-select">
         <el-option v-for="item in dictStore.getItems('blacklist_status')" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
-      <el-button type="primary" @click="handleSearch">查询</el-button>
+      <button type="button" class="btn btn-primary" @click="handleSearch">查询</button>
     </div>
 
     <!-- Data Table -->
@@ -113,8 +113,8 @@ function handleSearch() {
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <div class="operation-cell">
-              <el-button v-permission="['house:blacklist:edit']" size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
-              <el-button v-permission="['house:blacklist:delete']" size="small" type="danger" plain @click="remove(row)">移除</el-button>
+              <button type="button" class="btn btn-ghost btn-sm" v-permission="['house:blacklist:edit']" @click="openEdit(row)">编辑</button>
+              <button type="button" class="btn btn-danger btn-sm" v-permission="['house:blacklist:delete']" @click="remove(row)">移除</button>
             </div>
           </template>
         </el-table-column>

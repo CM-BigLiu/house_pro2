@@ -1,3 +1,5 @@
+@use './base';
+
 /* ============================================================
    优居 ERP · 高保真 UI 设计系统（全局公共样式）
    基于 UI 规范升级版：卡片/筛选/表格/榜单/向导等
@@ -58,6 +60,15 @@
 .btn-danger { background: var(--danger-soft); color: var(--danger); }
 .btn-danger:hover { background: #fee2e2; }
 .btn-sm { padding: 5px 11px; font-size: 12px; border-radius: 6px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.form-page .section-title { font-weight: 700; color: var(--ink-900); margin: 20px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--ink-200); }
+.form-page .el-form-item { scroll-margin-top: 90px; }
+@media (max-width: 1100px) {
+  .form-page .el-col { flex: 0 0 100%; max-width: 100%; }
+  .form-page .el-form-item__content > div[style*="display: flex"] { flex-wrap: wrap; }
+  .form-page .el-date-editor { min-width: 0; width: 100%; }
+}
 
 /* ---------------- 卡片 ---------------- */
 .card { background: #fff; border: 1px solid var(--ink-200); border-radius: var(--radius); box-shadow: var(--shadow-sm); min-width: 0; }

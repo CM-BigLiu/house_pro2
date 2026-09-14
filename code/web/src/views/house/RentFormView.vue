@@ -2,7 +2,8 @@
 import { buildPaymentSchedule, formatDate } from '@/utils/rental-schedule';
 import { ref, reactive, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
+import { rentalFormErrors } from '@/utils/rental-form';
 import { createRentalSet, getRentalSet, updateRentalSet, type RentalSet, type RentalRoom } from '@/api/rental';
 import { getCommunities, type Community } from '@/api/community';
 import { generateHouseCode } from '@/utils/code';
@@ -14,6 +15,9 @@ const route = useRoute();
 const dictStore = useDictStore();
 const userStore = useUserStore();
 const submitting = ref(false);
+const loading = ref(true);
+const loadError = ref('');
+const formRef = ref<FormInstance>();
 
 const isEdit = computed(() => !!route.params.id);
 const editId = computed(() => (route.params.id ? String(route.params.id) : ''));
@@ -68,6 +72,31 @@ const form = reactive<FormState>(createEmptyForm());
 
 const landlordRentText = ref('');
 const tenantRentText = ref('');
+const occupied = (item: { status?: string; tenantName?: string; tenantPhone?: string }) => ['rented', 'checkout'].includes(item.status || '') || !!(item.tenantName || item.tenantPhone);
+const rules = computed<FormRules>(() => {
+  const required = ['code', 'bizType', 'communityId', 'address', 'building', 'unit', 'roomNo', 'layout', 'buildingArea', 'landlordRent'];
+  const fields = [...required, 'landlordPhone', 'leaseDateRange'];
+  if (form.bizType === 'entire') {
+    fields.push('rent', 'deposit', 'tenantName', 'tenantPhone', 'tenantPaymentMethod', 'tenantLeaseDateRange');
+    required.push('rent', 'deposit');
+    if (occupied(form)) required.push('tenantName', 'tenantPhone', 'tenantPaymentMethod', 'tenantLeaseDateRange');
+  } else {
+    fields.push('rooms');
+    form.rooms.forEach((room, index) => {
+      const prefix = `rooms.${index}.`;
+      for (const key of ['roomNo', 'rentPrice', 'depositAmount', 'tenantName', 'tenantPhone', 'paymentMethod', 'leaseDateRange']) fields.push(prefix + key);
+      for (const key of ['roomNo', 'rentPrice', 'depositAmount']) required.push(prefix + key);
+      if (occupied(room)) for (const key of ['tenantName', 'tenantPhone', 'paymentMethod', 'leaseDateRange']) required.push(prefix + key);
+    });
+  }
+  return Object.fromEntries(fields.map(key => [key, [{
+    required: required.includes(key), trigger: ['blur', 'change'],
+    validator: (_rule: unknown, _value: unknown, callback: (error?: Error) => void) => {
+      const message = rentalFormErrors(form, landlordRentText.value, tenantRentText.value)[key];
+      callback(message ? new Error(message) : undefined);
+    },
+  }]]));
+});
 
 function resetForm() {
   Object.assign(form, createEmptyForm());
@@ -78,6 +107,9 @@ function resetForm() {
 watch(
   () => route.fullPath,
   async () => {
+    loading.value = true;
+    loadError.value = '';
+    try {
     await dictStore.ensureLoaded(['house_status', 'room_status', 'decoration', 'payment_method', 'lease_term']);
     await loadCommunities();
     if (isEdit.value) {
@@ -85,6 +117,8 @@ watch(
     } else {
       resetForm();
     }
+    } catch { loadError.value = '表单数据加载失败，请刷新重试'; }
+    finally { loading.value = false; }
   },
   { immediate: true },
 );
@@ -285,46 +319,17 @@ function roomPaymentSchedule(room: any) {
 }
 
 async function submit() {
-  if (!form.code?.trim()) return ElMessage.warning('请填写房源编码');
-  if (!form.communityId) return ElMessage.warning('请选择小区');
-  const requiredFields = [
-    ['address', '地址'], ['building', '楼栋'], ['unit', '单元'],
-    ['roomNo', '房号'], ['layout', '户型'],
-  ] as const;
-  for (const [field, label] of requiredFields) {
-    if (!form[field]?.trim()) return ElMessage.warning(`请填写${label}`);
-  }
-  if (form.bizType === 'shared') {
-    if (!form.rooms.length) return ElMessage.warning('合租房源至少需要一个房间');
-    if (form.rooms.some(room => !room.roomNo?.trim())) return ElMessage.warning('请填写每个房间的房号');
-    if (new Set(form.rooms.map(room => room.roomNo?.trim())).size !== form.rooms.length) {
-      return ElMessage.warning('房间房号不能重复');
-    }
-  }
-  // 校验承租价为数字
-  const landlordRent = Number(landlordRentText.value);
-  if (landlordRentText.value.trim() === '' || !Number.isFinite(landlordRent) || landlordRent < 0) return ElMessage.warning('承租价必须为有效的非负数');
-  form.landlordRent = landlordRent;
-  // 整租时校验客租价
-  if (form.bizType === 'entire') {
-    const tenantRent = Number(tenantRentText.value);
-    if (tenantRentText.value.trim() === '' || !Number.isFinite(tenantRent) || tenantRent < 0) return ElMessage.warning('客租价必须为有效的非负数');
-    form.rent = tenantRent;
-  }
-  // 转换数字字段
-  const amounts = [form.buildingArea, form.deposit, ...form.rooms.flatMap(room => [room.rentPrice, room.depositAmount])];
-  if (amounts.some(value => !Number.isFinite(Number(value)) || Number(value) < 0)) {
-    return ElMessage.warning('面积、租金和押金必须为有效的非负数');
-  }
-  form.buildingArea = Number(form.buildingArea) || 0;
-  form.deposit = Number(form.deposit) || 0;
-  form.rooms.forEach(room => {
-    room.rentPrice = Number(room.rentPrice) || 0;
-    room.depositAmount = Number(room.depositAmount) || 0;
-  });
-  const rooms = form.rooms.map(({ leaseDateRange: _l, ...room }) => room) as RentalRoom[];
+  if (submitting.value || loading.value || loadError.value) return;
   submitting.value = true;
   try {
+    if (!await formRef.value?.validate().catch(() => false)) return;
+    form.landlordRent = Number(landlordRentText.value);
+    if (form.bizType === 'entire') form.rent = Number(tenantRentText.value);
+    form.buildingArea = Number(form.buildingArea);
+    form.deposit = Number(form.deposit) || 0;
+    const rooms = form.rooms.map(({ leaseDateRange: _l, ...room }) => ({
+      ...room, roomNo: room.roomNo?.trim(), rentPrice: Number(room.rentPrice), depositAmount: Number(room.depositAmount),
+    })) as RentalRoom[];
     const payload = { ...form, rooms: form.bizType === 'entire' ? [] : rooms } as Partial<RentalSet> & { leaseDateRange?: unknown; tenantLeaseDateRange?: unknown; rooms: RentalRoom[] };
     delete (payload as Record<string, unknown>).leaseDateRange;
     delete (payload as Record<string, unknown>).tenantLeaseDateRange;
@@ -343,7 +348,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="form-page">
+  <div class="form-page" v-loading="loading">
     <div class="page-header">
       <div>
         <div class="page-title">{{ isEdit ? '编辑出租房源' : '新增出租房源' }}</div>
@@ -351,24 +356,26 @@ async function submit() {
       </div>
       <div class="page-actions">
         <button class="btn btn-default" @click="router.push('/house/rent')">返回</button>
-        <button class="btn btn-primary" :disabled="submitting" @click="submit">保存</button>
+        <button class="btn btn-primary" :disabled="submitting || loading || !!loadError" @click="submit">保存</button>
       </div>
     </div>
 
     <div class="card" style="padding: 24px;">
-      <el-form :model="form" label-width="100px">
+      <div v-if="loadError" role="alert">{{ loadError }}</div>
+      <p class="text-muted">红色 * 为必填项。空置房源可不填租客；填写租客后请补齐电话、租期和付款方式。</p>
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" scroll-to-error>
         <el-row :gutter="12">
           <el-col :span="12">
-            <el-form-item label="房源编码" required>
+            <el-form-item label="房源编码" prop="code">
               <el-input v-model="form.code" readonly placeholder="系统自动生成">
-                <template #append>
+                <template v-if="!isEdit" #append>
                   <el-button @click="form.code = generateHouseCode('ZJ')">重新生成</el-button>
                 </template>
               </el-input>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="租赁方式">
+            <el-form-item label="租赁方式" prop="bizType">
               <el-radio-group v-model="form.bizType" @change="onBizTypeChange">
                 <el-radio value="entire">整租</el-radio>
                 <el-radio value="shared">合租</el-radio>
@@ -376,7 +383,7 @@ async function submit() {
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="小区" required>
+            <el-form-item label="小区" prop="communityId">
               <el-select
                 v-model="form.communityId"
                 filterable
@@ -392,27 +399,27 @@ async function submit() {
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="地址">
+            <el-form-item label="地址" prop="address">
               <el-input v-model="form.address" placeholder="选择小区后自动带出" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
-            <el-form-item label="楼栋">
+            <el-form-item label="楼栋" prop="building">
               <el-input v-model="form.building" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
-            <el-form-item label="单元">
+            <el-form-item label="单元" prop="unit">
               <el-input v-model="form.unit" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
-            <el-form-item label="房号">
+            <el-form-item label="房号" prop="roomNo">
               <el-input v-model="form.roomNo" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
-            <el-form-item label="面积">
+            <el-form-item label="面积" prop="buildingArea">
               <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
                 <el-input v-model="form.buildingArea" placeholder="请输入面积" />
                 <span style="font-size: 12px; color: #94a3b8; flex: none;">㎡</span>
@@ -420,12 +427,12 @@ async function submit() {
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="户型">
+            <el-form-item label="户型" prop="layout">
               <el-input v-model="form.layout" placeholder="如：2室1厅1卫" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="装修">
+            <el-form-item label="装修" prop="decoration">
               <el-select v-model="form.decoration" style="width: 100%;">
                 <el-option v-for="item in dictStore.getItems('decoration')" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
@@ -437,17 +444,17 @@ async function submit() {
         <div class="section-title">房东信息</div>
         <el-row :gutter="12">
           <el-col :span="12">
-            <el-form-item label="房东姓名">
+            <el-form-item label="房东姓名" prop="landlordName">
               <el-input v-model="form.landlordName" placeholder="请输入房东姓名" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="房东电话">
+            <el-form-item label="房东电话" prop="landlordPhone">
               <el-input v-model="form.landlordPhone" placeholder="请输入房东电话" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="承租价">
+            <el-form-item label="承租价" prop="landlordRent">
               <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
                 <el-input v-model="landlordRentText" placeholder="请输入承租价" />
                 <span style="font-size: 12px; color: #94a3b8; flex: none;">元</span>
@@ -455,7 +462,7 @@ async function submit() {
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="承租期">
+            <el-form-item label="承租期" prop="leaseDateRange">
               <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
                 <el-date-picker
                   v-model="form.leaseDateRange"
@@ -479,17 +486,17 @@ async function submit() {
           <div class="section-title">租客信息</div>
           <el-row :gutter="12">
             <el-col :span="12">
-              <el-form-item label="租客姓名">
+              <el-form-item label="租客姓名" prop="tenantName">
                 <el-input v-model="form.tenantName" placeholder="请输入租客姓名" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="租客电话">
+              <el-form-item label="租客电话" prop="tenantPhone">
                 <el-input v-model="form.tenantPhone" placeholder="请输入租客电话" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="客租价">
+              <el-form-item label="客租价" prop="rent">
                 <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
                   <el-input v-model="tenantRentText" placeholder="请输入对房客的租价" />
                   <span style="font-size: 12px; color: #94a3b8; flex: none;">元</span>
@@ -497,7 +504,7 @@ async function submit() {
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="押金">
+              <el-form-item label="押金" prop="deposit">
                 <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
                   <el-input v-model="form.deposit" placeholder="请输入押金" />
                   <span style="font-size: 12px; color: #94a3b8; flex: none;">元</span>
@@ -505,7 +512,7 @@ async function submit() {
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="客租期">
+              <el-form-item label="客租期" prop="tenantLeaseDateRange">
                 <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
                   <el-date-picker
                     v-model="form.tenantLeaseDateRange"
@@ -523,7 +530,7 @@ async function submit() {
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="付款方式">
+              <el-form-item label="付款方式" prop="tenantPaymentMethod">
                 <el-select v-model="form.tenantPaymentMethod" placeholder="选择付款方式" style="width: 100%;">
                   <el-option v-for="item in dictStore.getItems('payment_method')" :key="item.value" :label="item.label" :value="item.value" />
                 </el-select>
@@ -555,48 +562,48 @@ async function submit() {
             </div>
             <el-row :gutter="12">
               <el-col :span="8">
-                <el-form-item label="房号">
+                <el-form-item label="房号" :prop="`rooms.${index}.roomNo`">
                   <el-input v-model="room.roomNo" placeholder="如：A" />
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="房型">
+                <el-form-item label="房型" :prop="`rooms.${index}.roomType`">
                   <el-input v-model="room.roomType" placeholder="如：主卧" />
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="租金">
+                <el-form-item label="租金" :prop="`rooms.${index}.rentPrice`">
                   <el-input v-model="room.rentPrice" placeholder="0">
                     <template #append>元</template>
                   </el-input>
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="押金">
+                <el-form-item label="押金" :prop="`rooms.${index}.depositAmount`">
                   <el-input v-model="room.depositAmount" placeholder="0">
                     <template #append>元</template>
                   </el-input>
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="付款方式">
+                <el-form-item label="付款方式" :prop="`rooms.${index}.paymentMethod`">
                   <el-select v-model="room.paymentMethod" placeholder="选择" style="width: 100%;">
                     <el-option v-for="item in dictStore.getItems('payment_method')" :key="item.value" :label="item.label" :value="item.value" />
                   </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="租客姓名">
+                <el-form-item label="租客姓名" :prop="`rooms.${index}.tenantName`">
                   <el-input v-model="room.tenantName" placeholder="请输入租客姓名" />
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="租客电话">
+                <el-form-item label="租客电话" :prop="`rooms.${index}.tenantPhone`">
                   <el-input v-model="room.tenantPhone" placeholder="请输入租客电话" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="租期">
+                <el-form-item label="租期" :prop="`rooms.${index}.leaseDateRange`">
                   <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
                     <el-date-picker
                       v-model="room.leaseDateRange"
@@ -632,7 +639,7 @@ async function submit() {
               </table>
             </div>
           </div>
-          <el-button size="small" type="primary" plain @click="addRoom">+ 添加房间</el-button>
+          <el-form-item prop="rooms"><button type="button" class="btn btn-default btn-sm" @click="addRoom">+ 添加房间</button></el-form-item>
         </template>
       </el-form>
     </div>

@@ -50,11 +50,12 @@ function openEdit(item: SaleProperty) {
 function search() { query.page = 1; load(); }
 
 function statusClass(status: string) {
-  return ({ published: 'pill-green', price_negotiation: 'pill-orange', bargain: 'pill-orange', quick_sale: 'pill-orange', sold: 'pill-purple' } as Record<string, string>)[status] || 'pill-gray';
+  return ({ published: 'pill-green', selling: 'pill-green', price_negotiation: 'pill-orange', bargain: 'pill-orange', quick_sale: 'pill-orange', sold: 'pill-purple' } as Record<string, string>)[status] || 'pill-gray';
 }
 
 function statusLabel(status: string) {
-  return saleStatuses.find((item) => item.value === (status === 'bargain' ? 'price_negotiation' : status))?.label || status;
+  const normalized = ({ selling: 'published', bargain: 'price_negotiation' } as Record<string, string>)[status] || status;
+  return saleStatuses.find((item) => item.value === normalized)?.label || status;
 }
 
 function openStatus(item: SaleProperty) { statusItem.value = item; nextStatus.value = ''; }
@@ -65,7 +66,7 @@ async function saveStatus() {
   try {
     await changeSaleStatus(statusItem.value.id, nextStatus.value);
     statusItem.value = undefined;
-    ElMessage.success('状态已更新');
+    ElMessage.success('审批申请已提交，通过后状态将自动更新');
     await load();
   } finally { savingStatus.value = false; }
 }
@@ -160,6 +161,7 @@ async function exportPage() {
             <span v-for="tag in item.tags" :key="tag" class="tag tag-blue">{{ dictStore.getLabel('house_tag', tag) }}</span>
           </div>
           <div class="house-actions" style="margin-top: 12px;">
+            <button class="btn btn-default btn-sm" @click="router.push(`/house/sale/detail/${item.id}`)">详情 / 流程</button>
             <button v-permission="['sale:edit']" class="btn btn-default btn-sm" @click="openEdit(item)">编辑</button>
             <button v-permission="['sale:changeStatus']" class="btn btn-default btn-sm" @click="openStatus(item)">变更状态</button>
           </div>
@@ -194,12 +196,13 @@ async function exportPage() {
     <el-dialog :model-value="!!statusItem" title="变更售房状态" width="440px" @close="statusItem = undefined">
       <p>{{ statusItem?.title }}</p>
       <p>当前状态：{{ statusLabel(statusItem?.status || '') }}</p>
+      <p>选择目标状态后提交审批，通过后生效。</p>
       <el-select v-model="nextStatus" placeholder="请选择目标状态" aria-label="目标状态" style="width: 100%">
         <el-option v-for="value in statusItem?.allowedStatuses || []" :key="value" :value="value" :label="statusLabel(value)" />
       </el-select>
       <template #footer>
         <el-button :disabled="savingStatus" @click="statusItem = undefined">取消</el-button>
-        <el-button type="primary" :loading="savingStatus" :disabled="!nextStatus" @click="saveStatus">确认变更</el-button>
+        <el-button type="primary" :loading="savingStatus" :disabled="!nextStatus" @click="saveStatus">提交审批</el-button>
       </template>
     </el-dialog>
   </div>

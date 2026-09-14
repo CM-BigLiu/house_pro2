@@ -11,6 +11,7 @@ const router = useRouter();
 const list = ref<Community[]>([]);
 const total = ref(0);
 const loading = ref(false);
+const treeError = ref(false);
 const filterKeyword = ref('');
 const treeKeyword = ref('');
 
@@ -42,7 +43,9 @@ onMounted(async () => {
 });
 
 async function loadTree() {
-  treeData.value = await getCommunityFilters();
+  treeError.value = false;
+  try { treeData.value = await getCommunityFilters(); }
+  catch { treeError.value = true; }
 }
 
 async function load() {
@@ -125,6 +128,7 @@ async function deleteCommunity(item: Community) {
 
 <template>
   <div class="community-page">
+    <div v-if="treeError" role="alert" class="filter-bar">小区筛选数据加载失败 <button class="btn btn-default btn-sm" @click="loadTree">重试</button></div>
     <!-- Page header -->
     <div class="page-header">
       <div>
@@ -138,6 +142,8 @@ async function deleteCommunity(item: Community) {
           </svg>
           <input v-model="filterKeyword" class="input" placeholder="搜索小区名称或地址…" @keyup.enter="onSearch" />
         </div>
+        <button class="btn btn-primary btn-sm" @click="onSearch">筛选</button>
+        <button class="btn btn-default btn-sm" @click="selectAll">重置</button>
         <button v-permission="['house:community:create']" class="btn btn-primary" @click="openCreate">
           <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />

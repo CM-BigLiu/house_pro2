@@ -7,6 +7,7 @@ import {
   type Role, type Store, type Permission,
 } from '@/api/organization';
 import { getPermissions } from '@/api/organization';
+import { useUserStore } from '@/stores/user';
 
 /* ── state ── */
 const roles = ref<Role[]>([]);
@@ -16,6 +17,11 @@ const loading = ref(false);
 const permLoading = ref(false);
 const saving = ref(false);
 const selectedRole = ref<Role | null>(null);
+const roleKeyword = ref('');
+const permissionKeyword = ref('');
+const userStore = useUserStore();
+const canEdit = computed(() => userStore.permissions.some(code => code === '*' || code === 'system:role:edit'));
+const filteredRoles = computed(() => roles.value.filter(role => `${role.name} ${role.code}`.toLowerCase().includes(roleKeyword.value.trim().toLowerCase())));
 
 const router = useRouter();
 
@@ -33,6 +39,7 @@ async function loadRoles() {
   loading.value = true;
   try {
     roles.value = await getRoles();
+    if (!selectedRole.value && roles.value.length) selectRole(roles.value[0]);
   } finally {
     loading.value = false;
   }
@@ -61,6 +68,12 @@ const localPermIds = ref<number[]>([]);
 const localDataScope = ref('self');
 const localAssignedStores = ref<number[]>([]);
 const localCustomScope = ref('');
+const dirty = computed(() => !!selectedRole.value && (
+  JSON.stringify([...localPermIds.value].sort()) !== JSON.stringify((selectedRole.value.permissions || []).map(p => p.id).sort()) ||
+  localDataScope.value !== (selectedRole.value.dataScope || 'self') ||
+  JSON.stringify(localAssignedStores.value) !== JSON.stringify(selectedRole.value.assignedStores || []) ||
+  localCustomScope.value !== (selectedRole.value.customScope || '')
+));
 
 /* ── perm tree helpers ── */
 /** A menu grant and its operation grants must be saved together. */
@@ -119,9 +132,12 @@ const permGroups = computed<PermGroup[]>(() => {
       const nodes = menuNodes.length ? menuNodes : [root];
       return {
         module: root.name,
-        menus: nodes.map((node) => ({ node, actions: collectActions(node) })),
+        menus: nodes.map((node) => ({ node, actions: collectActions(node) })).filter(({ node, actions }) => {
+          const keyword = permissionKeyword.value.trim().toLowerCase();
+          return !keyword || `${root.name} ${node.name} ${node.code} ${actions.map(action => action.name).join(' ')}`.toLowerCase().includes(keyword);
+        }),
       };
-    });
+    }).filter(group => group.menus.length);
 });
 
 function collectActions(node: Permission): Permission[] {
@@ -146,7 +162,8 @@ const scopeRadios = [
 
 /* ── save from right panel ── */
 async function saveRoleConfig() {
-  if (!selectedRole.value) return;
+  if (!selectedRole.value || saving.value || !canEdit.value || !dirty.value) return;
+  if (localDataScope.value === 'assigned' && !localAssignedStores.value.length) return ElMessage.warning('请选择指定门店');
   saving.value = true;
   try {
     await updateRole(selectedRole.value.id, {
@@ -173,6 +190,7 @@ function userCount(role: Role): number {
   // Placeholder: API doesn't return user count currently; show permission count instead
   return role.permissions?.length || 0;
 }
+const roleEnabled = (role: Role) => ['enabled', 'active', 'normal'].includes(role.status);
 </script>
 
 <template>
@@ -201,15 +219,18 @@ function userCount(role: Role): number {
             <span class="card-badge">{{ roles.length }}</span>
           </div>
           <div class="card-body" v-loading="loading">
+            <input v-model="roleKeyword" class="input role-search" placeholder="搜索角色名称/编码" />
             <div
-              v-for="role in roles"
+              v-for="role in filteredRoles"
               :key="role.id"
               class="role-list"
             >
               <div
                 class="role-item"
                 :class="{ active: selectedRole?.id === role.id }"
+                role="button" tabindex="0" :aria-pressed="selectedRole?.id === role.id"
                 @click="selectRole(role)"
+                @keydown.enter="selectRole(role)"
               >
                 <div class="role-item-head">
                   <span class="role-item-name">{{ role.name }}</span>
@@ -221,13 +242,13 @@ function userCount(role: Role): number {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     {{ userCount(role) }} 项权限
                   </span>
-                  <span :class="['pill', role.status === 'enabled' ? 'pill-green' : 'pill-gray']">
-                    {{ role.status === 'enabled' ? '启用' : '禁用' }}
+                  <span :class="['pill', roleEnabled(role) ? 'pill-green' : 'pill-gray']">
+                    {{ roleEnabled(role) ? '启用' : '禁用' }}
                   </span>
                 </div>
               </div>
             </div>
-            <div v-if="!roles.length && !loading" class="card-empty">暂无角色</div>
+            <div v-if="!filteredRoles.length && !loading" class="card-empty">暂无匹配角色</div>
           </div>
         </div>
       </div>
@@ -239,14 +260,16 @@ function userCount(role: Role): number {
           <div class="card-header">
             <div class="role-detail-title">
               <span class="role-detail-name">{{ selectedRole.name }}</span>
-              <span :class="['pill', selectedRole.status === 'enabled' ? 'pill-green' : 'pill-gray']">
-                {{ selectedRole.status === 'enabled' ? '启用' : '禁用' }}
+              <span :class="['pill', roleEnabled(selectedRole) ? 'pill-green' : 'pill-gray']">
+                {{ roleEnabled(selectedRole) ? '启用' : '禁用' }}
               </span>
             </div>
             <div class="role-detail-code">代码：{{ selectedRole.code }}</div>
           </div>
 
           <div class="card-body" v-loading="permLoading">
+            <div class="permission-toolbar"><input v-model="permissionKeyword" class="input" placeholder="搜索菜单/操作权限" /><span class="text-muted">已选 {{ localPermIds.length }} 项权限</span><span v-if="dirty" class="pill pill-orange">未保存</span></div>
+            <fieldset :disabled="!canEdit || saving" class="permission-fields">
             <!-- permission groups -->
             <div class="perm-groups">
               <div v-for="group in permGroups" :key="group.module" class="perm-group">
@@ -309,10 +332,12 @@ function userCount(role: Role): number {
                 />
               </div>
             </div>
+            </fieldset>
           </div>
 
           <div class="card-footer">
-            <button class="btn btn-primary" :disabled="saving" @click="saveRoleConfig">
+            <button class="btn btn-default" :disabled="!dirty || saving" @click="selectRole(selectedRole)">重置更改</button>
+            <button v-permission="['system:role:edit']" class="btn btn-primary" :disabled="saving || !dirty" @click="saveRoleConfig">
               {{ saving ? '保存中...' : '保存' }}
             </button>
           </div>
@@ -331,6 +356,16 @@ function userCount(role: Role): number {
 </template>
 
 <style scoped lang="scss">
+.role-search { width: 100%; min-width: 0; margin: 8px 0 12px; }
+.permission-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+.permission-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.role-config .card-footer { display: flex; gap: 8px; justify-content: flex-end; position: sticky; bottom: 0; background: #fff; z-index: 1; }
+@media (max-width: 1100px) {
+  .role-config .split-layout { flex-direction: column; }
+  .role-config .tree-panel { width: 100%; flex-basis: auto; padding: 0; }
+  .role-config .tree-panel .card-body { max-height: 260px; }
+  .role-config .perm-groups { grid-template-columns: minmax(0, 1fr); }
+}
 /* ═══════════════════════════════════════════════
    Role Config – Two‑Column Layout
    ═══════════════════════════════════════════════ */

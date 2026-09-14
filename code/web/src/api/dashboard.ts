@@ -63,8 +63,8 @@ export function getRankings() {
   return get<Record<string, RankItem[]>>('/dashboard/rankings');
 }
 
-export function getTodos() {
-  return get<TodoItem[]>('/dashboard/todos');
+export function getTodos(params?: { all?: boolean }) {
+  return get<TodoItem[]>('/dashboard/todos', { params });
 }
 
 // PRD 11 章看板接口别名

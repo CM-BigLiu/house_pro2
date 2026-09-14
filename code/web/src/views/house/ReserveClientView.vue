@@ -114,7 +114,7 @@ function statusClass(status: string) {
       <el-select v-model="query.status" placeholder="状态" clearable @change="load">
         <el-option v-for="item in dictStore.getItems('customer_status')" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
-      <el-button type="primary" @click="load">查询</el-button>
+      <button type="button" class="btn btn-primary" @click="load">查询</button>
     </div>
 
     <div class="card-list">
@@ -150,9 +150,9 @@ function statusClass(status: string) {
           </div>
         </div>
         <div class="card-footer">
-          <el-button v-permission="['reserve:client:transfer']" size="small" type="primary" plain :disabled="!['not_rented', 'deposit'].includes(item.status)" @click="openConvert(item)">转签约</el-button>
-          <el-button v-permission="['reserve:client:add']" size="small" @click="openFollow(item)">跟进</el-button>
-          <el-button v-permission="['reserve:client:add']" size="small" type="primary" plain @click="openEdit(item)">编辑</el-button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:client:transfer']" :disabled="!['not_rented', 'deposit'].includes(item.status)" @click="openConvert(item)">转签约</button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:client:add']" @click="openFollow(item)">跟进</button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:client:add']" @click="openEdit(item)">编辑</button>
         </div>
       </div>
     </div>
@@ -166,7 +166,7 @@ function statusClass(status: string) {
         <el-form-item label="跟进方式"><el-select v-model="followForm.followType" style="width: 100%;"><el-option label="电话" value="phone" /><el-option label="微信" value="wechat" /><el-option label="到访" value="visit" /><el-option label="带看" value="viewing" /><el-option label="其他" value="other" /></el-select></el-form-item>
         <el-form-item label="跟进内容" required><el-input v-model="followForm.content" type="textarea" :rows="4" /></el-form-item>
       </el-form>
-      <template #footer><el-button @click="followVisible = false">取消</el-button><el-button type="primary" :loading="actionLoading" @click="submitFollow">保存跟进</el-button></template>
+      <template #footer><button type="button" class="btn btn-default" @click="followVisible = false">取消</button><button type="button" class="btn btn-primary" :aria-busy="actionLoading" :disabled="actionLoading" @click="submitFollow">保存跟进</button></template>
     </el-dialog>
 
     <el-dialog v-model="convertVisible" title="转签约" width="500px">
@@ -175,7 +175,7 @@ function statusClass(status: string) {
         <el-form-item label="合同编号" required><el-input v-model="convertForm.contractCode" /></el-form-item>
         <el-form-item label="合同到期日"><el-date-picker v-model="convertForm.contractEndDate" type="date" value-format="YYYY-MM-DD" style="width: 100%;" /></el-form-item>
       </el-form>
-      <template #footer><el-button @click="convertVisible = false">取消</el-button><el-button type="primary" :loading="actionLoading" @click="submitConvert">确认转签约</el-button></template>
+      <template #footer><button type="button" class="btn btn-default" @click="convertVisible = false">取消</button><button type="button" class="btn btn-primary" :aria-busy="actionLoading" :disabled="actionLoading" @click="submitConvert">确认转签约</button></template>
     </el-dialog>
   </div>
 </template>

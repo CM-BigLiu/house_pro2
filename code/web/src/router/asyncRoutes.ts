@@ -2,6 +2,21 @@ import type { RouteRecordRaw } from 'vue-router';
 
 export const asyncRoutes: RouteRecordRaw[] = [
   {
+    path: '/house/rent/detail/:id', name: 'RentDetail',
+    component: () => import('@/views/house/PropertyDetailView.vue'),
+    meta: { title: '租房详情', permission: 'house:rent', hidden: true },
+  },
+  {
+    path: '/house/sale/detail/:id', name: 'SaleDetail',
+    component: () => import('@/views/house/PropertyDetailView.vue'),
+    meta: { title: '售房详情', permission: 'house:sale', hidden: true },
+  },
+  {
+    path: '/home/todos', name: 'Todos',
+    component: () => import('@/views/dashboard/TodoView.vue'),
+    meta: { title: '我的待办', permission: 'home', hidden: true },
+  },
+  {
     path: '/home',
     name: 'Home',
     component: () => import('@/views/dashboard/HomeView.vue'),
@@ -258,6 +273,12 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '新增开票', permission: 'finance:billing', actionPermission: 'finance:ticket:apply', hidden: true },
   },
   // ---- System ----
+  {
+    path: '/system/approval',
+    name: 'SystemApproval',
+    component: () => import('@/views/system/ApprovalView.vue'),
+    meta: { title: '审批中心', permission: 'system:approval' },
+  },
   {
     path: '/system/role',
     name: 'SystemRole',

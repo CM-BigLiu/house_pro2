@@ -2,11 +2,12 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getCheckout, getCheckouts, confirmCheckout, completeCheckout, type Checkout } from '@/api/checkout';
-import { useDictStore } from '@/stores/dict';
 import { formatMoney, formatDate } from '@/utils/format';
 import { downloadCsv } from '@/utils/csv';
+import { useRouter } from 'vue-router';
 
-const dictStore = useDictStore();
+const router = useRouter();
+
 const list = ref<Checkout[]>([]);
 const total = ref(0);
 const loading = ref(false);
@@ -17,15 +18,12 @@ const detail = ref<Checkout | null>(null);
 
 const statusOptions = [
   { label: '全部', value: '' },
-  { label: '待确认', value: 'pending' },
-  { label: '已确认', value: 'confirmed' },
+  { label: '待审批', value: 'pending' },
+  { label: '已通过', value: 'confirmed' },
   { label: '已完成', value: 'completed' },
 ];
 
-onMounted(async () => {
-  await dictStore.ensureLoaded(['checkout_status']);
-  await load();
-});
+onMounted(load);
 
 async function load() {
   loading.value = true;
@@ -57,29 +55,43 @@ function handleSearch() {
 }
 
 async function handleConfirm(item: Checkout) {
-  await ElMessageBox.confirm(`确认退租「${item.contractCode}」？`, '退租确认', { type: 'warning' });
+  await ElMessageBox.confirm(`通过「${item.contractCode}」的退租审批？通过后房源/房间立即变为空置。`, '退租审批', { type: 'warning' });
   await confirmCheckout(item.id);
-  ElMessage.success('已确认退租');
+  ElMessage.success('退租审批已通过，房态已变为空置');
   await load();
 }
 
 async function handleComplete(item: Checkout) {
+  const fresh = await getCheckout(item.id);
+  Object.assign(item, fresh);
+  if (fresh.canComplete !== true) {
+    ElMessage.warning(fresh.settlementBlockReason || '押金状态尚未确认，请刷新后重试');
+    return;
+  }
   await ElMessageBox.confirm(
     `完成「${item.contractCode}」的费用清算？\n需该房源押金已全部处置（退还/扣留），完成后状态不可再变更。`,
     '完成清算',
     { confirmButtonText: '完成清算', cancelButtonText: '取消', type: 'warning' },
   );
-  await completeCheckout(item.id);
-  ElMessage.success('退租已完成清算');
-  await load();
+  try {
+    await completeCheckout(item.id);
+    ElMessage.success('退租已完成清算');
+  } finally {
+    await load();
+  }
 }
 
 async function handleDetail(item: Checkout) {
   detailVisible.value = true;
   detailLoading.value = true;
   detail.value = null;
-  try { detail.value = await getCheckout(item.id); }
-  finally { detailLoading.value = false; }
+  try {
+    detail.value = await getCheckout(item.id);
+  } catch {
+    detailVisible.value = false;
+  } finally {
+    detailLoading.value = false;
+  }
 }
 
 function exportCurrent() {
@@ -97,6 +109,10 @@ function statusClass(status: string) {
   };
   return map[status] || 'pill-gray';
 }
+
+function statusLabel(status: string) {
+  return statusOptions.find((option) => option.value === status)?.label || status;
+}
 </script>
 
 <template>
@@ -105,9 +121,11 @@ function statusClass(status: string) {
     <div class="page-header">
       <div>
         <div class="page-title">退租管理</div>
-        <div class="page-desc">管理租客退租登记、确认与费用清算</div>
+        <div class="page-desc">提交后待审批，审批通过即释放为空置，费用清算独立处理</div>
       </div>
       <div class="page-actions">
+        <el-button v-permission="['house:deposit']" @click="router.push('/house/deposit')">前往押金管理</el-button>
+        <el-button @click="load">刷新押金状态</el-button>
         <el-button v-permission="['checkout:export']" @click="exportCurrent">导出</el-button>
       </div>
     </div>
@@ -134,9 +152,9 @@ function statusClass(status: string) {
     <div class="summary-row">
       <span class="summary-chip">共 <strong>{{ summary.total }}</strong> 条退租记录</span>
       <span class="summary-sep">·</span>
-      <span class="summary-chip">待确认 <strong>{{ summary.pending }}</strong></span>
+      <span class="summary-chip">待审批 <strong>{{ summary.pending }}</strong></span>
       <span class="summary-sep">·</span>
-      <span class="summary-chip">已确认 <strong>{{ summary.confirmed }}</strong></span>
+      <span class="summary-chip">已通过 <strong>{{ summary.confirmed }}</strong></span>
       <span class="summary-sep">·</span>
       <span class="summary-chip">已完成 <strong>{{ summary.completed }}</strong></span>
     </div>
@@ -166,10 +184,16 @@ function statusClass(status: string) {
         </el-table-column>
         <el-table-column label="状态" min-width="90">
           <template #default="{ row }">
-            <span :class="['pill', statusClass(row.status)]">{{ dictStore.getLabel('checkout_status', row.status) || row.status }}</span>
+            <span :class="['pill', statusClass(row.status)]">{{ statusLabel(row.status) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="190" fixed="right">
+        <el-table-column label="押金处置" min-width="230">
+          <template #default="{ row }">
+            <span>{{ row.status === 'completed' ? '已完成清算' : row.pendingDepositCount ? `${row.pendingDepositCount} 笔待处置` : row.depositCount ? '已全部处置' : row.expectedDepositAmount != null && Number(row.expectedDepositAmount) === 0 ? '零押金，无需处置' : '无关联押金记录' }}</span>
+            <div v-if="row.status === 'confirmed' && !row.canComplete" class="settlement-hint">{{ row.settlementBlockReason }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" min-width="250" fixed="right">
           <template #default="{ row }">
             <div class="operation-cell">
               <el-button
@@ -179,13 +203,14 @@ function statusClass(status: string) {
                 plain
                 :disabled="row.status !== 'pending'"
                 @click="handleConfirm(row)"
-              >确认</el-button>
+              >审批通过</el-button>
               <el-button
                 v-permission="['checkout:confirm']"
                 size="small"
                 type="success"
                 plain
-                :disabled="row.status !== 'confirmed'"
+                :disabled="loading || row.status !== 'confirmed' || row.canComplete !== true"
+                :title="row.settlementBlockReason"
                 @click="handleComplete(row)"
               >完成清算</el-button>
               <el-button size="small" plain @click="handleDetail(row)">详情</el-button>
@@ -212,12 +237,14 @@ function statusClass(status: string) {
       <div v-loading="detailLoading" style="min-height: 180px;">
         <el-descriptions v-if="detail" :column="2" border>
           <el-descriptions-item label="合同编号">{{ detail.contractCode }}</el-descriptions-item>
-          <el-descriptions-item label="状态">{{ dictStore.getLabel('checkout_status', detail.status) || detail.status }}</el-descriptions-item>
+          <el-descriptions-item label="状态">{{ statusLabel(detail.status) }}</el-descriptions-item>
           <el-descriptions-item label="租客">{{ detail.tenantName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="退租日期">{{ formatDate(detail.checkoutDate) }}</el-descriptions-item>
           <el-descriptions-item label="房源" :span="2">{{ detail.houseInfo || '-' }}</el-descriptions-item>
           <el-descriptions-item label="退租原因" :span="2">{{ detail.reason || '-' }}</el-descriptions-item>
           <el-descriptions-item label="清算金额">{{ formatMoney(detail.settlementAmount) }}</el-descriptions-item>
+          <el-descriptions-item label="押金处置">{{ detail.pendingDepositCount || 0 }} 笔待处置 / {{ detail.depositCount || 0 }} 笔关联记录</el-descriptions-item>
+          <el-descriptions-item v-if="detail.status === 'confirmed'" label="结算条件" :span="2">{{ detail.canComplete ? '已满足' : detail.settlementBlockReason }}</el-descriptions-item>
           <el-descriptions-item label="登记时间">{{ detail.createdAt || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ detail.remark || '-' }}</el-descriptions-item>
         </el-descriptions>
@@ -229,6 +256,7 @@ function statusClass(status: string) {
 
 <style scoped lang="scss">
 .house-view { min-height: 100%; }
+.settlement-hint { color: var(--warning, #b26b00); font-size: 12px; margin-top: 4px; }
 
 /* ---- Filter Bar ---- */
 .filter-bar {

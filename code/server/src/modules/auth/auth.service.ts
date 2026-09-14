@@ -276,6 +276,7 @@ export class AuthService {
           { id: 'permission', label: '权限管理', path: '/system/permission', permission: 'system:permission' },
           { id: 'dictionary', label: '字典管理', path: '/system/dictionary', permission: 'system:dictionary' },
           { id: 'employee', label: '人员管理', path: '/system/employee', permission: 'system:employee' },
+          { id: 'approval', label: '审批中心', path: '/system/approval', permission: 'system:approval' },
         ],
       },
     ];

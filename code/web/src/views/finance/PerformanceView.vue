@@ -56,7 +56,7 @@ async function submit() {
     <div class="filter-bar">
       <el-input v-model="query.keyword" placeholder="员工姓名" clearable @keyup.enter="load" />
       <el-input v-model="query.period" placeholder="YYYY-MM" clearable @keyup.enter="load" />
-      <el-button type="primary" @click="load">查询</el-button>
+      <button type="button" class="btn btn-primary" @click="load">查询</button>
     </div>
 
     <el-table :data="list" v-loading="loading" class="card">
@@ -77,7 +77,7 @@ async function submit() {
       <el-table-column prop="commission" label="提成" />
       <el-table-column label="操作" width="120">
         <template #default="{}">
-          <el-button size="small" type="primary" plain>明细</el-button>
+          <button type="button" class="btn btn-ghost btn-sm">明细</button>
         </template>
       </el-table-column>
     </el-table>

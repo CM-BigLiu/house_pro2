@@ -92,6 +92,7 @@ export class SeedService implements OnModuleInit {
       { code: 'system:store', name: '门店管理', type: 'menu', path: '/system/store', module: 'system', sort: 5 },
       { code: 'system:log', name: '操作日志', type: 'menu', path: '/system/log', module: 'system', sort: 6 },
       { code: 'system:config', name: '系统配置', type: 'menu', path: '/system/config', module: 'system', sort: 7 },
+      { code: 'system:approval', name: '审批中心', type: 'menu', path: '/system/approval', module: 'system', sort: 8 },
     ];
     const actions = [
       { code: 'renting:add', name: '新建房间', type: 'action', module: 'house' },
@@ -133,6 +134,7 @@ export class SeedService implements OnModuleInit {
       { code: 'system:dictionary:edit', name: '编辑字典', type: 'action', module: 'system' },
       { code: 'system:employee:edit', name: '编辑员工', type: 'action', module: 'system' },
       { code: 'system:store:edit', name: '编辑门店', type: 'action', module: 'system' },
+      { code: 'system:approval:review', name: '审批处理', type: 'action', module: 'system' },
       { code: 'checkout:export', name: '导出退租', type: 'action', module: 'house' },
       { code: 'checkout:confirm', name: '确认退租/清算', type: 'action', module: 'house' },
       { code: 'deposit:export', name: '导出押金', type: 'action', module: 'house' },
@@ -250,20 +252,20 @@ export class SeedService implements OnModuleInit {
     const roleMenuAllowlist: Record<string, string[]> = {
       super_admin: Array.from(menuCodes),
       company_admin: Array.from(menuCodes),
-      store_manager: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:blacklist', 'house:community', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:rent_increase', 'finance:profit', 'finance:partner', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing'],
-      finance_manager: ['home', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:rent_increase', 'finance:profit', 'finance:partner', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing', 'house', 'house:rent', 'house:sale', 'house:customer'],
-      finance_clerk: ['home', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout'],
-      housekeeper: ['home', 'house', 'house:rent', 'house:reserve_house', 'house:customer', 'house:community'],
-      salesman: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:community'],
-      agent: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:community'],
+      store_manager: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:blacklist', 'house:community', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:rent_increase', 'finance:profit', 'finance:partner', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing', 'system', 'system:approval'],
+      finance_manager: ['home', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:rent_increase', 'finance:profit', 'finance:partner', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing', 'house', 'house:rent', 'house:sale', 'house:customer', 'system', 'system:approval'],
+      finance_clerk: ['home', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'system', 'system:approval'],
+      housekeeper: ['home', 'house', 'house:rent', 'house:reserve_house', 'house:customer', 'house:community', 'system', 'system:approval'],
+      salesman: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:community', 'system', 'system:approval'],
+      agent: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:community', 'system', 'system:approval'],
       readonly: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:blacklist', 'house:community', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:rent_increase', 'finance:profit', 'finance:partner', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing'],
     };
 
     const roleActionAllowlist: Record<string, string[]> = {
       super_admin: allPerms.filter((p) => p.type === 'action').map((p) => p.code),
       company_admin: allPerms.filter((p) => p.type === 'action').map((p) => p.code),
-      store_manager: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'renting:add', 'renting:edit', 'renting:checkout', 'renting:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'house:customer:create', 'house:customer:edit', 'finance:bill:modify', 'finance:bill:cancel', 'finance:flow:modify', 'finance:flow:export', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'system:employee:edit', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
-      finance_manager: ['finance:bill:modify', 'finance:bill:cancel', 'finance:flow:modify', 'finance:flow:export', 'finance:ticket:apply', 'finance:ticket:approve', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
+      store_manager: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'renting:add', 'renting:edit', 'renting:checkout', 'renting:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'house:customer:create', 'house:customer:edit', 'finance:bill:modify', 'finance:bill:cancel', 'finance:flow:modify', 'finance:flow:export', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'system:employee:edit', 'system:approval:review', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
+      finance_manager: ['finance:bill:modify', 'finance:bill:cancel', 'finance:flow:modify', 'finance:flow:export', 'finance:ticket:apply', 'finance:ticket:approve', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'system:approval:review', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
       finance_clerk: ['finance:bill:modify', 'finance:flow:modify', 'finance:ticket:apply', 'finance:payout:create', 'finance:payout:batch'],
       housekeeper: ['renting:add', 'renting:edit', 'renting:checkout', 'reserve:house:add', 'reserve:house:take', 'reserve:house:export', 'checkout:confirm'],
       salesman: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'house:customer:create', 'house:customer:edit'],
@@ -289,19 +291,19 @@ export class SeedService implements OnModuleInit {
       super_admin: [
         'house:blacklist:create', 'house:blacklist:edit',
         'house:community:create', 'house:community:edit', 'house:community:delete', 'house:customer:edit', 'reserve:house:export', 'reserve:client:export',
-        'finance:flow:modify', 'finance:flow:export',
+        'finance:flow:modify', 'finance:flow:export', 'system:approval', 'system:approval:review',
       ],
       company_admin: [
         'house:blacklist:create', 'house:blacklist:edit',
         'house:community:create', 'house:community:edit', 'house:community:delete', 'house:customer:edit', 'reserve:house:export', 'reserve:client:export',
-        'finance:flow:modify', 'finance:flow:export',
+        'finance:flow:modify', 'finance:flow:export', 'system:approval', 'system:approval:review',
       ],
-      store_manager: ['house:customer:edit', 'reserve:house:export', 'reserve:client:export', 'finance:flow:modify', 'finance:flow:export'],
-      finance_manager: ['finance:flow:modify', 'finance:flow:export'],
-      finance_clerk: ['finance:flow:modify'],
-      housekeeper: ['reserve:house:export'],
-      salesman: ['house:customer:edit', 'reserve:house:export', 'reserve:client:export'],
-      agent: ['house:customer:edit', 'reserve:house:export', 'reserve:client:export'],
+      store_manager: ['house:customer:edit', 'reserve:house:export', 'reserve:client:export', 'finance:flow:modify', 'finance:flow:export', 'system:approval', 'system:approval:review'],
+      finance_manager: ['finance:flow:modify', 'finance:flow:export', 'system:approval', 'system:approval:review'],
+      finance_clerk: ['finance:flow:modify', 'system:approval'],
+      housekeeper: ['reserve:house:export', 'system:approval'],
+      salesman: ['house:customer:edit', 'reserve:house:export', 'reserve:client:export', 'system:approval'],
+      agent: ['house:customer:edit', 'reserve:house:export', 'reserve:client:export', 'system:approval'],
     };
     const codes = [...new Set(Object.values(grants).flat())];
     const permissions = await this.permissionRepo.find({ where: { code: In(codes) } });

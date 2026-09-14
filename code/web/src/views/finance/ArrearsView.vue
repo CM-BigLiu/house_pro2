@@ -65,7 +65,7 @@ function statusClass(status: string) {
         <el-option label="未结清" value="unpaid" />
         <el-option label="已结清" value="paid" />
       </el-select>
-      <el-button type="primary" @click="load">查询</el-button>
+      <button type="button" class="btn btn-primary" @click="load">查询</button>
     </div>
 
     <el-table :data="list" v-loading="loading" class="card">
@@ -98,8 +98,8 @@ function statusClass(status: string) {
       </el-table-column>
       <el-table-column label="操作" width="150">
         <template #default="{}">
-          <el-button v-permission="['finance:bill:modify']" size="small" type="primary" plain>收款</el-button>
-          <el-button size="small">明细</el-button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['finance:bill:modify']">收款</button>
+          <button type="button" class="btn btn-ghost btn-sm">明细</button>
         </template>
       </el-table-column>
     </el-table>

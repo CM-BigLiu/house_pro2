@@ -5,8 +5,9 @@ import { SkipMasking } from '../../../common/decorators/skip-masking.decorator';
 import { SaleStatus } from '../../../common/enums/status.enum';
 import { Type } from 'class-transformer';
 import { SaleService } from '../services/sale.service';
+import { ApprovalService } from '../../system/services/approval.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { CurrentUser, CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 import { Audit } from '../../../common/decorators/audit.decorator';
 
@@ -285,6 +286,7 @@ export class ChangeSaleStatusDto {
 export class SaleController {
   constructor(
     private saleService: SaleService,
+    private approvalService: ApprovalService,
   ) {}
 
   @Get()
@@ -309,8 +311,12 @@ export class SaleController {
   @Put(':id/status')
   @RequirePermission('sale:changeStatus')
   @Audit('house', 'sale:changeStatus', { objectType: 'sale_property' })
-  async changeStatus(@Param('id', ParseIntPipe) id: number, @Body() data: ChangeSaleStatusDto, @CurrentUser() user: any) {
-    return this.saleService.changeStatus(id, data.status, user);
+  async changeStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() data: ChangeSaleStatusDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.approvalService.requestStatusChange('sale_property', id, data.status, user);
   }
 
   @Get(':id')

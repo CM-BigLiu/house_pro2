@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, UseGuards, Query } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -24,7 +24,7 @@ export class DashboardController {
   }
 
   @Get('todos')
-  async todos(@CurrentUser() user: any) {
-    return this.dashboardService.getTodos(user);
+  async todos(@CurrentUser() user: any, @Query('all') all?: string) {
+    return this.dashboardService.getTodos(user, all === 'true');
   }
 }

@@ -46,13 +46,13 @@ function setStatusFilter(val: string) {
 async function loadEmployees() {
   loading.value = true;
   try {
-    const params: Record<string, any> = { ...query };
+    const params: Record<string, any> = { ...query, page: currentPage.value, pageSize: pageSize.value };
     if (params.statusFilter === 'all') delete params.statusFilter;
     if (!params.storeId) delete params.storeId;
     if (!params.positionId) delete params.positionId;
     if (!params.keyword) delete params.keyword;
     const res = await getEmployees(params);
-    employees.value = res.list;
+    employees.value = res.list || [];
     total.value = res.total;
   } finally {
     loading.value = false;
@@ -163,19 +163,20 @@ async function remove(row: Employee) {
           @keyup.enter="loadEmployees"
         />
       </div>
-      <button class="btn btn-primary" @click="loadEmployees">筛选</button>
-      <button class="btn btn-default" @click="resetFilters">重置</button>
+      <button class="btn btn-primary btn-sm" @click="loadEmployees">筛选</button>
+      <button class="btn btn-default btn-sm" @click="resetFilters">重置</button>
     </div>
 
     <!-- Summary row -->
     <div class="summary-row">
-      <span class="summary-chip">共 <strong>{{ statusStats.total }}</strong> 人</span>
-      <span class="summary-chip">在职 <strong>{{ statusStats.active }}</strong></span>
-      <span class="summary-chip">离职 <strong>{{ statusStats.left }}</strong></span>
+      <span class="summary-chip">共 <strong>{{ total }}</strong> 人</span>
+      <span class="summary-chip">本页在职 <strong>{{ statusStats.active }}</strong></span>
+      <span class="summary-chip">本页离职 <strong>{{ statusStats.left }}</strong></span>
     </div>
 
     <!-- Data table -->
     <div class="card">
+      <div class="card-header"><div class="card-title">员工档案 <span class="text-muted">共 {{ total }} 人</span></div></div>
       <div class="table-wrap">
         <table class="data-table">
           <thead>

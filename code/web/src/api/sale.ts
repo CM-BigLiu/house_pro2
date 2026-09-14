@@ -87,7 +87,7 @@ export function getSalePropertyForEdit(id: number) {
 }
 
 export function changeSaleStatus(id: number, status: string) {
-  return put<SaleProperty>(`/house/sale-properties/${id}/status`, { status });
+  return post<{ id: number; result: string }>(`/house/sale-properties/${id}/change-status`, { status });
 }
 
 export function exportSalePage(params: { keyword?: string; status?: string; page?: number; pageSize?: number }) {

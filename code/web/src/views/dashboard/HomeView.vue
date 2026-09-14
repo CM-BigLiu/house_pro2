@@ -77,7 +77,7 @@ const rankEntries = computed<RankEntry[]>(() => (rankings.value.performance || [
 const maxRankScore = computed(() => Math.max(1, ...rankEntries.value.map((item) => Number(item.score))));
 
 const chartOption = computed(() => {
-  const monthly = overview.value?.charts.monthly || [];
+  const monthly = overview.value?.charts?.monthly || [];
   return {
     tooltip: { trigger: 'axis' as const },
     legend: { data: ['收入', '支出'], bottom: 0 },
@@ -194,7 +194,7 @@ onMounted(loadDashboard);
         </div>
       </section>
 
-      <section v-if="overview?.bigCards.length" class="metric-grid">
+      <section v-if="overview?.bigCards?.length" class="metric-grid">
         <article v-for="item in overview.bigCards" :key="item.title" class="panel metric-card">
           <span>{{ item.title }}</span>
           <strong>{{ item.value }}<small v-if="item.label"> {{ item.label }}</small></strong>
@@ -230,7 +230,8 @@ onMounted(loadDashboard);
               <p>已完成流水汇总</p>
             </div>
           </div>
-          <VChart class="finance-chart" :option="chartOption" autoresize />
+          <VChart v-if="overview?.charts?.monthly?.length" class="finance-chart" :option="chartOption" autoresize />
+          <div v-else class="empty-tip">暂无收支数据</div>
         </div>
         <RankListCmp
           title="本月业绩排行"
@@ -246,7 +247,7 @@ onMounted(loadDashboard);
             <h2>我的待办</h2>
             <p>租约到期与账单催收提醒</p>
           </div>
-          <button class="text-btn" @click="openUnavailable('待办中心')">查看全部</button>
+          <button class="text-btn" @click="router.push('/home/todos')">查看全部</button>
         </div>
         <div v-if="todos.length" class="todo-list">
           <div v-for="item in todos" :key="item.id" class="todo-row">

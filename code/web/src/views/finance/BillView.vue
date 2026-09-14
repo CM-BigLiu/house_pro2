@@ -172,7 +172,7 @@ function exportCurrent() {
       </div>
       <div class="page-actions">
         <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="router.push('/finance/bill/create')">新增账单</button>
-        <el-button v-permission="['finance:export']" @click="exportCurrent">导出</el-button>
+        <button type="button" class="btn btn-default" v-permission="['finance:export']" @click="exportCurrent">导出</button>
       </div>
     </div>
 

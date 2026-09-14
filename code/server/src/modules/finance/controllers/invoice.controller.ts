@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Put, Param, Query, UseGuards } from '@nestjs/common';
-import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
+import { IsEmpty, IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { InvoiceService } from '../services/invoice.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -80,9 +80,8 @@ class UpdateInvoiceDto {
   @IsOptional()
   issuer?: string;
 
-  @IsString()
-  @IsOptional()
-  status?: string;
+  @IsEmpty({ message: '请通过审批流程变更发票状态' })
+  status?: never;
 }
 
 @Controller('finance/invoices')

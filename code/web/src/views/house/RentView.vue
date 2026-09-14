@@ -3,7 +3,7 @@ import { formatDate, getPayReminder, type PayReminder } from '@/utils/rental-sch
 import { ref, onMounted, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { getRentalSets, type RentalSet } from '@/api/rental';
+import { getRentalSets, type RentalSet, type RentalRoom } from '@/api/rental';
 import { createCheckout } from '@/api/checkout';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
@@ -18,16 +18,16 @@ const query = reactive({ keyword: '', status: '', bizType: '', page: 1, pageSize
 
 const statusOptions = [
   { value: '', label: '全部' },
-  { value: 'active', label: '待租' },
+  { value: 'vacant', label: '空置' },
   { value: 'rented', label: '已出租' },
   { value: 'pause', label: '已下架' },
-  { value: 'checkout', label: '已退租' },
+  { value: 'checkout', label: '退租待审批' },
 ];
 
 const summary = computed(() => {
   const totalSets = list.value.length;
   const rented = list.value.filter(s => s.status === 'rented').length;
-  const vacant = list.value.filter(s => s.status === 'active').length;
+  const vacant = list.value.filter(s => ['active', 'vacant'].includes(s.status)).length;
   const entire = list.value.filter(s => s.bizType === 'entire').length;
   const shared = list.value.filter(s => s.bizType === 'shared').length;
   return { totalSets, rented, vacant, entire, shared };
@@ -71,38 +71,43 @@ function editSet(item: RentalSet) {
   router.push(`/house/rent/edit/${item.id}`);
 }
 
-async function checkout(item: RentalSet) {
-  // 合租校验：存在在租期内的租客则禁止对整房退租
-  if (item.bizType === 'shared') {
-    const rooms = (item as any).rooms || [];
-    const now = new Date();
-    const activeTenant = rooms.find((rm: any) => rm.status === 'rented' && rm.leaseEnd && new Date(rm.leaseEnd) > now);
-    if (activeTenant) {
-      ElMessage.warning(`房间「${activeTenant.roomNo}」的租客${activeTenant.tenantName ? `（${activeTenant.tenantName}）` : ''}仍在租期内，无法对整房退租`);
-      return;
-    }
-  }
+const checkoutSubmitting = ref(new Set<string>());
+
+function checkoutKey(item: RentalSet, room?: RentalRoom) {
+  return room ? `room:${room.id}` : `set:${item.id}`;
+}
+
+function checkoutDisabled(item: RentalSet, room?: RentalRoom) {
+  return (room || item).status !== 'rented' || checkoutSubmitting.value.has(checkoutKey(item, room));
+}
+
+async function checkout(item: RentalSet, room?: RentalRoom) {
+  if (checkoutDisabled(item, room)) return;
+  const key = checkoutKey(item, room);
+  checkoutSubmitting.value.add(key);
   try {
+    const houseInfo = formatHouseAddress({ community: item.communityName, building: item.building, unit: item.unit, roomNo: item.roomNo })
+      + (room ? ` ${room.roomNo}室` : '');
     await ElMessageBox.confirm(
-      `确认对「${item.address || item.communityName}」进行退房登记？`,
-      '退房登记',
-      { confirmButtonText: '确认退房', cancelButtonText: '取消', type: 'warning' },
+      `确认提交「${houseInfo}」的退租申请？提交后进入待审批，审批通过后房间变为空置。`,
+      '申请退租',
+      { confirmButtonText: '提交退租', cancelButtonText: '取消', type: 'warning' },
     );
-  } catch {
-    return; // 取消
-  }
-  try {
-    const houseInfo = formatHouseAddress({ community: item.communityName, building: item.building, unit: item.unit, roomNo: item.roomNo });
     await createCheckout({
       houseInfo,
-      tenantName: item.tenantName || '',
+      tenantName: (room || item).tenantName || '',
+      rentalSetId: item.id,
+      rentalRoomId: room?.id,
       checkoutDate: formatDate(new Date()),
       reason: '',
     });
-    ElMessage.success('退租申请已提交，请在退租管理中确认');
+    (room || item).status = 'checkout';
+    ElMessage.success('退租申请已提交，房态已变为待审批');
     await load();
   } catch {
-    ElMessage.error('提交退租失败');
+    // 取消保持原状态，接口错误由请求拦截器提示。
+  } finally {
+    checkoutSubmitting.value.delete(key);
   }
 }
 
@@ -110,33 +115,12 @@ function editRoom(item: RentalSet) {
   router.push(`/house/rent/edit/${item.id}`);
 }
 
-async function checkoutRoom(item: RentalSet, rm: any) {
-  const houseInfo = `${formatHouseAddress({ community: item.communityName, building: item.building, unit: item.unit, roomNo: item.roomNo })} ${rm.roomNo}室`.trim();
-  try {
-    await ElMessageBox.confirm(
-      `确认对房间「${rm.roomNo}」${rm.tenantName ? `（租客：${rm.tenantName}）` : ''}进行退租操作？`,
-      '退租确认',
-      { confirmButtonText: '确认退租', cancelButtonText: '取消', type: 'warning' },
-    );
-    await createCheckout({
-      houseInfo,
-      tenantName: rm.tenantName || '',
-      checkoutDate: formatDate(new Date()),
-      reason: '',
-    });
-    ElMessage.success('退租申请已提交，请在退租管理中确认');
-    await load();
-  } catch {
-    // 用户取消或接口失败
-  }
-}
-
 function statusClass(status: string) {
   const map: Record<string, string> = {
     active: 'pill-green',
     rented: 'pill-blue',
     reserved: 'pill-orange',
-    checkout: 'pill-gray',
+    checkout: 'pill-orange',
     pause: 'pill-gray',
     vacant: 'pill-green',
     maintenance: 'pill-orange',
@@ -146,10 +130,10 @@ function statusClass(status: string) {
 
 function statusText(status: string) {
   const map: Record<string, string> = {
-    active: '待租',
+    active: '空置',
     rented: '已租',
     reserved: '已预定',
-    checkout: '已退租',
+    checkout: '退租待审批',
     pause: '已下架',
     vacant: '空置',
     maintenance: '维修中',
@@ -233,7 +217,7 @@ function roomReminder(rm: any): PayReminder | null {
     <div class="summary-row">
       <span class="summary-chip">出租房源共 <strong>{{ summary.totalSets }}</strong> 套</span>
       <span class="summary-chip">已出租 <strong>{{ summary.rented }}</strong></span>
-      <span class="summary-chip">待租 <strong>{{ summary.vacant }}</strong></span>
+      <span class="summary-chip">空置 <strong>{{ summary.vacant }}</strong></span>
       <span class="summary-chip">整租 <strong>{{ summary.entire }}</strong></span>
       <span class="summary-chip">合租 <strong>{{ summary.shared }}</strong></span>
     </div>
@@ -294,7 +278,7 @@ function roomReminder(rm: any): PayReminder | null {
               <span class="field-value price">
                 {{ formatMoney(item.rent) }}<span style="font-size:11px;color:var(--ink-400);font-weight:400;">元</span>
                 <span
-                  v-if="tenantReminder(item)"
+                  v-if="item.status === 'rented' && tenantReminder(item)"
                   :class="['pay-tag', tenantReminder(item)!.type === 'pay' ? 'pay-tag-pay' : 'pay-tag-overdue']"
                   :title="`房客给公司交租 · 计划日期 ${tenantReminder(item)!.date} · 实收状态请以账单为准`"
                 >{{ tenantReminder(item)!.label }}</span>
@@ -339,7 +323,7 @@ function roomReminder(rm: any): PayReminder | null {
 
           <!-- Rooms Section -->
           <div v-if="item.bizType === 'shared'" class="room-list">
-            <div v-for="rm in (item as any).rooms || []" :key="rm.id" class="room-item">
+            <div v-for="rm in item.rooms || []" :key="rm.id" class="room-item">
               <div class="room-field">
                 <span class="field-label">房号</span>
                 <span class="field-value">{{ rm.roomNo }}</span>
@@ -374,8 +358,9 @@ function roomReminder(rm: any): PayReminder | null {
                 </span>
               </div>
               <div class="room-actions">
+                <button class="btn btn-ghost btn-xs" @click.stop="router.push({ path: `/house/rent/detail/${item.id}`, query: { roomId: rm.id } })">详情</button>
                 <button v-permission="['renting:edit']" class="btn btn-ghost btn-xs" @click.stop="editRoom(item)">编辑</button>
-                <button v-if="rm.status === 'rented'" v-permission="['renting:checkout']" class="btn btn-ghost btn-xs btn-danger-text" @click.stop="checkoutRoom(item, rm)">退租</button>
+                <button v-permission="['renting:checkout']" class="btn btn-ghost btn-xs btn-danger-text" :disabled="checkoutDisabled(item, rm)" @click.stop="checkout(item, rm)">{{ rm.status === 'checkout' ? '待审批' : '退租' }}</button>
               </div>
             </div>
           </div>
@@ -383,8 +368,15 @@ function roomReminder(rm: any): PayReminder | null {
 
         <!-- Card Actions -->
         <div class="detail-card-actions">
+          <button class="btn btn-default btn-sm" @click="router.push(`/house/rent/detail/${item.id}`)">详情 / 流程</button>
           <button v-permission="['renting:edit']" class="btn btn-ghost btn-sm" @click="editSet(item)">编辑</button>
-          <button v-permission="['renting:checkout']" class="btn btn-ghost btn-sm" @click="checkout(item)">退租</button>
+          <button
+            v-if="item.bizType === 'entire'"
+            v-permission="['renting:checkout']"
+            class="btn btn-ghost btn-sm"
+            :disabled="checkoutDisabled(item)"
+            @click="checkout(item)"
+          >{{ item.status === 'checkout' ? '待审批' : '退租' }}</button>
         </div>
       </div>
     </div>

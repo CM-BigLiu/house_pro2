@@ -41,6 +41,13 @@ describe('sale functional regressions', () => {
     await service.findAll({ status: 'price_negotiation' }, admin);
     expect(qb.andWhere).toHaveBeenCalledWith('s.status IN (:...statuses)', { statuses: ['price_negotiation', 'bargain'] });
   });
+  it('offers valid transitions for a legacy selling record and includes it in published results', async () => {
+    const { service, qb } = setup();
+    qb.getManyAndCount.mockResolvedValue([[{ id: 1, status: 'selling', salePrice: 100 }], 1]);
+    const result = await service.findAll({ status: 'published' }, admin);
+    expect(result.list[0].allowedStatuses).toEqual(['price_negotiation', 'quick_sale', 'off_shelf']);
+    expect(qb.andWhere).toHaveBeenCalledWith('s.status IN (:...statuses)', { statuses: ['published', 'selling'] });
+  });
   it('persists edited location and price without writing the stale community relation', async () => {
     const { service, repo } = setup();
     await service.update(1, { communityId: 2, roomNo: 'QA2', salePrice: 9.99 }, admin);

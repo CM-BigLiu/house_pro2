@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
-import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CheckoutService } from '../services/checkout.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -15,6 +15,17 @@ class CreateCheckoutDto {
   @IsString()
   @IsNotEmpty()
   tenantName: string;
+
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  rentalSetId: number;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  @Type(() => Number)
+  rentalRoomId?: number;
 
   @IsString()
   @IsOptional()

@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
 import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApprovalService } from '../services/approval.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
+import { Audit } from '../../../common/decorators/audit.decorator';
 
 class SubmitApprovalDto {
   @IsString()
@@ -45,15 +46,9 @@ export class ApprovalController {
   constructor(private approvalService: ApprovalService) {}
 
   @Get()
-  async findAll(
-    @Query('entityType') entityType?: string,
-    @Query('entityId') entityId?: string,
-  ) {
-    const id = entityId ? Number(entityId) : NaN;
-    if (entityType && Number.isFinite(id)) {
-      return this.approvalService.findByEntity(entityType, id);
-    }
-    return this.approvalService.findAll();
+  @RequirePermission('system:approval')
+  async findAll(@Query() query: any, @CurrentUser() user: CurrentUserPayload) {
+    return this.approvalService.findAll(query, user);
   }
 
   @Post()
@@ -71,22 +66,24 @@ export class ApprovalController {
   }
 
   @Post(':id/approve')
-  @RequirePermission('checkout:confirm', 'finance:ticket:approve', 'system:role:edit', 'sale:changeStatus')
+  @RequirePermission('system:approval:review')
+  @Audit('system', 'approval:approve', { objectType: 'approval_record' })
   async approve(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: ReviewApprovalDto,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.approvalService.approve(+id, user.employeeId, dto.remark);
+    return this.approvalService.approve(id, user, dto.remark);
   }
 
   @Post(':id/reject')
-  @RequirePermission('checkout:confirm', 'finance:ticket:approve', 'system:role:edit', 'sale:changeStatus')
+  @RequirePermission('system:approval:review')
+  @Audit('system', 'approval:reject', { objectType: 'approval_record' })
   async reject(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: ReviewApprovalDto,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.approvalService.reject(+id, user.employeeId, dto.remark);
+    return this.approvalService.reject(id, user, dto.remark);
   }
 }

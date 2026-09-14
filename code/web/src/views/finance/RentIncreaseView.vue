@@ -125,7 +125,7 @@ function formatStat(v: number | null, prefix?: string, unit?: string) {
     <div class="filter-bar">
       <el-date-picker v-model="query.year" type="year" value-format="YYYY" placeholder="年份" @change="load" />
       <el-input v-model="query.keyword" placeholder="房号" clearable @keyup.enter="load" />
-      <el-button type="primary" @click="load">查询</el-button>
+      <button type="button" class="btn btn-primary" @click="load">查询</button>
     </div>
 
     <div class="stat-row">

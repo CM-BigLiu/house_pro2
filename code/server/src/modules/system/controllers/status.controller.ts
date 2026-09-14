@@ -4,22 +4,14 @@ import {
   Param,
   Body,
   UseGuards,
-  BadRequestException,
+  ParseIntPipe,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { IsString, IsOptional } from 'class-validator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 import { Audit } from '../../../common/decorators/audit.decorator';
-import { StateMachineService } from '../../../common/services/state-machine.service';
 import { ApprovalService } from '../services/approval.service';
-import { EventsGateway } from '../../events/events.gateway';
-import { SaleProperty } from '../../house/entities/sale-property.entity';
-import { RentalRoom } from '../../house/entities/rental-room.entity';
-import { Bill } from '../../finance/entities/bill.entity';
-import { Invoice } from '../../finance/entities/invoice.entity';
 
 class ChangeStatusDto {
   @IsString()
@@ -34,31 +26,20 @@ class ChangeStatusDto {
 @UseGuards(JwtAuthGuard)
 export class StatusController {
   constructor(
-    @InjectRepository(SaleProperty)
-    private saleRepo: Repository<SaleProperty>,
-    @InjectRepository(RentalRoom)
-    private roomRepo: Repository<RentalRoom>,
-    @InjectRepository(Bill)
-    private billRepo: Repository<Bill>,
-    @InjectRepository(Invoice)
-    private invoiceRepo: Repository<Invoice>,
-    private stateMachine: StateMachineService,
     private approvalService: ApprovalService,
-    private eventsGateway: EventsGateway,
   ) {}
 
   @Post('house/sale-properties/:id/change-status')
   @RequirePermission('sale:changeStatus')
   @Audit('house', 'sale:changeStatus', { objectType: 'sale_property' })
   async changeSaleStatus(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: ChangeStatusDto,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.doTransition(
+    return this.requestTransition(
       'sale_property',
-      this.saleRepo,
-      +id,
+      id,
       dto.status,
       dto.remark,
       user,
@@ -69,14 +50,13 @@ export class StatusController {
   @RequirePermission('renting:checkout')
   @Audit('house', 'rental:changeStatus', { objectType: 'rental_room' })
   async changeRoomStatus(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: ChangeStatusDto,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.doTransition(
+    return this.requestTransition(
       'rental_room',
-      this.roomRepo,
-      +id,
+      id,
       dto.status,
       dto.remark,
       user,
@@ -87,14 +67,13 @@ export class StatusController {
   @RequirePermission('finance:bill:modify')
   @Audit('finance', 'bill:changeStatus', { objectType: 'bill' })
   async changeBillStatus(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: ChangeStatusDto,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.doTransition(
+    return this.requestTransition(
       'bill',
-      this.billRepo,
-      +id,
+      id,
       dto.status,
       dto.remark,
       user,
@@ -105,48 +84,26 @@ export class StatusController {
   @RequirePermission('finance:ticket:approve')
   @Audit('finance', 'invoice:changeStatus', { objectType: 'invoice' })
   async changeInvoiceStatus(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: ChangeStatusDto,
     @CurrentUser() user: CurrentUserPayload,
   ) {
-    return this.doTransition(
+    return this.requestTransition(
       'invoice',
-      this.invoiceRepo,
-      +id,
+      id,
       dto.status,
       dto.remark,
       user,
     );
   }
 
-  private async doTransition<T extends { id: number; status: string }>(
+  private requestTransition(
     entityType: string,
-    repo: Repository<T>,
     id: number,
     toStatus: string,
     remark: string | undefined,
     user: CurrentUserPayload,
   ) {
-    const entity = await repo.findOne({ where: { id } as any });
-    if (!entity) throw new BadRequestException('记录不存在');
-    const fromStatus = entity.status;
-    const check = this.stateMachine.transition(entityType, fromStatus, toStatus);
-    if (!check.success) {
-      throw new BadRequestException(check.message);
-    }
-    entity.status = toStatus;
-    const saved = await repo.save(entity as any);
-    await this.approvalService.submit({
-      entityType,
-      entityId: id,
-      action: 'change_status',
-      fromStatus,
-      toStatus,
-      operatorId: user.employeeId,
-      remark,
-    });
-    this.eventsGateway.broadcastStatusChange({ entityType, entityId: id, status: toStatus });
-    this.eventsGateway.broadcastDashboardUpdate({ type: 'status_change', entityType, entityId: id, status: toStatus });
-    return saved;
+    return this.approvalService.requestStatusChange(entityType, id, toStatus, user, remark);
   }
 }

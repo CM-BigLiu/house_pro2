@@ -65,7 +65,7 @@ async function submit() {
 
     <div class="filter-bar">
       <el-input v-model="query.keyword" placeholder="姓名/电话" clearable @keyup.enter="load" />
-      <el-button type="primary" @click="load">查询</el-button>
+      <button type="button" class="btn btn-primary" @click="load">查询</button>
     </div>
 
     <el-table :data="list" v-loading="loading" class="card">
@@ -88,7 +88,7 @@ async function submit() {
       </el-table-column>
       <el-table-column label="操作" width="120">
         <template #default="{ row }">
-          <el-button v-permission="['finance:bill:modify']" size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['finance:bill:modify']" @click="openEdit(row)">编辑</button>
         </template>
       </el-table-column>
     </el-table>

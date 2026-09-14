@@ -53,7 +53,8 @@ export class RentalService {
       .leftJoinAndSelect('rs.rooms', 'rooms')
       .leftJoinAndSelect('rs.community', 'community');
     if (query.bizType) qb.where('rs.bizType = :bizType', { bizType: query.bizType });
-    if (query.status) qb.andWhere('rs.status = :status', { status: query.status });
+    if (query.status === 'vacant') qb.andWhere('rs.status IN (:...statuses)', { statuses: ['active', 'vacant'] });
+    else if (query.status) qb.andWhere('rs.status = :status', { status: query.status });
     const keyword = typeof query.keyword === 'string' ? query.keyword.trim() : '';
     if (keyword) {
       qb.andWhere(new Brackets((sub) => {

@@ -51,7 +51,7 @@ function typeClass(type: string) {
       </div>
       <div class="page-actions">
         <button v-permission="['finance:flow:modify']" class="btn btn-primary" @click="router.push('/finance/daily-account/create')">记一笔</button>
-        <el-button v-permission="['finance:flow:export']" @click="exportCurrent">导出</el-button>
+        <button type="button" class="btn btn-default" v-permission="['finance:flow:export']" @click="exportCurrent">导出</button>
       </div>
     </div>
 
@@ -61,7 +61,7 @@ function typeClass(type: string) {
         <el-option label="收入" value="income" />
         <el-option label="支出" value="expense" />
       </el-select>
-      <el-button type="primary" @click="load">查询</el-button>
+      <button type="button" class="btn btn-primary" @click="load">查询</button>
     </div>
 
     <el-table :data="list" v-loading="loading" class="card">
@@ -86,7 +86,7 @@ function typeClass(type: string) {
       <el-table-column prop="flowDate" label="日期" width="110" />
       <el-table-column label="操作" width="100">
         <template #default="{ row }">
-          <el-button v-permission="['finance:flow:modify']" size="small" type="primary" plain :disabled="row.status !== 'pending' || row.audited || row.isRed" @click="editFlow(row)">编辑</el-button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['finance:flow:modify']" :disabled="row.status !== 'pending' || row.audited || row.isRed" @click="editFlow(row)">编辑</button>
         </template>
       </el-table-column>
     </el-table>

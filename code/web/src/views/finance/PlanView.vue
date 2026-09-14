@@ -44,7 +44,7 @@ function typeClass(type: string) {
         <el-option label="应收" value="income" />
         <el-option label="应支" value="expense" />
       </el-select>
-      <el-button type="primary" @click="load">查询</el-button>
+      <button type="button" class="btn btn-primary" @click="load">查询</button>
     </div>
 
     <el-table :data="list" v-loading="loading" class="card">
@@ -62,7 +62,7 @@ function typeClass(type: string) {
       <el-table-column prop="auditStatus" label="审批状态" />
       <el-table-column label="操作" width="120">
         <template #default="{}">
-          <el-button v-permission="['finance:bill:modify']" size="small" type="primary" plain>编辑</el-button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['finance:bill:modify']">编辑</button>
         </template>
       </el-table-column>
     </el-table>

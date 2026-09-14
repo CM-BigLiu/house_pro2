@@ -125,6 +125,15 @@ describe('auth-token-refresh: axios 拦截器 401 单飞 refresh 重放', () => 
     return await import('@/utils/request');
   }
 
+  it('rejects a business error without a data field instead of reporting a successful save', async () => {
+    const { default: request } = await importRequestModule();
+    request.defaults.adapter = async (config) => ({
+      data: { code: 400, message: '请勿重复提交' },
+      status: 200, statusText: 'OK', headers: {}, config,
+    });
+    await expect(request.post('/house/checkouts')).rejects.toThrow('请勿重复提交');
+  });
+
   it('401 → 调 refresh → 重放原请求成功 (V-frontend-1)', async () => {
     seedTokens();
 

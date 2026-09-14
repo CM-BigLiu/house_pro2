@@ -20,6 +20,12 @@ export class Checkout {
   @Column({ length: 200 })
   houseInfo: string;
 
+  @Column({ name: 'rental_set_id', nullable: true })
+  rentalSetId: number;
+
+  @Column({ name: 'rental_room_id', nullable: true })
+  rentalRoomId: number;
+
   @Column({ type: 'date', nullable: true })
   checkoutDate: string;
 
@@ -28,6 +34,15 @@ export class Checkout {
 
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true, default: 0 })
   settlementAmount: number;
+
+  @Column({ name: 'expected_deposit_amount', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  expectedDepositAmount: number;
+
+  @Column({ name: 'confirmed_at', type: 'timestamp', nullable: true })
+  confirmedAt: Date;
+
+  @Column({ name: 'completed_at', type: 'timestamp', nullable: true })
+  completedAt: Date;
 
   @Column({ length: 255, nullable: true })
   reason: string;

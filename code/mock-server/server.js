@@ -26,25 +26,25 @@ const USERS = {
     id: 3, name: '张店长', mobile: 'store_manager', avatar: '',
     role: 'store_manager', roleName: '店长', dataScope: 'store',
     storeIds: [1], groupIds: [1], assignedStoreIds: [],
-    permissions: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:customer', 'house:community', 'house:blacklist', 'house:checkout', 'house:deposit', 'renting:add', 'renting:edit', 'renting:checkout', 'renting:export', 'renting:approve', 'checkout:list', 'checkout:confirm', 'checkout:export', 'deposit:list', 'deposit:refund', 'deposit:deduct', 'deposit:export', 'sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout'],
+    permissions: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:customer', 'house:community', 'house:blacklist', 'house:checkout', 'house:deposit', 'renting:add', 'renting:edit', 'renting:checkout', 'renting:export', 'renting:approve', 'checkout:list', 'checkout:confirm', 'checkout:export', 'deposit:list', 'deposit:refund', 'deposit:deduct', 'deposit:export', 'sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'system:approval', 'system:approval:review'],
   },
   salesman: {
     id: 4, name: '李业务员', mobile: 'salesman', avatar: '',
     role: 'salesman', roleName: '业务员', dataScope: 'self',
     storeIds: [1], groupIds: [1], assignedStoreIds: [],
-    permissions: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:community', 'renting:add', 'renting:edit', 'renting:checkout', 'sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:client:add', 'reserve:client:transfer'],
+    permissions: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:community', 'renting:add', 'renting:edit', 'renting:checkout', 'sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:client:add', 'reserve:client:transfer', 'system:approval'],
   },
   finance: {
     id: 5, name: '赵财务', mobile: 'finance', avatar: '',
     role: 'finance_manager', roleName: '财务负责人', dataScope: 'company',
     storeIds: [1,2,3], groupIds: [1,2], assignedStoreIds: [],
-    permissions: ['home', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'house:deposit', 'deposit:list', 'deposit:refund', 'deposit:deduct', 'deposit:export'],
+    permissions: ['home', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:billing', 'finance:ticket:apply', 'finance:ticket:approve', 'house:deposit', 'deposit:list', 'deposit:refund', 'deposit:deduct', 'deposit:export', 'system:approval', 'system:approval:review'],
   },
   housekeeper: {
     id: 6, name: '周管家', mobile: 'housekeeper', avatar: '',
     role: 'housekeeper', roleName: '管家', dataScope: 'group',
     storeIds: [1], groupIds: [1], assignedStoreIds: [],
-    permissions: ['home', 'house', 'house:rent', 'house:reserve_house', 'house:customer', 'house:checkout', 'renting:add', 'renting:edit', 'renting:checkout', 'checkout:list'],
+    permissions: ['home', 'house', 'house:rent', 'house:reserve_house', 'house:customer', 'house:checkout', 'renting:add', 'renting:edit', 'renting:checkout', 'checkout:list', 'system:approval'],
   },
 };
 
@@ -89,6 +89,7 @@ const ALL_MENUS = [
       { id: 'permission', label: '权限管理', path: '/system/permission', permission: 'system:permission' },
       { id: 'dictionary', label: '字典管理', path: '/system/dictionary', permission: 'system:dictionary' },
       { id: 'employee', label: '人员管理', path: '/system/employee', permission: 'system:employee' },
+      { id: 'approval', label: '审批中心', path: '/system/approval', permission: 'system:approval' },
     ],
   },
 ];
@@ -128,7 +129,8 @@ app.post('/api/auth/login', (req, res) => {
   res.json({
     code: 0,
     data: {
-      token,
+      accessToken: token,
+      refreshToken: token,
       user: {
         id: user.id,
         name: user.name,
@@ -137,6 +139,20 @@ app.post('/api/auth/login', (req, res) => {
       },
     },
   });
+});
+
+app.post('/api/auth/refresh', (req, res) => {
+  try {
+    const payload = jwt.verify(req.body.refreshToken, JWT_SECRET);
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ code: 0, data: { accessToken: token, refreshToken: token } });
+  } catch {
+    res.status(401).json({ code: 401, message: 'Refresh token 无效或已过期' });
+  }
+});
+
+app.post('/api/auth/logout', (_req, res) => {
+  res.json({ code: 0, data: null });
 });
 
 // GET /api/auth/me
@@ -167,6 +183,19 @@ app.get('/api/dashboard/overview', authMiddleware, (req, res) => {
       occupancyRate: { value: '94.2', unit: '%', trend: 2.1, trendLabel: '较上月' },
       renewalRate: { value: '78.5', unit: '%', trend: 5.8, trendLabel: '较上月' },
       totalRevenue: { value: '216.1', unit: '万', trend: 8.6, trendLabel: '较上月' },
+      kpis: [
+        { label: '租金收入', value: '126.8', unit: '万', trend: 12.5, trendLabel: '较上月' },
+        { label: '售房收入', value: '89.3', unit: '万', trend: -3.2, trendLabel: '较上月' },
+        { label: '出租率', value: '94.2', unit: '%', trend: 2.1, trendLabel: '较上月' },
+        { label: '续约率', value: '78.5', unit: '%', trend: 5.8, trendLabel: '较上月' },
+        { label: '总收入', value: '216.1', unit: '万', trend: 8.6, trendLabel: '较上月' },
+      ],
+      charts: { monthly: [] },
+      smallCards: [],
+      bigCards: [
+        { title: '出租率', value: '94.2%', label: '占比' },
+        { title: '续约率', value: '78.5%', label: '占比' },
+      ],
     },
   });
 });
@@ -470,7 +499,10 @@ let todos = [
 let todoIdCounter = 6;
 
 app.get('/api/dashboard/todos', authMiddleware, (req, res) => {
-  res.json({ code: 0, data: todos });
+  res.json({ code: 0, data: todos.filter(todo => !todo.done).map(todo => ({
+    ...todo, id: String(todo.id), title: todo.text,
+    priority: todo.priority === 'urgent' ? 'high' : todo.priority,
+  })) });
 });
 
 app.post('/api/dashboard/todos', authMiddleware, (req, res) => {
@@ -512,11 +544,15 @@ app.get('/api/dashboard/warnings', authMiddleware, (req, res) => {
   ]});
 });
 app.get('/api/dashboard/rankings', authMiddleware, (req, res) => {
-  res.json({ code: 0, data: { list: [
-    { label: '业绩 TOP', value: 98500, name: '张伟', },
-    { label: '带看量 TOP', value: 56, name: '李娜' },
-    { label: '签单 TOP', value: 12, name: '王强' },
-  ]}});
+  res.json({ code: 0, data: {
+    performance: [
+      { name: '张伟', value: 98500, unit: '元' },
+      { name: '李娜', value: 87200, unit: '元' },
+      { name: '王强', value: 75600, unit: '元' },
+    ],
+    house: [],
+    customer: [],
+  }});
 });
 
 // ============================================================
@@ -646,6 +682,25 @@ const DICT_ITEMS = [
 // ============================================================
 //  MOCK DATA: 门店 & 员工
 // ============================================================
+// 与正式后端 dict.seed.ts 保持相同的售房选项编码。
+const saleFormDicts = {
+  property_type: { name: '房源类型', items: [
+    ['residential', '普通住宅'], ['villa', '别墅'], ['mixed', '商住两用'], ['parking', '车位'],
+    ['shop', '商铺'], ['office', '写字楼'], ['factory', '厂房'], ['land', '土地'],
+  ] },
+  tax_type: { name: '税费类型', items: [
+    ['personal', '个税'], ['exempt', '免税'], ['normal', '正常税'], ['double', '双税'], ['combined', '综合税'],
+  ] },
+  certificate_type: { name: '产证类型', items: [
+    ['property', '房产证'], ['contract', '购房合同'], ['agreement', '购房协议'], ['other', '其他'],
+  ] },
+};
+for (const [code, dict] of Object.entries(saleFormDicts)) {
+  DICTS.push({ id: DICTS.length + 1, code, name: dict.name, enabled: true });
+  dict.items.forEach(([value, label], index) => {
+    DICT_ITEMS.push({ id: DICT_ITEMS.length + 1, dictCode: code, value, label, sort: index + 1, enabled: true, isBuiltin: true });
+  });
+}
 const STORES = [
   { id: 1, name: '张江店', cityId: 1, address: '上海市浦东新区张江路588号', phone: '021-58581234', manager: '张店长' },
   { id: 2, name: '联洋店', cityId: 1, address: '上海市浦东新区联洋路218号', phone: '021-58585678', manager: '刘店长' },
@@ -783,6 +838,9 @@ const PERM_TREE = [
       { id: 442, code: 'employee:create', name: '新增员工', type: 'action', sort: 2, status: 'active' },
       { id: 443, code: 'employee:edit', name: '编辑', type: 'action', sort: 3, status: 'active' },
       { id: 444, code: 'employee:delete', name: '删除', type: 'action', sort: 4, status: 'active' },
+    ]},
+    { id: 45, code: 'system:approval', name: '审批中心', type: 'menu', sort: 5, status: 'active', children: [
+      { id: 451, code: 'system:approval:review', name: '审批处理', type: 'action', sort: 1, status: 'active' },
     ]},
   ]},
 ];
@@ -1092,6 +1150,53 @@ const INVOICES = [
   { id: 7, applySource: 'bill', buyerName: '刘洋', buyerTaxNo: null, amountWithoutTax: 7358.49, taxAmount: 441.51, amountWithTax: 7800, remark: '浦东世纪花园901租金+物业费', issuer: '赵财务', status: 'void', createdAt: '2026-08-08' },
 ];
 
+const APPROVALS = [];
+const HOUSE_OPERATIONS = [];
+function recordHouseOperation(req, objectType, objectId, action) {
+  HOUSE_OPERATIONS.push({ id: HOUSE_OPERATIONS.length + 1, objectType, objectId: String(objectId), action,
+    employeeId: req.user.employeeId, result: 'success', createdAt: new Date().toISOString() });
+}
+
+function findApprovalEntity(entityType, entityId) {
+  if (entityType === 'sale_property') return SALE_PROPERTIES.find(item => item.id === entityId);
+  if (entityType === 'rental_room') {
+    return RENTAL_SETS.flatMap(item => item.rooms || []).find(item => item.id === entityId);
+  }
+  if (entityType === 'invoice') return INVOICES.find(item => item.id === entityId);
+  if (entityType === 'bill') return BILLS.find(item => item.id === entityId);
+  return null;
+}
+
+function createStatusApproval(entityType, entityId, toStatus, user, remark) {
+  const entity = findApprovalEntity(entityType, entityId);
+  if (!entity) return { error: { code: 404, message: '业务数据不存在' } };
+  if (entityType === 'sale_property' && !(SALE_TRANSITIONS[normalizeSaleStatus(entity.status)] || []).includes(toStatus)) {
+    return { error: { code: 400, message: '不允许该状态流转' } };
+  }
+  const pending = APPROVALS.find(item =>
+    item.entityType === entityType && item.entityId === entityId &&
+    item.action === 'change_status' && item.result === 'pending'
+  );
+  if (pending) return { error: { code: 400, message: '该业务已有待审批申请，请勿重复提交' } };
+  const record = {
+    id: APPROVALS.length + 1,
+    entityType,
+    entityId,
+    action: 'change_status',
+    fromStatus: entity.status,
+    toStatus,
+    operatorId: user.employeeId,
+    operatorName: user.name,
+    approverId: null,
+    approverName: '',
+    remark: remark || '',
+    result: 'pending',
+    createdAt: new Date().toISOString(),
+  };
+  APPROVALS.push(record);
+  return { record };
+}
+
 // ============================================================
 //  MOCK DATA: 报表数据
 // ============================================================
@@ -1249,8 +1354,13 @@ app.delete('/api/system/dicts/items/:id', (req, res) => {
 });
 app.get('/api/system/employees', (req, res) => {
   const keyword = (req.query.keyword || '').toLowerCase();
-  const data = EMPLOYEES.filter(e => !keyword || e.name.includes(keyword) || e.mobile.includes(keyword));
-  res.json({ code: 0, data });
+  let data = EMPLOYEES.map(employee => ({ ...employee, status: employee.status === 'active' ? 'normal' : employee.status }));
+  data = data.filter(e => !keyword || e.name.includes(keyword) || e.mobile.includes(keyword));
+  if (req.query.statusFilter) data = data.filter(e => e.status === req.query.statusFilter);
+  if (req.query.storeId) data = data.filter(e => e.stores?.some(store => store.id === Number(req.query.storeId)));
+  if (req.query.positionId) data = data.filter(e => e.positions?.some(position => position.id === Number(req.query.positionId)));
+  const page = Math.max(1, Number(req.query.page) || 1), pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize) || 20));
+  res.json({ code: 0, data: { list: data.slice((page - 1) * pageSize, page * pageSize), total: data.length } });
 });
 app.post('/api/system/employees', (req, res) => {
   const emp = { id: EMPLOYEES.length + 1, ...req.body, entryDate: new Date().toISOString().slice(0, 10) };
@@ -1311,13 +1421,14 @@ app.get('/api/house/rental-sets', (req, res) => {
   let data = [...RENTAL_SETS];
   const { keyword, status, bizType } = req.query;
   if (keyword) data = data.filter(s => s.code.includes(keyword) || (s.communityName || '').includes(keyword) || s.address.includes(keyword));
-  if (status) data = data.filter(s => s.status === status);
+  if (status) data = data.filter(s => status === 'vacant' ? ['active', 'vacant'].includes(s.status) : s.status === status);
   if (bizType) data = data.filter(s => s.bizType === bizType);
   res.json({ code: 0, data: { list: data, total: data.length } });
 });
-app.post('/api/house/rental-sets', (req, res) => {
+app.post('/api/house/rental-sets', authMiddleware, (req, res) => {
   const set = { id: RENTAL_SETS.length + 1, code: 'ZJ' + String(RENTAL_SETS.length + 1).padStart(3, '0'), ...req.body, rooms: [], createdAt: new Date().toISOString() };
   RENTAL_SETS.push(set);
+  recordHouseOperation(req, 'rental_set', set.id, 'rental:create');
   res.json({ code: 0, data: set });
 });
 app.get('/api/house/rental-sets/:id', (req, res) => {
@@ -1325,16 +1436,30 @@ app.get('/api/house/rental-sets/:id', (req, res) => {
   if (!set) return res.json({ code: 404, message: '房源不存在' });
   res.json({ code: 0, data: set });
 });
-app.put('/api/house/rental-sets/:id', (req, res) => {
+app.put('/api/house/rental-sets/:id', authMiddleware, (req, res) => {
   const idx = RENTAL_SETS.findIndex(s => s.id === parseInt(req.params.id));
   if (idx < 0) return res.json({ code: 404, message: '房源不存在' });
   const { rooms, ...rest } = req.body || {};
   const next = { ...RENTAL_SETS[idx], ...rest };
   if (Array.isArray(rooms)) next.rooms = rooms;
   RENTAL_SETS[idx] = next;
+  recordHouseOperation(req, 'rental_set', next.id, 'rental:update');
   res.json({ code: 0, data: next });
 });
 // 退租管理
+function normalizeHouseInfo(value) {
+  return (value || '').trim().replace(/(号楼|栋|座|单元|室)/gu, ' ').replace(/[\s-]+/g, '-').replace(/-$/, '');
+}
+function checkoutSettlement(c) {
+  const deposits = DEPOSITS.filter(d => d.storeId === c.storeId && c.houseInfo && c.tenantName &&
+    normalizeHouseInfo(d.houseInfo) === normalizeHouseInfo(c.houseInfo) && d.tenantName === c.tenantName);
+  const pendingDepositCount = deposits.filter(d => !['refunded', 'deducted'].includes(d.status)).length;
+  const missing = !deposits.length && (c.expectedDepositAmount == null || Number(c.expectedDepositAmount) > 0);
+  const settlementBlockReason = pendingDepositCount ? `还有 ${pendingDepositCount} 笔押金未处置，请先退还或扣留`
+    : missing ? '未找到对应押金记录，请先核对押金登记与房源、租客信息'
+    : c.status !== 'confirmed' ? '仅审批通过后可完成清算' : '';
+  return { pendingDepositCount, depositCount: deposits.length, canComplete: !settlementBlockReason, settlementBlockReason };
+}
 app.get('/api/house/checkouts', (req, res) => {
   let data = [...CHECKOUTS];
   const { keyword, status, startDate, endDate, page, pageSize } = req.query;
@@ -1344,47 +1469,91 @@ app.get('/api/house/checkouts', (req, res) => {
   if (endDate) data = data.filter(c => c.checkoutDate && c.checkoutDate <= endDate);
   const p = parseInt(page) || 1, ps = parseInt(pageSize) || 20;
   const start = (p - 1) * ps;
-  res.json({ code: 0, data: { list: data.slice(start, start + ps), total: data.length } });
+  res.json({ code: 0, data: { list: data.slice(start, start + ps).map(c => ({ ...c, ...checkoutSettlement(c) })), total: data.length } });
 });
+app.get('/api/house/checkouts/:id', (req, res) => {
+  const checkout = CHECKOUTS.find(c => c.id === parseInt(req.params.id));
+  if (!checkout) return res.json({ code: 404, message: '退租记录不存在' });
+  res.json({ code: 0, data: { ...checkout, ...checkoutSettlement(checkout) } });
+});
+function checkoutTarget(checkout) {
+  if (!checkout.rentalSetId) return { error: '历史退租记录未关联房源，无法自动更新房态' };
+  const rentalSet = RENTAL_SETS.find(item => item.id === checkout.rentalSetId);
+  if (!rentalSet) return { error: '关联的出租房源不存在' };
+  if (checkout.rentalRoomId != null) {
+    const room = (rentalSet.rooms || []).find(item => item.id === checkout.rentalRoomId);
+    if (!room) return { error: '关联的出租房间不存在' };
+    return { rentalSet, room, target: room };
+  }
+  if (rentalSet.bizType !== 'entire') return { error: '合租房源请按房间发起退租' };
+  return { rentalSet, target: rentalSet };
+}
+
 app.post('/api/house/checkouts', (req, res) => {
-  const { houseInfo, tenantName, checkoutDate, reason, settlementAmount } = req.body || {};
+  const { houseInfo, tenantName, rentalSetId, rentalRoomId, checkoutDate, reason, settlementAmount } = req.body || {};
+  const ids = { rentalSetId: Number(rentalSetId), rentalRoomId: rentalRoomId == null ? null : Number(rentalRoomId) };
+  const linked = checkoutTarget(ids);
+  if (linked.error) return res.json({ code: 400, message: linked.error });
+  if (linked.target.status !== 'rented') return res.json({ code: 400, message: '仅已出租的房源或房间可发起退租' });
+  const duplicate = CHECKOUTS.find(item => item.status === 'pending' &&
+    item.rentalSetId === ids.rentalSetId && (item.rentalRoomId ?? null) === ids.rentalRoomId);
+  if (duplicate) return res.json({ code: 400, message: '该房源或房间已有待审批退租申请，请勿重复提交' });
   const now = new Date();
-  const code = 'CK-' + now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + '-' + String(CHECKOUTS.length + 1).padStart(3, '0');
   const record = {
-    id: CHECKOUTS.length + 1,
-    contractCode: code,
-    tenantName: tenantName || '',
-    houseInfo: houseInfo || '',
+    id: Math.max(0, ...CHECKOUTS.map(item => item.id)) + 1,
+    contractCode: 'CK-' + now.toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(CHECKOUTS.length + 1).padStart(3, '0'),
+    ...ids,
+    tenantName: linked.target.tenantName || tenantName || '',
+    houseInfo: `${linked.rentalSet.communityName || linked.rentalSet.address} ${linked.rentalSet.building}-${linked.rentalSet.unit}-${linked.rentalSet.roomNo}${ids.rentalRoomId ? ` ${linked.target.roomNo}室` : ''}`,
+    expectedDepositAmount: Number(ids.rentalRoomId ? linked.target.depositAmount || 0 : linked.rentalSet.deposit || 0),
+    storeId: linked.rentalSet.storeId,
     checkoutDate: checkoutDate || now.toISOString().slice(0, 10),
-    settlementAmount: settlementAmount || 0,
+    settlementAmount: settlementAmount ?? 0,
     reason: reason || '',
     status: 'pending',
     remark: '',
     createdAt: now.toISOString(),
   };
   CHECKOUTS.push(record);
+  linked.target.status = 'checkout';
   res.json({ code: 0, data: record });
 });
 app.post('/api/house/checkouts/:id/confirm', (req, res) => {
-  const idx = CHECKOUTS.findIndex(c => c.id === parseInt(req.params.id));
-  if (idx < 0) return res.json({ code: 404, message: '退租记录不存在' });
-  if (CHECKOUTS[idx].status !== 'pending') return res.json({ code: 400, message: '当前状态不可确认' });
-  CHECKOUTS[idx].status = 'confirmed';
-  res.json({ code: 0, data: CHECKOUTS[idx] });
-});
-// 完成清算：confirmed → completed；押金未处置（仍存在 pending 押金）时拦截
-app.post('/api/house/checkouts/:id/complete', (req, res) => {
-  const idx = CHECKOUTS.findIndex(c => c.id === parseInt(req.params.id));
-  if (idx < 0) return res.json({ code: 404, message: '退租记录不存在' });
-  const c = CHECKOUTS[idx];
-  if (c.status !== 'confirmed') return res.json({ code: 400, message: '仅已确认状态的退租可完成清算' });
-  const house = c.houseInfo || '';
-  const tenant = c.tenantName || '';
-  const pendingDeposits = DEPOSITS.filter(d => d.status === 'pending' && d.houseInfo === house && d.tenantName === tenant);
-  if (pendingDeposits.length) {
-    return res.json({ code: 400, message: `该房源仍有 ${pendingDeposits.length} 笔押金未处置（${pendingDeposits.map(d => d.contractCode).join('、')}），请先在押金管理中完成退还或扣留` });
+  const checkout = CHECKOUTS.find(c => c.id === Number(req.params.id));
+  if (!checkout) return res.json({ code: 404, message: '退租记录不存在' });
+  if (checkout.status !== 'pending') return res.json({ code: 400, message: '仅待审批的退租记录可审批通过' });
+  const linked = checkoutTarget(checkout);
+  if (linked.error) return res.json({ code: 400, message: linked.error });
+  const { rentalSet, room, target } = linked;
+  if (target.status !== 'checkout') return res.json({ code: 400, message: '房源或房间状态已变化，请刷新后重试' });
+  target.status = 'vacant';
+  target.tenantName = null;
+  target.tenantPhone = null;
+  if (room) {
+    room.tenantId = null;
+    room.cohabitantIds = null;
+    room.leaseStart = null;
+    room.leaseEnd = null;
+    room.paymentMethod = null;
+    rentalSet.vacantCount = rentalSet.rooms.filter(item => item.status === 'vacant').length;
+  } else {
+    rentalSet.tenantLeaseStart = null;
+    rentalSet.tenantLeaseEnd = null;
+    rentalSet.tenantPaymentMethod = null;
   }
+  checkout.status = 'confirmed';
+  checkout.confirmedAt = new Date().toISOString();
+  res.json({ code: 0, data: checkout });
+});
+// 清算只处理旧退租记录，不能再次修改已经释放或重新入住的房间。
+app.post('/api/house/checkouts/:id/complete', (req, res) => {
+  const c = CHECKOUTS.find(item => item.id === Number(req.params.id));
+  if (!c) return res.json({ code: 404, message: '退租记录不存在' });
+  if (c.status !== 'confirmed') return res.json({ code: 400, message: '仅已审批通过的退租记录可完成清算' });
+  const state = checkoutSettlement(c);
+  if (!state.canComplete) return res.json({ code: 400, message: state.settlementBlockReason });
   c.status = 'completed';
+  c.completedAt = new Date().toISOString();
   res.json({ code: 0, data: c });
 });
 // 押金管理
@@ -1416,22 +1585,68 @@ app.post('/api/house/deposits/:id/deduct', (req, res) => {
   res.json({ code: 0, data: DEPOSITS[idx] });
 });
 // 出售房源
+const SALE_TRANSITIONS = {
+  pre_publish: ['published', 'off_shelf'],
+  published: ['price_negotiation', 'quick_sale', 'off_shelf'],
+  price_negotiation: ['quick_sale', 'sold', 'published', 'off_shelf'],
+  quick_sale: ['sold', 'published', 'off_shelf'],
+  sold: ['published'],
+  off_shelf: ['published', 'pre_publish'],
+};
+function normalizeSaleStatus(status) {
+  return ({ selling: 'published', bargain: 'price_negotiation' })[status] || status;
+}
+function saleResponse(item) {
+  return {
+    ...item,
+    status: normalizeSaleStatus(item.status),
+    communityName: COMMUNITIES.find(c => c.id === item.communityId)?.name || item.communityName || '',
+    salePrice: Number(item.salePrice ?? item.totalPrice ?? 0),
+    totalPrice: Number(item.salePrice ?? item.totalPrice ?? 0),
+    allowedStatuses: SALE_TRANSITIONS[normalizeSaleStatus(item.status)] || [],
+  };
+}
+function salePage(query) {
+  let data = SALE_PROPERTIES;
+  const keyword = String(query.keyword || '').trim();
+  if (keyword) data = data.filter(item => [item.code, item.title, item.communityName, item.roomNo, item.ownerName].some(value => String(value || '').includes(keyword)));
+  if (query.status) data = data.filter(item => normalizeSaleStatus(item.status) === normalizeSaleStatus(query.status));
+  const page = Math.max(1, Number(query.page) || 1);
+  const pageSize = Math.min(200, Math.max(1, Number(query.pageSize) || 20));
+  return { list: data.slice((page - 1) * pageSize, page * pageSize).map(saleResponse), total: data.length };
+}
 app.get('/api/house/sale-properties', (req, res) => {
-  let data = [...SALE_PROPERTIES];
-  const { keyword, status } = req.query;
-  if (keyword) data = data.filter(s => s.title.includes(keyword) || s.communityName.includes(keyword));
-  if (status) data = data.filter(s => s.status === status);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  res.json({ code: 0, data: salePage(req.query) });
 });
-app.post('/api/house/sale-properties', (req, res) => {
-  const sp = { id: SALE_PROPERTIES.length + 1, code: 'SJ' + String(SALE_PROPERTIES.length + 1).padStart(3, '0'), ...req.body, createdAt: new Date().toISOString() };
-  SALE_PROPERTIES.push(sp);
-  res.json({ code: 0, data: sp });
+app.get('/api/house/sale-properties/export', (req, res) => {
+  res.json({ code: 0, data: salePage(req.query) });
 });
-app.put('/api/house/sale-properties/:id', (req, res) => {
-  const idx = SALE_PROPERTIES.findIndex(s => s.id === parseInt(req.params.id));
-  if (idx >= 0) Object.assign(SALE_PROPERTIES[idx], req.body);
-  res.json({ code: 0, data: SALE_PROPERTIES[idx] });
+app.get(['/api/house/sale-properties/:id/edit', '/api/house/sale-properties/:id'], (req, res) => {
+  const item = SALE_PROPERTIES.find(item => item.id === Number(req.params.id));
+  if (!item) return res.json({ code: 404, message: '售房房源不存在' });
+  res.json({ code: 0, data: saleResponse(item) });
+});
+app.post('/api/house/sale-properties', authMiddleware, (req, res) => {
+  const item = { ...req.body, id: Math.max(0, ...SALE_PROPERTIES.map(item => item.id)) + 1, status: 'pre_publish', createdAt: new Date().toISOString() };
+  SALE_PROPERTIES.push(item);
+  recordHouseOperation(req, 'sale_property', item.id, 'sale:create');
+  res.json({ code: 0, data: saleResponse(item) });
+});
+app.put('/api/house/sale-properties/:id', authMiddleware, (req, res) => {
+  const item = SALE_PROPERTIES.find(item => item.id === Number(req.params.id));
+  if (!item) return res.json({ code: 404, message: '售房房源不存在' });
+  const data = req.body || {};
+  if (['status', 'creatorId', 'storeId', 'code', 'id', 'createdAt', 'updatedAt'].some(key => Object.prototype.hasOwnProperty.call(data, key))) {
+    return res.json({ code: 400, message: '不可通过编辑接口修改状态、归属或系统字段' });
+  }
+  Object.assign(item, data);
+  recordHouseOperation(req, 'sale_property', item.id, 'sale:update');
+  res.json({ code: 0, data: saleResponse(item) });
+});
+app.post('/api/house/sale-properties/:id/change-status', authMiddleware, (req, res) => {
+  const result = createStatusApproval('sale_property', Number(req.params.id), req.body.status, req.user, req.body.remark);
+  if (result.error) return res.json(result.error);
+  res.json({ code: 0, data: result.record });
 });
 // 客源
 app.get('/api/house/customers', (req, res) => {
@@ -1447,11 +1662,31 @@ app.post('/api/house/customers', (req, res) => {
   res.json({ code: 0, data: c });
 });
 // 小区
+function communityCityId(item) {
+  return item.cityId || CITIES.find(city => city.name.replace(/市$/, '') === item.cityName?.replace(/市$/, ''))?.id || 1;
+}
+app.get('/api/community/filters', (req, res) => {
+  const cities = new Map();
+  for (const item of COMMUNITIES) {
+    const id = communityCityId(item);
+    if (!cities.has(id)) cities.set(id, { id, name: item.cityName || '未分类', count: 0, children: [] });
+    const city = cities.get(id);
+    city.count++;
+    const name = item.businessCircle || item.area || '未分类';
+    let child = city.children.find(child => child.name === name);
+    if (!child) { child = { name, count: 0 }; city.children.push(child); }
+    child.count++;
+  }
+  res.json({ code: 0, data: [...cities.values()] });
+});
 app.get('/api/community', (req, res) => {
   let data = [...COMMUNITIES];
-  const { keyword } = req.query;
+  const { keyword, cityId, businessCircle } = req.query;
   if (keyword) data = data.filter(c => c.name.includes(keyword) || c.district?.includes(keyword) || c.area?.includes(keyword) || c.address?.includes(keyword));
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  if (cityId) data = data.filter(c => communityCityId(c) === Number(cityId));
+  if (businessCircle) data = data.filter(c => (c.businessCircle || c.area || '未分类') === businessCircle);
+  const page = Math.max(1, Number(req.query.page) || 1), pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize) || 20));
+  res.json({ code: 0, data: { list: data.slice((page - 1) * pageSize, page * pageSize).map(item => ({ ...item, cityId: communityCityId(item) })), total: data.length } });
 });
 app.post('/api/community', (req, res) => {
   const c = { id: COMMUNITIES.length + 1, ...req.body, roomCount: 0, createdAt: new Date().toISOString() };
@@ -1602,9 +1837,17 @@ app.post('/api/finance/invoices', (req, res) => {
   res.json({ code: 0, data: v });
 });
 app.put('/api/finance/invoices/:id', (req, res) => {
+  if (Object.prototype.hasOwnProperty.call(req.body, 'status')) {
+    return res.json({ code: 400, message: '请通过审批流程变更发票状态' });
+  }
   const idx = INVOICES.findIndex(v => v.id === parseInt(req.params.id));
   if (idx >= 0) Object.assign(INVOICES[idx], req.body);
   res.json({ code: 0, data: INVOICES[idx] });
+});
+app.post('/api/finance/invoices/:id/change-status', authMiddleware, (req, res) => {
+  const result = createStatusApproval('invoice', parseInt(req.params.id), req.body.status, req.user, req.body.remark);
+  if (result.error) return res.json(result.error);
+  res.json({ code: 0, data: result.record });
 });
 // 报表
 app.get('/api/finance/rent-increases', (req, res) => {
@@ -1708,10 +1951,78 @@ app.get('/api/system/logs', (req, res) => {
   if (module) data = data.filter(l => l.module === module);
   res.json({ code: 0, data: { list: data, total: data.length } });
 });
+app.get('/api/system/approvals', authMiddleware, (req, res) => {
+  let data = [...APPROVALS];
+  const { result, entityType, entityId } = req.query;
+  if (result) data = data.filter(item => item.result === result);
+  if (entityType) data = data.filter(item => item.entityType === entityType);
+  if (entityId) data = data.filter(item => item.entityId === parseInt(entityId));
+  data.sort((a, b) => b.id - a.id);
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 20));
+  const start = (page - 1) * pageSize;
+  res.json({ code: 0, data: { list: data.slice(start, start + pageSize), total: data.length } });
+});
+app.post('/api/system/approvals/:id/approve', authMiddleware, (req, res) => {
+  const record = APPROVALS.find(item => item.id === parseInt(req.params.id));
+  if (!record) return res.json({ code: 404, message: '审批记录不存在' });
+  if (record.result !== 'pending') return res.json({ code: 400, message: '该审批已经处理，不能重复操作' });
+  const entity = findApprovalEntity(record.entityType, record.entityId);
+  if (!entity) return res.json({ code: 404, message: '待审批的业务数据不存在' });
+  if (entity.status !== record.fromStatus) return res.json({ code: 400, message: '业务状态已变化，该审批申请已失效' });
+  if (record.entityType === 'sale_property' && !(SALE_TRANSITIONS[normalizeSaleStatus(entity.status)] || []).includes(record.toStatus)) {
+    return res.json({ code: 400, message: '不允许该状态流转' });
+  }
+  entity.status = record.toStatus;
+  record.result = 'approved';
+  record.approverId = req.user.employeeId;
+  record.approverName = req.user.name;
+  if (req.body.remark && req.body.remark.trim()) {
+    record.remark = [record.remark, `审批意见：${req.body.remark.trim()}`].filter(Boolean).join('\n');
+  }
+  res.json({ code: 0, data: record });
+});
+app.post('/api/system/approvals/:id/reject', authMiddleware, (req, res) => {
+  const record = APPROVALS.find(item => item.id === parseInt(req.params.id));
+  if (!record) return res.json({ code: 404, message: '审批记录不存在' });
+  if (record.result !== 'pending') return res.json({ code: 400, message: '该审批已经处理，不能重复操作' });
+  record.result = 'rejected';
+  record.approverId = req.user.employeeId;
+  record.approverName = req.user.name;
+  if (req.body.remark && req.body.remark.trim()) {
+    record.remark = [record.remark, `审批意见：${req.body.remark.trim()}`].filter(Boolean).join('\n');
+  }
+  res.json({ code: 0, data: record });
+});
 
 // ============================================================
 //  Catch-all: unmatched API routes
 // ============================================================
+app.get('/api/house/details/:kind/:id', authMiddleware, (req, res) => {
+  const { kind } = req.params;
+  if (!['rent', 'sale'].includes(kind)) return res.json({ code: 404, message: '详情类型不存在' });
+  if (!req.user.permissions.some(p => p === '*' || p === `house:${kind}`)) return res.json({ code: 403, message: '无查看权限' });
+  const item = (kind === 'rent' ? RENTAL_SETS : SALE_PROPERTIES).find(p => p.id === Number(req.params.id));
+  if (!item) return res.json({ code: 404, message: '房源不存在' });
+  const roomId = req.query.roomId === undefined ? null : Number(req.query.roomId);
+  if (roomId !== null && (!Number.isInteger(roomId) || !(item.rooms || []).some(room => room.id === roomId))) return res.json({ code: 404, message: '房间不存在或不属于该房源' });
+  const type = kind === 'rent' ? 'rental_set' : 'sale_property';
+  const roomIds = (item.rooms || []).filter(room => !roomId || room.id === roomId).map(room => room.id);
+  const property = JSON.parse(JSON.stringify(kind === 'sale' ? saleResponse(item) : item));
+  for (const target of [property, ...(property.rooms || [])]) {
+    for (const field of ['ownerPhone', 'ownerPhoneBackup', 'landlordPhone', 'tenantPhone']) {
+      if (typeof target[field] === 'string') target[field] = target[field].replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2');
+    }
+    for (const field of ['idCard', 'ownerIdCard', 'landlordIdCard', 'tenantIdCard', 'bankCard', 'landlordBankCard']) {
+      if (typeof target[field] === 'string' && target[field].length > 8) target[field] = target[field].slice(0, 3) + '****' + target[field].slice(-4);
+    }
+  }
+  res.json({ code: 0, data: { property, roomId,
+    approvals: APPROVALS.filter(a => (a.entityType === type && a.entityId === item.id) || (a.entityType === 'rental_room' && roomIds.includes(a.entityId))).slice().reverse(),
+    checkouts: kind === 'rent' ? CHECKOUTS.filter(c => c.rentalSetId === item.id && (!roomId || c.rentalRoomId === roomId)).slice().reverse() : [],
+    operations: HOUSE_OPERATIONS.filter(log => log.objectType === type && log.objectId === String(item.id)).slice().reverse(),
+  } });
+});
 app.all('/api/*', authMiddleware, (req, res) => {
   res.status(404).json({ code: 404, message: '未知接口: ' + req.path });
 });
@@ -1734,11 +2045,23 @@ if (fs.existsSync(path.join(WEB_DIST, 'index.html'))) {
   console.log('web/dist not found — API-only mode (run vite build to enable static frontend)');
 }
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
+// 更新本地演示服务时可显式载入备份，避免丢失用户正在测试的数据；自动化测试始终使用种子。
+if (require.main === module && process.env.HOUSE_MOCK_STATE) {
+  const state = JSON.parse(fs.readFileSync(process.env.HOUSE_MOCK_STATE, 'utf8'));
+  const targets = { rentalSets: RENTAL_SETS, checkouts: CHECKOUTS, deposits: DEPOSITS, saleProperties: SALE_PROPERTIES, approvals: APPROVALS };
+  for (const key of Object.keys(targets)) {
+    if (!Array.isArray(state[key]) || state[key].some(item => !Number.isInteger(item.id))) throw new Error(`Invalid house snapshot: ${key}`);
+  }
+  for (const [key, target] of Object.entries(targets)) target.splice(0, target.length, ...state[key]);
+  console.log('Restored local house workflow snapshot');
+}
 // 绑定 '::' 实现双栈：Windows 上 IPv6 通配符默认同时接受 IPv4-mapped 连接，
 // 保证 localhost(可能解析为 ::1) 与 127.0.0.1 都可达
-app.listen(PORT, '::', () => {
+if (require.main === module) app.listen(PORT, '::', () => {
   console.log(`Mock server running on http://localhost:${PORT}/api (dual-stack)`);
   console.log('Available accounts (password: 123456):');
   Object.keys(USERS).forEach((k) => console.log(`  ${k} - ${USERS[k].name}`));
 });
+
+module.exports = app;
