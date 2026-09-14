@@ -165,6 +165,7 @@ textarea.input { height: auto; min-height: 96px; padding: 9px 11px; line-height:
 .page-btn svg.lucide { width: 13px; height: 13px; }
 .page-btn:hover { border-color: var(--primary); color: var(--primary); }
 .page-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; box-shadow: 0 2px 6px -1px rgba(46,107,240,0.4); }
+.page-btn:disabled { color: var(--ink-300); background: var(--ink-50); border-color: var(--ink-200); cursor: not-allowed; box-shadow: none; }
 
 /* ---------------- 双栏（树 + 表） ---------------- */
 .split-layout { display: flex; gap: 16px; align-items: flex-start; }
@@ -209,6 +210,8 @@ textarea.input { height: auto; min-height: 96px; padding: 9px 11px; line-height:
 .mt-4 { margin-top: 16px; }
 .hidden { display: none; }
 .empty-state { padding: 48px; text-align: center; color: var(--ink-400); }
+.form-page { width: 100%; max-width: 1180px; margin: 0 auto; }
+.form-page > .card { overflow: hidden; }
 
 /* ---------------- Toast ---------------- */
 .prototype-toast {
@@ -261,10 +264,28 @@ textarea.input { height: auto; min-height: 96px; padding: 9px 11px; line-height:
 @media (max-width: 768px) {
   .content { padding: 16px 14px 32px; }
   .filter-bar { flex-direction: column; align-items: stretch; }
+  .filter-group { width: 100%; }
+  .filter-group .input, .filter-group .select { flex: 1; min-width: 0; }
   .page-header { flex-direction: column; align-items: stretch; gap: 10px; }
   .page-actions .btn { flex: 1 1 calc(50% - 4px); justify-content: center; }
   .split-layout { flex-direction: column; }
   .tree-panel, .wizard-steps { width: 100%; flex: none; position: static; }
+  .table-footer { align-items: stretch; padding: 12px 14px; }
+  .pagination { width: 100%; justify-content: space-between; }
+  .pagination .page-btn { min-width: 36px; min-height: 34px; }
+  .empty-state { padding: 36px 20px; }
+  .el-dialog { width: calc(100vw - 28px) !important; margin-top: 8vh !important; }
+}
+
+@media (max-width: 520px) {
+  .content { padding: 14px 12px 28px; }
+  .page-title { font-size: 18px; }
+  .page-actions { width: 100%; }
+  .page-actions .btn { min-height: 38px; }
+  .filter-group { align-items: stretch; flex-direction: column; gap: 4px; }
+  .filter-bar > .btn { width: 100%; justify-content: center; min-height: 38px; }
+  .house-grid { grid-template-columns: minmax(0, 1fr); }
+  .field-grid, .room-list { grid-template-columns: 1fr; }
 }
 
 /* ---------------- 详情卡片（房源卡片） ---------------- */

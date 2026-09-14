@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
 import VChart from 'vue-echarts';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -132,10 +131,6 @@ async function loadDashboard() {
   }
 }
 
-function openUnavailable(name: string) {
-  ElMessage.info(`${name}暂未配置入口`);
-}
-
 onMounted(loadDashboard);
 </script>
 
@@ -259,12 +254,6 @@ onMounted(loadDashboard);
         </div>
         <div v-else class="empty-tip">暂无待办事项</div>
       </section>
-
-      <section class="assist-links" aria-label="辅助入口">
-        <button @click="openUnavailable('首页设置')">首页设置</button>
-        <button @click="openUnavailable('帮助中心')">帮助中心</button>
-        <button @click="openUnavailable('在线客服')">在线客服</button>
-      </section>
     </template>
   </div>
 </template>
@@ -368,8 +357,7 @@ onMounted(loadDashboard);
 .read-only-tip,
 .empty-tip { color: #94a3b8; font-size: 13px; padding: 12px 0; }
 
-.text-btn,
-.assist-links button {
+.text-btn {
   border: 0;
   background: transparent;
   color: #2563eb;
@@ -422,13 +410,6 @@ onMounted(loadDashboard);
 .priority-low { background: #3b82f6; }
 .todo-title { color: #334155; font-size: 13px; }
 .todo-row time { color: #94a3b8; font-size: 12px; }
-
-.assist-links {
-  display: flex;
-  justify-content: flex-end;
-  gap: 14px;
-  padding: 0 4px 8px;
-}
 
 @media (max-width: 960px) {
   .hero-grid,

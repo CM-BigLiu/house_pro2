@@ -97,6 +97,7 @@ export interface Invoice {
   amountWithoutTax: number;
   taxAmount: number;
   amountWithTax: number;
+  invoiceType?: 'normal' | 'special';
   remark?: string;
   issuer?: string;
   status: string;

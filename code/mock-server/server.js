@@ -130,11 +130,19 @@ function authMiddleware(req, res, next) {
   }
 }
 
+function requirePermission(...codes) {
+  return (req, res, next) => {
+    const permissions = req.user?.permissions || [];
+    if (permissions.includes('*') || codes.some(code => permissions.includes(code))) return next();
+    return res.status(403).json({ code: 403, message: '无操作权限' });
+  };
+}
+
 // POST /api/auth/login
 app.post('/api/auth/login', (req, res) => {
   const { mobile, password } = req.body;
   const user = USERS[mobile];
-  if (!user || password !== '123456') {
+  if (!user || password !== (user.password || '123456')) {
     return res.json({ code: 401, message: '账号或密码错误' });
   }
   const payload = {
@@ -1380,6 +1388,27 @@ function roleResponse(role) {
   return { ...role, permissions };
 }
 
+function employeeResponse(employee) {
+  const { password: _password, roleIds: _roleIds, storeIds: _storeIds, positionIds: _positionIds, ...safe } = employee;
+  return { ...safe, status: employee.status === 'active' ? 'normal' : employee.status };
+}
+
+function relatedRecords(ids, records) {
+  if (!Array.isArray(ids)) return null;
+  const normalizedIds = ids.map(Number);
+  return records.filter(record => normalizedIds.includes(record.id)).map(record => ({ id: record.id, name: record.name }));
+}
+
+function permissionsForRole(role) {
+  if (!role) return [];
+  if (Array.isArray(role.permissionIds)) {
+    return permissionList()
+      .filter(permission => role.permissionIds.includes(permission.id))
+      .map(permission => permissionAliases[permission.code] || permission.code);
+  }
+  return Object.values(USERS).find(user => user.role === role.code)?.permissions || [];
+}
+
 app.get('/api/system/dicts', (req, res) => {
   const keyword = (req.query.keyword || '').toLowerCase();
   const data = DICTS.filter(d => !keyword || d.code.includes(keyword) || d.name.includes(keyword));
@@ -1389,7 +1418,7 @@ app.get('/api/system/dicts/:code/items', (req, res) => {
   const items = DICT_ITEMS.filter(d => d.dictCode === req.params.code);
   res.json({ code: 0, data: items });
 });
-app.post('/api/system/dicts', (req, res) => {
+app.post('/api/system/dicts', authMiddleware, requirePermission('system:dictionary:edit'), (req, res) => {
   if (requireText(res, req.body, [['code', '字典编码'], ['name', '字典名称']])) return;
   if (DICTS.some(item => item.code === req.body.code.trim())) return res.status(400).json({ code: 400, message: '字典编码已存在' });
   const dict = { id: nextId(DICTS), ...req.body, code: req.body.code.trim(), name: req.body.name.trim(), enabled: true };
@@ -1401,42 +1430,47 @@ app.get('/api/system/dicts/id/:id', (req, res) => {
   if (!dict) return notFound(res, '字典不存在');
   res.json({ code: 0, data: dict });
 });
-app.put('/api/system/dicts/:id', (req, res) => {
+app.put('/api/system/dicts/:id', authMiddleware, requirePermission('system:dictionary:edit'), (req, res) => {
   if (requireText(res, req.body, [['code', '字典编码'], ['name', '字典名称']])) return;
   const idx = DICTS.findIndex(d => d.id === parseInt(req.params.id));
   if (idx < 0) return notFound(res, '字典不存在');
   Object.assign(DICTS[idx], req.body, { code: req.body.code.trim(), name: req.body.name.trim() });
   res.json({ code: 0, data: DICTS[idx] });
 });
-app.delete('/api/system/dicts/:id', (req, res) => {
+app.delete('/api/system/dicts/:id', authMiddleware, requirePermission('system:dictionary:edit'), (req, res) => {
   const id = parseInt(req.params.id);
   const idx = DICTS.findIndex(d => d.id === id);
-  if (idx >= 0) DICTS.splice(idx, 1);
-  res.json({ code: 0, data: null });
+  if (idx < 0) return notFound(res, '字典不存在');
+  const [dict] = DICTS.splice(idx, 1);
+  for (let itemIndex = DICT_ITEMS.length - 1; itemIndex >= 0; itemIndex--) {
+    if (DICT_ITEMS[itemIndex].dictCode === dict.code) DICT_ITEMS.splice(itemIndex, 1);
+  }
+  res.json({ code: 0, data: { id: dict.id } });
 });
-app.post('/api/system/dicts/items', (req, res) => {
+app.post('/api/system/dicts/items', authMiddleware, requirePermission('system:dictionary:edit'), (req, res) => {
   if (requireText(res, req.body, [['dictCode', '所属字典'], ['value', '字典值'], ['label', '显示名']])) return;
   if (DICT_ITEMS.some(item => item.dictCode === req.body.dictCode && item.value === req.body.value.trim())) return res.status(400).json({ code: 400, message: '该字典值已存在' });
   const item = { id: nextId(DICT_ITEMS), ...req.body, value: req.body.value.trim(), label: req.body.label.trim() };
   DICT_ITEMS.push(item);
   res.json({ code: 0, data: item });
 });
-app.put('/api/system/dicts/items/:id', (req, res) => {
+app.put('/api/system/dicts/items/:id', authMiddleware, requirePermission('system:dictionary:edit'), (req, res) => {
   if (requireText(res, req.body, [['value', '字典值'], ['label', '显示名']])) return;
   const idx = DICT_ITEMS.findIndex(d => d.id === parseInt(req.params.id));
   if (idx < 0) return notFound(res, '字典项不存在');
   Object.assign(DICT_ITEMS[idx], req.body, { value: req.body.value.trim(), label: req.body.label.trim() });
   res.json({ code: 0, data: DICT_ITEMS[idx] });
 });
-app.delete('/api/system/dicts/items/:id', (req, res) => {
+app.delete('/api/system/dicts/items/:id', authMiddleware, requirePermission('system:dictionary:edit'), (req, res) => {
   const id = parseInt(req.params.id);
   const idx = DICT_ITEMS.findIndex(d => d.id === id);
-  if (idx >= 0) DICT_ITEMS.splice(idx, 1);
-  res.json({ code: 0, data: null });
+  if (idx < 0) return notFound(res, '字典项不存在');
+  const [item] = DICT_ITEMS.splice(idx, 1);
+  res.json({ code: 0, data: { id: item.id } });
 });
 app.get('/api/system/employees', (req, res) => {
   const keyword = (req.query.keyword || '').toLowerCase();
-  let data = EMPLOYEES.map(employee => ({ ...employee, status: employee.status === 'active' ? 'normal' : employee.status }));
+  let data = EMPLOYEES.map(employeeResponse);
   data = data.filter(e => !keyword || e.name.includes(keyword) || e.mobile.includes(keyword));
   if (req.query.statusFilter) data = data.filter(e => e.status === req.query.statusFilter);
   if (req.query.storeId) data = data.filter(e => e.stores?.some(store => store.id === Number(req.query.storeId)));
@@ -1444,41 +1478,96 @@ app.get('/api/system/employees', (req, res) => {
   const page = Math.max(1, Number(req.query.page) || 1), pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize) || 20));
   res.json({ code: 0, data: { list: data.slice((page - 1) * pageSize, page * pageSize), total: data.length } });
 });
-app.post('/api/system/employees', (req, res) => {
-  if (requireText(res, req.body, [['name', '姓名'], ['mobile', '手机号']])) return;
-  const emp = { id: nextId(EMPLOYEES), ...req.body, entryDate: new Date().toISOString().slice(0, 10) };
+app.post('/api/system/employees', authMiddleware, requirePermission('system:employee:edit'), (req, res) => {
+  if (requireText(res, req.body, [['name', '姓名'], ['mobile', '手机号'], ['password', '初始密码']])) return;
+  const name = req.body.name.trim();
+  const mobile = req.body.mobile.trim();
+  if (!/^1\d{10}$/.test(mobile)) return res.status(400).json({ code: 400, message: '请输入正确的 11 位手机号' });
+  if (req.body.password.length < 8) return res.status(400).json({ code: 400, message: '初始密码至少 8 位' });
+  if (!Array.isArray(req.body.roleIds) || !req.body.roleIds.length) return res.status(400).json({ code: 400, message: '请至少选择一个角色' });
+  if (EMPLOYEES.some(employee => employee.mobile === mobile) || USERS[mobile]) return res.status(400).json({ code: 400, message: '手机号已存在' });
+  const roles = relatedRecords(req.body.roleIds, ROLES) || [];
+  const stores = relatedRecords(req.body.storeIds, STORES) || [];
+  const positions = relatedRecords(req.body.positionIds, POSITIONS) || [];
+  if (Array.isArray(req.body.roleIds) && roles.length !== new Set(req.body.roleIds.map(Number)).size) return res.status(400).json({ code: 400, message: '角色不存在' });
+  if (Array.isArray(req.body.storeIds) && stores.length !== new Set(req.body.storeIds.map(Number)).size) return res.status(400).json({ code: 400, message: '门店不存在' });
+  if (Array.isArray(req.body.positionIds) && positions.length !== new Set(req.body.positionIds.map(Number)).size) return res.status(400).json({ code: 400, message: '岗位不存在' });
+  const { password, roleIds: _roleIds, storeIds: _storeIds, positionIds: _positionIds, ...fields } = req.body;
+  const emp = {
+    id: nextId(EMPLOYEES), ...fields, name, mobile, roles, stores, positions,
+    entryDate: req.body.entryDate || new Date().toISOString().slice(0, 10),
+  };
   EMPLOYEES.push(emp);
-  res.json({ code: 0, data: emp });
+  const primaryRole = ROLES.find(role => role.id === Number(req.body.roleIds?.[0]));
+  if (primaryRole) {
+    USERS[mobile] = {
+      id: emp.id, name, mobile, password, managedEmployee: true,
+      role: primaryRole.code, roleName: primaryRole.name, dataScope: primaryRole.dataScope || 'self',
+      storeIds: stores.map(store => store.id), groupIds: [], assignedStoreIds: primaryRole.assignedStores || [],
+      permissions: [...permissionsForRole(primaryRole)],
+    };
+  }
+  res.json({ code: 0, data: employeeResponse(emp) });
 });
 app.get('/api/system/employees/:id/edit', (req, res) => {
   const employee = EMPLOYEES.find(item => item.id === Number(req.params.id));
   if (!employee) return notFound(res, '员工不存在');
-  res.json({ code: 0, data: { ...employee, status: employee.status === 'active' ? 'normal' : employee.status } });
+  res.json({ code: 0, data: employeeResponse(employee) });
 });
-app.put('/api/system/employees/:id', (req, res) => {
+app.put('/api/system/employees/:id', authMiddleware, requirePermission('system:employee:edit'), (req, res) => {
   if (requireText(res, req.body, [['name', '姓名'], ['mobile', '手机号']])) return;
   const idx = EMPLOYEES.findIndex(e => e.id === parseInt(req.params.id));
   if (idx < 0) return notFound(res, '员工不存在');
-  Object.assign(EMPLOYEES[idx], req.body);
-  res.json({ code: 0, data: EMPLOYEES[idx] });
+  const name = req.body.name.trim();
+  const mobile = req.body.mobile.trim();
+  if (mobile !== 'super_admin' && !/^1\d{10}$/.test(mobile)) return res.status(400).json({ code: 400, message: '请输入正确的 11 位手机号' });
+  if (req.body.password && req.body.password.length < 8) return res.status(400).json({ code: 400, message: '重置密码至少 8 位' });
+  if (!Array.isArray(req.body.roleIds) || !req.body.roleIds.length) return res.status(400).json({ code: 400, message: '请至少选择一个角色' });
+  if (EMPLOYEES.some(employee => employee.id !== EMPLOYEES[idx].id && employee.mobile === mobile)) return res.status(400).json({ code: 400, message: '手机号已存在' });
+  const roles = relatedRecords(req.body.roleIds, ROLES) || EMPLOYEES[idx].roles || [];
+  const stores = relatedRecords(req.body.storeIds, STORES) || EMPLOYEES[idx].stores || [];
+  const positions = relatedRecords(req.body.positionIds, POSITIONS) || EMPLOYEES[idx].positions || [];
+  if (roles.length !== new Set(req.body.roleIds.map(Number)).size) return res.status(400).json({ code: 400, message: '角色不存在' });
+  if (Array.isArray(req.body.storeIds) && stores.length !== new Set(req.body.storeIds.map(Number)).size) return res.status(400).json({ code: 400, message: '门店不存在' });
+  if (Array.isArray(req.body.positionIds) && positions.length !== new Set(req.body.positionIds.map(Number)).size) return res.status(400).json({ code: 400, message: '岗位不存在' });
+  const { password, roleIds: _roleIds, storeIds: _storeIds, positionIds: _positionIds, ...fields } = req.body;
+  Object.assign(EMPLOYEES[idx], fields, { name, mobile, roles, stores, positions });
+  const managedEntry = Object.entries(USERS).find(([, user]) => user.managedEmployee && user.id === EMPLOYEES[idx].id);
+  if (managedEntry) {
+    const [oldKey, account] = managedEntry;
+    const primaryRole = ROLES.find(role => role.id === Number(req.body.roleIds?.[0])) || ROLES.find(role => role.code === account.role);
+    delete USERS[oldKey];
+    USERS[mobile] = {
+      ...account, name, mobile, ...(password ? { password } : {}),
+      role: primaryRole?.code || account.role, roleName: primaryRole?.name || account.roleName,
+      dataScope: primaryRole?.dataScope || account.dataScope, assignedStoreIds: primaryRole?.assignedStores || [],
+      storeIds: stores.map(store => store.id), permissions: [...permissionsForRole(primaryRole)],
+    };
+  }
+  res.json({ code: 0, data: employeeResponse(EMPLOYEES[idx]) });
 });
-app.delete('/api/system/employees/:id', (req, res) => {
+app.delete('/api/system/employees/:id', authMiddleware, requirePermission('system:employee:edit'), (req, res) => {
   const id = parseInt(req.params.id);
   const idx = EMPLOYEES.findIndex(e => e.id === id);
-  if (idx >= 0) EMPLOYEES.splice(idx, 1);
-  res.json({ code: 0, data: null });
+  if (idx < 0) return notFound(res, '员工不存在');
+  if (id === 1) return res.status(400).json({ code: 400, message: '不能删除超级管理员账号' });
+  const [employee] = EMPLOYEES.splice(idx, 1);
+  for (const [key, user] of Object.entries(USERS)) {
+    if (user.managedEmployee && user.id === id) delete USERS[key];
+  }
+  res.json({ code: 0, data: { id: employee.id } });
 });
 app.get('/api/system/roles', (req, res) => {
   res.json({ code: 0, data: ROLES.map(roleResponse) });
 });
-app.post('/api/system/roles', (req, res) => {
+app.post('/api/system/roles', authMiddleware, requirePermission('system:role:edit'), (req, res) => {
   if (requireText(res, req.body, [['code', '角色代码'], ['name', '角色名称']])) return;
   if (ROLES.some(item => item.code === req.body.code.trim())) return res.status(400).json({ code: 400, message: '角色代码已存在' });
   const role = { id: nextId(ROLES), ...req.body, code: req.body.code.trim(), name: req.body.name.trim(), isBuiltin: false };
   ROLES.push(role);
   res.json({ code: 0, data: roleResponse(role) });
 });
-app.put('/api/system/roles/:id', (req, res) => {
+app.put('/api/system/roles/:id', authMiddleware, requirePermission('system:role:edit'), (req, res) => {
   const idx = ROLES.findIndex(r => r.id === parseInt(req.params.id));
   if (idx < 0) return notFound(res, '角色不存在');
   Object.assign(ROLES[idx], req.body);
@@ -1490,11 +1579,16 @@ app.put('/api/system/roles/:id', (req, res) => {
   }
   res.json({ code: 0, data: roleResponse(ROLES[idx]) });
 });
-app.delete('/api/system/roles/:id', (req, res) => {
+app.delete('/api/system/roles/:id', authMiddleware, requirePermission('system:role:edit'), (req, res) => {
   const id = parseInt(req.params.id);
   const idx = ROLES.findIndex(r => r.id === id);
-  if (idx >= 0) ROLES.splice(idx, 1);
-  res.json({ code: 0, data: null });
+  if (idx < 0) return notFound(res, '角色不存在');
+  const role = ROLES[idx];
+  if (role.isBuiltin || EMPLOYEES.some(employee => employee.roles?.some(item => item.id === id))) {
+    return res.status(400).json({ code: 400, message: '内置或已分配员工的角色不能删除' });
+  }
+  ROLES.splice(idx, 1);
+  res.json({ code: 0, data: { id: role.id } });
 });
 app.get('/api/system/permissions/tree', (req, res) => {
   res.json({ code: 0, data: PERM_TREE });
@@ -1752,7 +1846,7 @@ app.put('/api/house/sale-properties/:id', authMiddleware, (req, res) => {
   recordHouseOperation(req, 'sale_property', item.id, 'sale:update');
   res.json({ code: 0, data: saleResponse(item) });
 });
-app.post('/api/house/sale-properties/:id/change-status', authMiddleware, (req, res) => {
+app.post('/api/house/sale-properties/:id/change-status', authMiddleware, requirePermission('sale:changeStatus'), (req, res) => {
   const result = createStatusApproval('sale_property', Number(req.params.id), req.body.status, req.user, req.body.remark);
   if (result.error) return res.json(result.error);
   res.json({ code: 0, data: result.record });
@@ -1831,7 +1925,7 @@ app.get('/api/community', (req, res) => {
   const page = Math.max(1, Number(req.query.page) || 1), pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize) || 20));
   res.json({ code: 0, data: { list: data.slice((page - 1) * pageSize, page * pageSize).map(item => ({ ...item, cityId: communityCityId(item) })), total: data.length } });
 });
-app.post('/api/community', (req, res) => {
+app.post('/api/community', authMiddleware, requirePermission('house:community:create'), (req, res) => {
   if (requireText(res, req.body, [['name', '小区名称']])) return;
   const cityName = CITIES.find(city => city.id === Number(req.body.cityId))?.name || req.body.cityName || '';
   const c = { id: nextId(COMMUNITIES), ...req.body, cityName, roomCount: 0, createdAt: new Date().toISOString() };
@@ -1843,7 +1937,7 @@ app.get('/api/community/:id', (req, res) => {
   if (!community) return notFound(res, '小区不存在');
   res.json({ code: 0, data: { ...community, cityId: communityCityId(community) } });
 });
-app.put('/api/community/:id', (req, res) => {
+app.put('/api/community/:id', authMiddleware, requirePermission('house:community:edit'), (req, res) => {
   if (requireText(res, req.body, [['name', '小区名称']])) return;
   const community = COMMUNITIES.find(item => item.id === Number(req.params.id));
   if (!community) return notFound(res, '小区不存在');
@@ -1851,7 +1945,7 @@ app.put('/api/community/:id', (req, res) => {
   Object.assign(community, req.body, { cityName });
   res.json({ code: 0, data: community });
 });
-app.delete('/api/community/:id', (req, res) => {
+app.delete('/api/community/:id', authMiddleware, requirePermission('house:community:delete'), (req, res) => {
   const index = COMMUNITIES.findIndex(item => item.id === Number(req.params.id));
   if (index < 0) return notFound(res, '小区不存在');
   const [community] = COMMUNITIES.splice(index, 1);
@@ -1866,24 +1960,25 @@ app.get('/api/house/blacklist', (req, res) => {
   if (status) data = data.filter(b => b.status === status);
   res.json({ code: 0, data: paginate(req.query, data) });
 });
-app.post('/api/house/blacklist', (req, res) => {
+app.post('/api/house/blacklist', authMiddleware, requirePermission('house:blacklist:create'), (req, res) => {
   if (requireText(res, req.body, [['name', '姓名'], ['type', '黑名单类型'], ['reason', '拉黑原因']])) return;
   const b = { id: nextId(BLACKLIST), ...req.body, storeId: 1, createdAt: new Date().toISOString().slice(0, 10) };
   BLACKLIST.push(b);
   res.json({ code: 0, data: b });
 });
-app.put('/api/house/blacklist/:id', (req, res) => {
+app.put('/api/house/blacklist/:id', authMiddleware, requirePermission('house:blacklist:edit'), (req, res) => {
   if (requireText(res, req.body, [['name', '姓名'], ['type', '黑名单类型'], ['reason', '拉黑原因']])) return;
   const idx = BLACKLIST.findIndex(b => b.id === parseInt(req.params.id));
   if (idx < 0) return notFound(res, '黑名单记录不存在');
   Object.assign(BLACKLIST[idx], req.body);
   res.json({ code: 0, data: BLACKLIST[idx] });
 });
-app.delete('/api/house/blacklist/:id', (req, res) => {
+app.delete('/api/house/blacklist/:id', authMiddleware, requirePermission('house:blacklist:delete'), (req, res) => {
   const id = parseInt(req.params.id);
   const idx = BLACKLIST.findIndex(b => b.id === id);
-  if (idx >= 0) BLACKLIST.splice(idx, 1);
-  res.json({ code: 0, data: null });
+  if (idx < 0) return notFound(res, '黑名单记录不存在');
+  const [item] = BLACKLIST.splice(idx, 1);
+  res.json({ code: 0, data: { id: item.id } });
 });
 app.get('/api/house/blacklist/check', (req, res) => {
   const { mobile, idCard, name } = req.query;
@@ -2127,7 +2222,7 @@ app.get('/api/finance/plans', (req, res) => {
   if (status) data = data.filter(p => p.status === status);
   res.json({ code: 0, data: paginate(req.query, data) });
 });
-app.post('/api/finance/plans', (req, res) => {
+app.post('/api/finance/plans', authMiddleware, requirePermission('finance:plan'), (req, res) => {
   if (requireText(res, req.body, [['planType', '计划类型']])) return;
   if (Number(req.body.totalPeriods) <= 0 || Number(req.body.totalAmount) <= 0) return res.status(400).json({ code: 400, message: '总期数和总金额必须大于 0' });
   if (!String(req.body.billingCategory || req.body.reason || '').trim()) return res.status(400).json({ code: 400, message: '请填写款项种类或原因' });
@@ -2147,7 +2242,7 @@ app.get('/api/finance/plans/:id/edit', (req, res) => {
   if (!plan) return notFound(res, '收支计划不存在');
   res.json({ code: 0, data: plan });
 });
-app.put('/api/finance/plans/:id', (req, res) => {
+app.put('/api/finance/plans/:id', authMiddleware, requirePermission('finance:plan'), (req, res) => {
   const plan = PAYMENT_PLANS.find(item => item.id === Number(req.params.id));
   if (!plan) return notFound(res, '收支计划不存在');
   if (Number(req.body.totalPeriods) <= 0 || Number(req.body.totalAmount) <= 0) return res.status(400).json({ code: 400, message: '总期数和总金额必须大于 0' });
@@ -2194,17 +2289,18 @@ app.get('/api/finance/payouts', (req, res) => {
   if (dateEnd) data = data.filter(p => String(p.operateDate || '') <= dateEnd);
   res.json({ code: 0, data: paginate(req.query, data) });
 });
-app.post('/api/finance/payouts', (req, res) => {
+app.post('/api/finance/payouts', authMiddleware, requirePermission('finance:payout:create'), (req, res) => {
   if (requireText(res, req.body, [['accountName', '收款人'], ['bankName', '开户行'], ['operateDate', '计划付款日']])) return;
   if (Number(req.body.payoutAmount) <= 0) return res.status(400).json({ code: 400, message: '代付金额必须大于 0' });
   const p = { id: nextId(PAYOUTS), ...req.body, batchNo: 'ZF' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + String(nextId(PAYOUTS)).padStart(3, '0'), actualAmount: 0, status: 'pending', createdAt: new Date().toISOString() };
   PAYOUTS.push(p);
   res.json({ code: 0, data: p });
 });
-app.post('/api/finance/payouts/batch-pay', (req, res) => {
-  const ids = Array.isArray(req.body.ids) ? req.body.ids.map(Number) : [];
+app.post('/api/finance/payouts/batch-pay', authMiddleware, requirePermission('finance:payout:batch'), (req, res) => {
+  const ids = Array.isArray(req.body.ids) ? [...new Set(req.body.ids.map(Number))] : [];
   if (!ids.length) return res.status(400).json({ code: 400, message: '请选择待支付记录' });
   const changed = PAYOUTS.filter(item => ids.includes(item.id) && item.status === 'pending');
+  if (changed.length !== ids.length) return res.status(400).json({ code: 400, message: '选择项包含不存在或已支付的记录，请刷新后重试' });
   changed.forEach(item => { item.status = 'paid'; item.actualAmount = Number(item.payoutAmount || item.payableAmount || 0); });
   res.json({ code: 0, data: { count: changed.length } });
 });
@@ -2215,14 +2311,17 @@ app.get('/api/finance/invoices', (req, res) => {
   if (status) data = data.filter(v => v.status === status);
   res.json({ code: 0, data: paginate(req.query, data) });
 });
-app.post('/api/finance/invoices', (req, res) => {
+app.post('/api/finance/invoices', authMiddleware, requirePermission('finance:ticket:apply'), (req, res) => {
   if (requireText(res, req.body, [['applySource', '开票项目'], ['buyerName', '购方名称']])) return;
   if (Number(req.body.amountWithTax) <= 0) return res.status(400).json({ code: 400, message: '价税合计必须大于 0' });
-  const v = { id: nextId(INVOICES), ...req.body, status: 'pending', createdAt: new Date().toISOString() };
+  const invoiceType = req.body.invoiceType || 'normal';
+  if (!['normal', 'special'].includes(invoiceType)) return res.status(400).json({ code: 400, message: '发票类型不正确' });
+  if (invoiceType === 'special' && !String(req.body.buyerTaxNo || '').trim()) return res.status(400).json({ code: 400, message: '专票必须填写纳税人识别号' });
+  const v = { id: nextId(INVOICES), ...req.body, invoiceType, status: 'pending', createdAt: new Date().toISOString() };
   INVOICES.push(v);
   res.json({ code: 0, data: v });
 });
-app.put('/api/finance/invoices/:id', (req, res) => {
+app.put('/api/finance/invoices/:id', authMiddleware, requirePermission('finance:ticket:apply'), (req, res) => {
   if (Object.prototype.hasOwnProperty.call(req.body, 'status')) {
     return res.json({ code: 400, message: '请通过审批流程变更发票状态' });
   }
@@ -2230,7 +2329,7 @@ app.put('/api/finance/invoices/:id', (req, res) => {
   if (idx >= 0) Object.assign(INVOICES[idx], req.body);
   res.json({ code: 0, data: INVOICES[idx] });
 });
-app.post('/api/finance/invoices/:id/change-status', authMiddleware, (req, res) => {
+app.post('/api/finance/invoices/:id/change-status', authMiddleware, requirePermission('finance:ticket:approve'), (req, res) => {
   const result = createStatusApproval('invoice', parseInt(req.params.id), req.body.status, req.user, req.body.remark);
   if (result.error) return res.json(result.error);
   res.json({ code: 0, data: result.record });
@@ -2386,7 +2485,7 @@ app.get('/api/system/approvals', authMiddleware, (req, res) => {
   const start = (page - 1) * pageSize;
   res.json({ code: 0, data: { list: data.slice(start, start + pageSize), total: data.length } });
 });
-app.post('/api/system/approvals/:id/approve', authMiddleware, (req, res) => {
+app.post('/api/system/approvals/:id/approve', authMiddleware, requirePermission('system:approval:review'), (req, res) => {
   const record = APPROVALS.find(item => item.id === parseInt(req.params.id));
   if (!record) return res.json({ code: 404, message: '审批记录不存在' });
   if (record.result !== 'pending') return res.json({ code: 400, message: '该审批已经处理，不能重复操作' });
@@ -2405,7 +2504,7 @@ app.post('/api/system/approvals/:id/approve', authMiddleware, (req, res) => {
   }
   res.json({ code: 0, data: record });
 });
-app.post('/api/system/approvals/:id/reject', authMiddleware, (req, res) => {
+app.post('/api/system/approvals/:id/reject', authMiddleware, requirePermission('system:approval:review'), (req, res) => {
   const record = APPROVALS.find(item => item.id === parseInt(req.params.id));
   if (!record) return res.json({ code: 404, message: '审批记录不存在' });
   if (record.result !== 'pending') return res.json({ code: 400, message: '该审批已经处理，不能重复操作' });

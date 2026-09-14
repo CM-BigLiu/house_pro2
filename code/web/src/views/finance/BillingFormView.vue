@@ -11,7 +11,7 @@ const form = reactive({
   buyerName: '',
   buyerTaxNo: '',
   amountWithTax: 0,
-  invoiceType: 'normal',
+  invoiceType: 'normal' as 'normal' | 'special',
   remark: '',
 });
 const submitting = ref(false);
@@ -33,6 +33,7 @@ async function submit() {
       amountWithoutTax,
       taxAmount,
       amountWithTax,
+      invoiceType: form.invoiceType,
       remark: form.remark,
     });
     ElMessage.success('开票申请已提交');
@@ -61,13 +62,13 @@ async function submit() {
         <el-form-item label="开票项目" required>
           <el-input v-model="form.applySource" />
         </el-form-item>
-        <el-form-item label="开票对象">
+        <el-form-item label="开票对象" required>
           <el-input v-model="form.buyerName" />
         </el-form-item>
         <el-form-item label="纳税人识别号">
           <el-input v-model="form.buyerTaxNo" />
         </el-form-item>
-        <el-form-item label="金额">
+        <el-form-item label="金额" required>
           <el-input-number v-model="form.amountWithTax" :min="0" controls-position="right" style="width: 100%;" />
         </el-form-item>
         <el-form-item label="发票类型">

@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
+import { Bell, ChevronDown, ListTodo, LogOut, Menu } from 'lucide-vue-next';
 import { useUserStore } from '../../stores/user';
 
 const route = useRoute();
+const router = useRouter();
 const userStore = useUserStore();
+const emit = defineEmits<{ 'toggle-sidebar': [] }>();
 
 // Breadcrumb map: route path → Chinese label
 const breadcrumbMap: Record<string, string> = {
@@ -41,8 +44,10 @@ const breadcrumbMap: Record<string, string> = {
 
 const breadcrumbs = computed(() => {
   const name = breadcrumbMap[route.path] || route.meta?.title as string || '';
-  const segments: { label: string; path?: string }[] = [{ label: '首页', path: '/' }];
-  if (name && route.path !== '/') {
+  const segments: { label: string; path?: string }[] = [
+    { label: '首页', path: route.path === '/home' ? undefined : '/home' },
+  ];
+  if (name && name !== '首页') {
     segments.push({ label: name });
   }
   return segments;
@@ -53,11 +58,31 @@ const initials = computed(() => {
   const n = user.value.name;
   return n ? n.charAt(0) : '用';
 });
+
+async function handleUserCommand(command: string) {
+  if (command === 'todos') {
+    await router.push('/home/todos');
+    return;
+  }
+  if (command === 'logout') {
+    await userStore.logout();
+    await router.push('/login');
+  }
+}
 </script>
 
 <template>
   <header class="header">
     <div class="header-left">
+      <button
+        type="button"
+        class="icon-btn menu-toggle"
+        aria-label="打开导航菜单"
+        aria-controls="app-sidebar"
+        @click="emit('toggle-sidebar')"
+      >
+        <Menu :size="19" />
+      </button>
       <div class="breadcrumb">
         <template v-for="(crumb, i) in breadcrumbs" :key="i">
           <router-link v-if="crumb.path" :to="crumb.path">{{ crumb.label }}</router-link>
@@ -67,19 +92,23 @@ const initials = computed(() => {
       </div>
     </div>
     <div class="header-right">
-      <button class="icon-btn is-active" title="消息">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span class="badge"></span>
-      </button>
-      <button class="icon-btn" title="通知">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+      <button type="button" class="icon-btn" aria-label="我的待办" title="我的待办" @click="router.push('/home/todos')">
+        <Bell :size="17" />
       </button>
       <div class="header-divider"></div>
-      <div class="user">
-        <span class="user-avatar">{{ initials }}</span>
-        <span class="user-name">{{ user.name }}</span>
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ink-300)"><path d="m6 9 6 6 6-6"/></svg>
-      </div>
+      <el-dropdown trigger="click" @command="handleUserCommand">
+        <button type="button" class="user" aria-label="打开用户菜单">
+          <span class="user-avatar">{{ initials }}</span>
+          <span class="user-name">{{ user.name }}</span>
+          <ChevronDown :size="13" class="user-chevron" />
+        </button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="todos"><ListTodo :size="15" />我的待办</el-dropdown-item>
+            <el-dropdown-item command="logout" divided><LogOut :size="15" />退出登录</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
   </header>
 </template>
@@ -136,6 +165,7 @@ const initials = computed(() => {
   flex-wrap: wrap;
   max-width: 78%;
 }
+.menu-toggle { display: none; }
 .icon-btn {
   width: 34px;
   height: 34px;
@@ -154,17 +184,6 @@ const initials = computed(() => {
 }
 .icon-btn:hover { background: var(--ink-100); color: var(--ink-800); }
 .icon-btn.is-active { background: var(--primary-soft); color: var(--primary); }
-.badge {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 8px;
-  height: 8px;
-  background: var(--danger);
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 0 0 1px rgba(220,38,38,0.2);
-}
 .header-divider {
   width: 1px;
   height: 20px;
@@ -181,8 +200,11 @@ const initials = computed(() => {
   cursor: pointer;
   transition: background 0.15s;
   border: 1px solid transparent;
+  background: transparent;
 }
 .user:hover { background: var(--ink-100); }
+.user:focus-visible,
+.icon-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .user-avatar {
   width: 30px;
   height: 30px;
@@ -201,5 +223,20 @@ const initials = computed(() => {
   font-size: 13px;
   color: var(--ink-700);
   font-weight: 600;
+}
+.user-chevron { color: var(--ink-400); }
+
+@media (max-width: 768px) {
+  .header { padding: 9px 14px; }
+  .menu-toggle { display: inline-flex; }
+  .breadcrumb { overflow: hidden; text-overflow: ellipsis; }
+  .breadcrumb > * { flex: none; }
+  .header-divider { margin: 0 2px; }
+}
+
+@media (max-width: 480px) {
+  .user-name,
+  .header-divider { display: none; }
+  .user { padding-right: 4px; }
 }
 </style>

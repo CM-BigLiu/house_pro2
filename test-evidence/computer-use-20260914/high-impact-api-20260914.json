@@ -1,0 +1,36 @@
+{
+  "encoding": "UTF-8",
+  "testedAt": "2026-09-14T16:14:00+08:00",
+  "target": "http://127.0.0.1:3000/api",
+  "method": "隔离 Node.js 工作流回归 + 重启后本地 Mock API 生命周期复测",
+  "computerUse": {
+    "status": "blocked",
+    "error": "nodeRepl.fetch request failed",
+    "recovery": "常规重试及内核重置后仍失败，未取得浏览器或标签页"
+  },
+  "results": {
+    "blacklistCleanup": true,
+    "communityCleanup": true,
+    "dictionaryCleanup": true,
+    "employeeCreateLoginDelete": true,
+    "authorizationBoundaries": true,
+    "permissionSaveAndRestore": true,
+    "saleApproval": true,
+    "batchPayment": "2/2",
+    "specialInvoiceCreated": true,
+    "paymentPlanCreated": true
+  },
+  "postTestReset": {
+    "pendingPayouts": 2,
+    "approvals": 0,
+    "invoices": 7,
+    "plans": 11,
+    "testEmployees": 0
+  },
+  "authorizationChecks": {
+    "anonymousBatchPaymentHttpStatus": 401,
+    "salesmanDeleteEmployeeHttpStatus": 403
+  },
+  "unexpectedNetworkErrors": [],
+  "notes": "所有高影响写入仅作用于本地内存 Mock；复测后通过重启服务恢复种子状态。"
+}

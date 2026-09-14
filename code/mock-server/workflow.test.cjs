@@ -17,6 +17,14 @@ async function ok(path, method, data) {
   assert.equal(response.code, 0, response.message);
   return response.data;
 }
+async function requestAs(authToken, path, method = 'GET', data) {
+  const response = await fetch(base + path, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
+    ...(data === undefined ? {} : { body: JSON.stringify(data) }),
+  });
+  return response.json();
+}
 before(async () => {
   server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -237,4 +245,89 @@ test('financial forms validate data and preserve submitted DTO fields', async ()
   assert.equal(typeof summary.margin, 'number');
   const legacy = await ok('/house/checkouts/3/confirm', 'POST', {});
   assert.equal(legacy.manualHouseStateRequired, true);
+});
+
+test('high-impact lifecycle: destructive cleanup, account, permissions, approval and finance actions', async () => {
+  assert.equal((await requestAs('', '/finance/payouts/batch-pay', 'POST', { ids: [5] })).code, 401);
+  const blacklist = await ok('/house/blacklist', 'POST', {
+    name: '高影响测试黑名单', mobile: '13900009996', type: 'other', reason: '隔离回归数据', status: 'active',
+  });
+  await ok(`/house/blacklist/${blacklist.id}`, 'DELETE');
+  assert.equal((await request(`/house/blacklist/${blacklist.id}`)).code, 404);
+  assert.equal((await request(`/house/blacklist/${blacklist.id}`, 'DELETE')).code, 404);
+
+  const community = await ok('/community', 'POST', { name: '高影响测试小区', cityId: 1, district: '浦东新区', address: '测试地址' });
+  await ok(`/community/${community.id}`, 'DELETE');
+  assert.equal((await request(`/community/${community.id}`)).code, 404);
+
+  const dict = await ok('/system/dicts', 'POST', { code: 'high_impact_test', name: '高影响测试字典' });
+  const dictItem = await ok('/system/dicts/items', 'POST', { dictCode: dict.code, value: 'test', label: '测试项', sort: 1, enabled: true });
+  await ok(`/system/dicts/items/${dictItem.id}`, 'DELETE');
+  assert.equal((await ok(`/system/dicts/${dict.code}/items`)).length, 0);
+  await ok(`/system/dicts/${dict.id}`, 'DELETE');
+  assert.equal((await request(`/system/dicts/id/${dict.id}`)).code, 404);
+  assert.equal((await request(`/system/dicts/${dict.id}`, 'DELETE')).code, 404);
+
+  const employeePayload = {
+    name: '高影响测试员工', mobile: '13900009998', password: 'Tmp123456!', status: 'normal',
+    roleIds: [4], storeIds: [1], positionIds: [2], entryDate: '2026-09-14',
+  };
+  const employee = await ok('/system/employees', 'POST', employeePayload);
+  assert.equal(employee.entryDate, employeePayload.entryDate);
+  assert.equal(employee.roles[0].id, 4);
+  assert.equal(employee.stores[0].id, 1);
+  assert.equal(employee.positions[0].id, 2);
+  assert.equal(Object.hasOwn(employee, 'password'), false);
+  const employeeLogin = await ok('/auth/login', 'POST', { mobile: employeePayload.mobile, password: employeePayload.password });
+  assert.equal(employeeLogin.user.role, 'salesman');
+  assert.equal((await request('/system/employees', 'POST', employeePayload)).code, 400);
+  assert.equal((await request('/system/employees', 'POST', { ...employeePayload, mobile: '13900009997', roleIds: [] })).code, 400);
+  await ok(`/system/employees/${employee.id}`, 'DELETE');
+  assert.equal((await ok(`/system/employees?keyword=${employeePayload.mobile}`)).total, 0);
+  assert.equal((await request('/auth/login', 'POST', { mobile: employeePayload.mobile, password: employeePayload.password })).code, 401);
+  assert.equal((await request(`/system/employees/${employee.id}`, 'DELETE')).code, 404);
+  assert.equal((await request('/system/employees/1', 'DELETE')).code, 400);
+
+  const roles = await ok('/system/roles');
+  const salesman = roles.find(role => role.code === 'salesman');
+  const originalPermissionIds = salesman.permissions.map(permission => permission.id);
+  await ok(`/system/roles/${salesman.id}`, 'PUT', { permissionIds: [1] });
+  const restrictedLogin = await ok('/auth/login', 'POST', { mobile: 'salesman', password: '123456' });
+  const restrictedMe = await requestAs(restrictedLogin.accessToken, '/auth/me');
+  assert.deepEqual(restrictedMe.data.permissions, ['home']);
+  assert.equal((await requestAs(restrictedLogin.accessToken, '/system/employees/9999', 'DELETE')).code, 403);
+  await ok(`/system/roles/${salesman.id}`, 'PUT', { permissionIds: originalPermissionIds });
+  const restored = (await ok('/system/roles')).find(role => role.id === salesman.id);
+  assert.deepEqual(restored.permissions.map(permission => permission.id).sort((a, b) => a - b), originalPermissionIds.sort((a, b) => a - b));
+  assert.equal((await request('/system/roles/1', 'DELETE')).code, 400);
+
+  const saleList = await ok('/house/sale-properties?pageSize=50');
+  const sale = saleList.list.find(item => item.allowedStatuses.length > 0);
+  const targetStatus = sale.allowedStatuses[0];
+  const approval = await ok(`/house/sale-properties/${sale.id}/change-status`, 'POST', { status: targetStatus, remark: '高影响审批回归' });
+  await ok(`/system/approvals/${approval.id}/approve`, 'POST', { remark: '回归通过' });
+  assert.equal((await ok(`/house/sale-properties/${sale.id}/edit`)).status, targetStatus);
+
+  const pendingPayouts = await ok('/finance/payouts?status=pending&pageSize=20');
+  const payoutIds = pendingPayouts.list.map(item => item.id);
+  assert.equal(payoutIds.length, 2);
+  assert.equal((await ok('/finance/payouts/batch-pay', 'POST', { ids: payoutIds })).count, 2);
+  const paidPayouts = await ok('/finance/payouts?status=paid&pageSize=50');
+  assert.ok(payoutIds.every(id => paidPayouts.list.some(item => item.id === id && item.actualAmount === item.payoutAmount)));
+  assert.equal((await request('/finance/payouts/batch-pay', 'POST', { ids: payoutIds })).code, 400);
+
+  const invoice = await ok('/finance/invoices', 'POST', {
+    applySource: 'manual', buyerName: '高影响测试开票', buyerTaxNo: '91310000TEST000001',
+    amountWithoutTax: 943.4, taxAmount: 56.6, amountWithTax: 1000, invoiceType: 'special', remark: '隔离回归数据',
+  });
+  assert.equal(invoice.status, 'pending');
+  assert.equal(invoice.invoiceType, 'special');
+  assert.equal((await request('/finance/invoices', 'POST', { applySource: 'manual', buyerName: '缺少税号', amountWithTax: 1000, invoiceType: 'special' })).code, 400);
+  assert.ok((await ok('/finance/invoices?keyword=高影响测试开票')).list.some(item => item.id === invoice.id));
+
+  const plan = await ok('/finance/plans', 'POST', {
+    planType: 'expense', billingCategory: '测试支出', reason: '高影响计划回归', totalPeriods: 2, totalAmount: 2000,
+  });
+  assert.equal(plan.amount, 1000);
+  assert.ok((await ok('/finance/plans?keyword=高影响计划回归')).list.some(item => item.id === plan.id));
 });

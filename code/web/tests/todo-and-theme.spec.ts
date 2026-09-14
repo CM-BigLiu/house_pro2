@@ -3,9 +3,13 @@ import { createApp, nextTick, type App } from 'vue';
 import { compile } from 'sass';
 import { resolve } from 'node:path';
 import TodoView from '@/views/dashboard/TodoView.vue';
+import LoginView from '@/views/login/LoginView.vue';
 import { getTodos } from '@/api/dashboard';
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/api/dashboard', () => ({ getTodos: vi.fn() }));
+vi.mock('@/stores/user', () => ({
+  useUserStore: () => ({ isLoggedIn: false, login: vi.fn() }),
+}));
 let app: App | undefined;
 afterEach(() => { app?.unmount(); document.body.innerHTML = ''; vi.clearAllMocks(); });
 describe('待办与共享主题回归', () => {
@@ -25,5 +29,26 @@ describe('待办与共享主题回归', () => {
     const input = root.querySelector('input')!; input.value = '测试待办24'; input.dispatchEvent(new Event('input')); await nextTick();
     expect(root.querySelectorAll('tbody tr')).toHaveLength(1);
     expect(root.textContent).toContain('测试待办24');
+  });
+
+  it('登录页支持浏览器自动填充、演示身份切换与密码可见性控制', async () => {
+    const root = document.createElement('div'); document.body.append(root);
+    app = createApp(LoginView); app.mount(root);
+
+    const accountInput = root.querySelector<HTMLInputElement>('#login-account')!;
+    const passwordInput = root.querySelector<HTMLInputElement>('#login-password')!;
+    expect(accountInput.autocomplete).toBe('username');
+    expect(passwordInput.autocomplete).toBe('current-password');
+
+    const salesman = [...root.querySelectorAll<HTMLButtonElement>('.demo-account')]
+      .find(button => button.textContent === 'salesman')!;
+    salesman.click();
+    await nextTick();
+    expect(accountInput.value).toBe('salesman');
+    expect(passwordInput.value).toBe('123456');
+
+    root.querySelector<HTMLButtonElement>('.password-toggle')!.click();
+    await nextTick();
+    expect(passwordInput.type).toBe('text');
   });
 });

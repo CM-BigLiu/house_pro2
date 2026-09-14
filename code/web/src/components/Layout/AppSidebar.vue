@@ -14,6 +14,8 @@ import {
 const userStore = useUserStore();
 const route = useRoute();
 const router = useRouter();
+defineProps<{ open?: boolean }>();
+const emit = defineEmits<{ close: [] }>();
 
 const iconMap: Record<string, any> = {
   'layout-dashboard': LayoutDashboard,
@@ -42,34 +44,38 @@ function isActive(path?: string) {
 function onTopClick(menu: any) {
   if (menu.path) {
     router.push(menu.path).catch(() => {});
+    emit('close');
     return;
   }
   // 点击有子菜单的父项：切换展开/收起或跳转第一个子项
   const first = menu.children?.find((c: any) => c.path);
   if (first?.path) {
     router.push(first.path).catch(() => {});
+    emit('close');
   }
 }
 
 function onSubClick(child: any) {
   if (child.path) {
     router.push(child.path).catch(() => {});
+    emit('close');
   }
 }
 
-function onLogout() {
-  userStore.logout();
-  router.push('/login');
+async function onLogout() {
+  emit('close');
+  await userStore.logout();
+  await router.push('/login');
 }
 
 const logoUrl = ref('/logo.svg');
 </script>
 
 <template>
-  <aside class="sidebar">
+  <aside id="app-sidebar" class="sidebar" :class="{ 'is-open': open }" aria-label="主导航">
     <div class="brand">
       <div class="brand-icon">
-        <img :src="logoUrl" alt="logo" />
+        <img :src="logoUrl" alt="房屋租售 ERP" />
       </div>
       <div>
         <div class="brand-title">房屋租售 ERP</div>
@@ -82,29 +88,34 @@ const logoUrl = ref('/logo.svg');
 
       <template v-for="menu in userStore.menus" :key="menu.id">
         <!-- 一级菜单项 -->
-        <div
+        <button
+          type="button"
           class="nav-item"
           :class="{ active: activeTop === menu.id }"
+          :aria-expanded="menu.children?.length ? activeTop === menu.id : undefined"
+          :aria-current="isActive(menu.path) ? 'page' : undefined"
           @click="onTopClick(menu)"
         >
           <component :is="iconFor(menu.icon)" :size="20" />
           <span>{{ menu.label }}</span>
           <ChevronRight v-if="menu.children?.length" :size="14" class="nav-chevron" />
-        </div>
+        </button>
 
         <!-- 二级子菜单：仅当该一级菜单被选中时显示 -->
         <div v-if="activeTop === menu.id && menu.children?.length" class="subnav-group">
           <div class="subnav-label">{{ menu.label }}</div>
-          <div
+          <button
             v-for="child in menu.children"
             :key="child.id"
+            type="button"
             class="subnav-item"
             :class="{ active: isActive(child.path) }"
+            :aria-current="isActive(child.path) ? 'page' : undefined"
             @click="onSubClick(child)"
           >
             <span class="sub-dot" :class="{ active: isActive(child.path) }" />
             <span>{{ child.label }}</span>
-          </div>
+          </button>
         </div>
       </template>
     </nav>
@@ -115,7 +126,7 @@ const logoUrl = ref('/logo.svg');
         <div class="su-name">{{ userStore.name }}</div>
         <div class="su-role">{{ userStore.userInfo?.roleName || userStore.userInfo?.role || '用户' }}</div>
       </div>
-      <button class="logout-btn" @click="onLogout" title="退出登录">
+      <button type="button" class="logout-btn" aria-label="退出登录" title="退出登录" @click="onLogout">
         <LogOut :size="15" />
       </button>
     </div>
@@ -152,6 +163,7 @@ const logoUrl = ref('/logo.svg');
 }
 .nav-item {
   display: flex; align-items: center; gap: 11px; padding: 9.5px 12px; margin-bottom: 2px;
+  width: 100%; border: 0; text-align: left; background: transparent;
   color: var(--side-text); border-radius: var(--radius-sm); position: relative;
   transition: background 0.18s, color 0.18s; font-size: 13.5px; cursor: pointer; user-select: none;
 }
@@ -176,6 +188,7 @@ const logoUrl = ref('/logo.svg');
 }
 .subnav-item {
   display: flex; align-items: center; gap: 10px; padding: 7px 10px; margin: 1px 0;
+  width: 100%; border: 0; text-align: left; background: transparent;
   color: rgba(225, 232, 245, 0.7); border-radius: 6px; font-size: 13px;
   cursor: pointer; transition: all 0.15s; position: relative;
 }
@@ -200,5 +213,21 @@ const logoUrl = ref('/logo.svg');
 .logout-btn {
   color: #93a1b8; padding: 4px; border-radius: 6px; flex: none;
   &:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+}
+
+.nav-item:focus-visible,
+.subnav-item:focus-visible,
+.logout-btn:focus-visible {
+  outline: 2px solid #7fa8ff;
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    z-index: 60;
+    transform: translateX(-105%);
+    transition: transform 0.22s ease;
+  }
+  .sidebar.is-open { transform: translateX(0); }
 }
 </style>

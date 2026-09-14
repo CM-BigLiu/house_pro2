@@ -41,7 +41,10 @@ onMounted(async () => {
 
 async function submit() {
   if (!form.name.trim() || !form.mobile.trim()) return ElMessage.warning('请填写姓名和手机号');
+  if (!/^1\d{10}$/.test(form.mobile) && !(isEdit.value && form.mobile === 'super_admin')) return ElMessage.warning('请输入正确的 11 位手机号');
   if (!isEdit.value && !form.password) return ElMessage.warning('请设置初始密码');
+  if (form.password && form.password.length < 8) return ElMessage.warning('密码至少 8 位');
+  if (!form.roleIds.length) return ElMessage.warning('请至少选择一个角色');
   submitting.value = true;
   try {
     const payload: any = { ...form };
@@ -80,7 +83,7 @@ async function submit() {
           <el-form-item :label="isEdit ? '重置密码' : '初始密码'" :required="!isEdit">
             <el-input v-model="form.password" type="password" show-password :placeholder="isEdit ? '留空表示不修改' : '请输入初始密码'" />
           </el-form-item>
-          <el-form-item label="角色">
+          <el-form-item label="角色" required>
             <el-select v-model="form.roleIds" multiple style="width: 100%;" placeholder="请选择角色">
               <el-option v-for="role in roles" :key="role.id" :label="role.name" :value="role.id" />
             </el-select>

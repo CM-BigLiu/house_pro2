@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   getEmployees, deleteEmployee,
   getRoles, getStores, getPositions,
@@ -100,9 +100,14 @@ function openEdit(row: Employee) {
 }
 
 async function remove(row: Employee) {
-  await deleteEmployee(row.id);
-  ElMessage.success('删除成功');
-  await loadEmployees();
+  try {
+    await ElMessageBox.confirm(`确定删除员工“${row.name}”吗？删除后该测试账号将无法登录。`, '删除员工', { type: 'warning' });
+    await deleteEmployee(row.id);
+    ElMessage.success('删除成功');
+    await loadEmployees();
+  } catch {
+    // 用户取消时不提示；请求失败由全局拦截器统一提示，避免 Vue 未处理事件警告。
+  }
 }
 </script>
 
@@ -237,6 +242,8 @@ async function remove(row: Employee) {
                     @click="openEdit(row)"
                   >编辑</button>
                   <button
+                    v-permission="['system:employee:edit']"
+                    v-if="row.id !== 1"
                     class="btn btn-danger btn-sm"
                     @click="remove(row)"
                   >删除</button>

@@ -8,12 +8,31 @@ const router = useRouter();
 const userStore = useUserStore();
 const form = reactive({ mobile: 'super_admin', password: '123456' });
 const loading = ref(false);
+const showPassword = ref(false);
+const formError = ref('');
+const demoAccounts = ['super_admin', 'store_manager', 'salesman'];
 
 const bgIndex = ref(Math.floor(Math.random() * 2) + 1);
 const bgImages = ['/img/login-bg-1.jpg', '/img/login-bg-2.jpg'];
+const particles = Array.from({ length: 16 }, (_, index) => ({
+  id: index,
+  left: `${Math.random() * 100}%`,
+  top: `${Math.random() * 100}%`,
+  size: `${2 + Math.random() * 4}px`,
+  duration: `${8 + Math.random() * 14}s`,
+  delay: `${Math.random() * 10}s`,
+}));
+
+function selectDemoAccount(account: string) {
+  form.mobile = account;
+  form.password = '123456';
+  formError.value = '';
+}
 
 async function handleLogin() {
+  formError.value = '';
   if (!form.mobile || !form.password) {
+    formError.value = '请输入账号和密码';
     ElMessage.warning('请输入账号和密码');
     return;
   }
@@ -23,6 +42,7 @@ async function handleLogin() {
     router.push('/home');
   } catch {
     // 请求拦截器统一展示后端错误，避免同一次失败重复提示。
+    formError.value = '登录失败，请检查账号与密码后重试';
   } finally {
     loading.value = false;
   }
@@ -44,16 +64,16 @@ if (userStore.isLoggedIn) router.replace('/home');
     <!-- Floating particles -->
     <div class="particles">
       <span
-        v-for="i in 16"
-        :key="i"
+        v-for="particle in particles"
+        :key="particle.id"
         class="particle"
         :style="{
-          left: Math.random() * 100 + '%',
-          top: Math.random() * 100 + '%',
-          width: 2 + Math.random() * 4 + 'px',
-          height: 2 + Math.random() * 4 + 'px',
-          animationDuration: 8 + Math.random() * 14 + 's',
-          animationDelay: Math.random() * 10 + 's',
+          left: particle.left,
+          top: particle.top,
+          width: particle.size,
+          height: particle.size,
+          animationDuration: particle.duration,
+          animationDelay: particle.delay,
         }"
       />
     </div>
@@ -135,20 +155,46 @@ if (userStore.isLoggedIn) router.replace('/home');
 
           <form class="form-body" @submit.prevent="handleLogin">
             <div class="field-group">
-              <label class="field-label">账号</label>
+              <label class="field-label" for="login-account">账号</label>
               <div class="field-input-wrap">
                 <svg class="fi-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                <input v-model="form.mobile" placeholder="请输入账号 / 手机号" />
+                <input
+                  id="login-account"
+                  v-model.trim="form.mobile"
+                  name="username"
+                  autocomplete="username"
+                  spellcheck="false"
+                  autofocus
+                  placeholder="请输入账号 / 手机号"
+                  @input="formError = ''"
+                />
               </div>
             </div>
 
             <div class="field-group">
-              <label class="field-label">密码</label>
+              <label class="field-label" for="login-password">密码</label>
               <div class="field-input-wrap">
                 <svg class="fi-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                <input v-model="form.password" type="password" placeholder="请输入密码" />
+                <input
+                  id="login-password"
+                  v-model="form.password"
+                  name="password"
+                  :type="showPassword ? 'text' : 'password'"
+                  autocomplete="current-password"
+                  placeholder="请输入密码"
+                  @input="formError = ''"
+                />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+                  :aria-pressed="showPassword"
+                  @click="showPassword = !showPassword"
+                >{{ showPassword ? '隐藏' : '显示' }}</button>
               </div>
             </div>
+
+            <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
 
             <button type="submit" class="form-btn" :disabled="loading">
               <span v-if="!loading">登 录</span>
@@ -156,8 +202,17 @@ if (userStore.isLoggedIn) router.replace('/home');
             </button>
 
             <div class="form-tips">
-              <div class="tip-row">演示账号：<code>super_admin</code> / <code>store_manager</code> / <code>salesman</code></div>
-              <div class="tip-row">密码：<code>123456</code></div>
+              <div class="tip-title">选择演示身份</div>
+              <div class="demo-accounts">
+                <button
+                  v-for="account in demoAccounts"
+                  :key="account"
+                  type="button"
+                  :class="['demo-account', { active: form.mobile === account }]"
+                  @click="selectDemoAccount(account)"
+                >{{ account }}</button>
+              </div>
+              <div class="tip-row">演示密码会自动填入：<code>123456</code></div>
             </div>
           </form>
 
@@ -173,8 +228,9 @@ if (userStore.isLoggedIn) router.replace('/home');
 .login-fullscreen {
   position: relative;
   width: 100vw;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -420,6 +476,21 @@ if (userStore.isLoggedIn) router.replace('/home');
     color: rgba(255, 255, 255, 0.2);
   }
 }
+.password-toggle {
+  flex: none;
+  padding: 4px 2px;
+  color: rgba(173, 204, 255, 0.85);
+  background: transparent;
+  font-size: 12px;
+}
+.password-toggle:hover { color: #fff; }
+.password-toggle:focus-visible { outline: 2px solid #7fa8ff; outline-offset: 2px; }
+
+.form-error {
+  margin: -8px 0 -4px;
+  color: #fecaca;
+  font-size: 12px;
+}
 
 .form-btn {
   width: 100%;
@@ -458,6 +529,33 @@ if (userStore.isLoggedIn) router.replace('/home');
   border-radius: 8px;
   padding: 12px 14px;
 }
+.tip-title {
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 11px;
+  font-weight: 600;
+}
+.demo-accounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+.demo-account {
+  padding: 4px 7px;
+  border: 1px solid rgba(144, 184, 255, 0.18);
+  border-radius: 6px;
+  background: rgba(79, 140, 255, 0.08);
+  color: rgba(175, 205, 255, 0.78);
+  font-size: 10.5px;
+}
+.demo-account:hover,
+.demo-account.active {
+  border-color: rgba(144, 184, 255, 0.55);
+  background: rgba(79, 140, 255, 0.18);
+  color: #dbeafe;
+}
+.demo-account:focus-visible { outline: 2px solid #7fa8ff; outline-offset: 2px; }
 .tip-row {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.3);
@@ -481,6 +579,7 @@ if (userStore.isLoggedIn) router.replace('/home');
 
 /* ── Responsive ── */
 @media (max-width: 820px) {
+  .login-fullscreen { align-items: flex-start; padding: 76px 0 24px; }
   .top-bar { padding: 16px 20px; }
   .login-glass {
     flex-direction: column;
@@ -496,5 +595,18 @@ if (userStore.isLoggedIn) router.replace('/home');
     background: linear-gradient(to right, transparent, rgba(255,255,255,0.08), transparent);
   }
   .form-footer { margin-top: 16px; }
+}
+
+@media (max-width: 520px) {
+  .top-name { font-size: 14px; }
+  .center-wrap { max-width: calc(100% - 24px); }
+  .glass-left { display: none; }
+  .glass-right { padding: 30px 22px 24px; }
+  .form-header { margin-bottom: 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-bg,
+  .particle { animation: none; }
 }
 </style>
