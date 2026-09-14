@@ -55,10 +55,14 @@ function handleSearch() {
 }
 
 async function handleConfirm(item: Checkout) {
-  await ElMessageBox.confirm(`通过「${item.contractCode}」的退租审批？通过后房源/房间立即变为空置。`, '退租审批', { type: 'warning' });
-  await confirmCheckout(item.id);
-  ElMessage.success('退租审批已通过，房态已变为空置');
-  await load();
+  try {
+    await ElMessageBox.confirm(`通过「${item.contractCode}」的退租审批？已关联房源将立即变为空置。`, '退租审批', { type: 'warning' });
+    const result = await confirmCheckout(item.id);
+    ElMessage.success(result.manualHouseStateRequired ? '审批已通过；历史记录需手工核对房态' : '退租审批已通过，房态已变为空置');
+    await load();
+  } catch {
+    // 用户取消或请求错误均已由组件/请求拦截器处理。
+  }
 }
 
 async function handleComplete(item: Checkout) {
@@ -68,16 +72,17 @@ async function handleComplete(item: Checkout) {
     ElMessage.warning(fresh.settlementBlockReason || '押金状态尚未确认，请刷新后重试');
     return;
   }
-  await ElMessageBox.confirm(
-    `完成「${item.contractCode}」的费用清算？\n需该房源押金已全部处置（退还/扣留），完成后状态不可再变更。`,
-    '完成清算',
-    { confirmButtonText: '完成清算', cancelButtonText: '取消', type: 'warning' },
-  );
   try {
+    await ElMessageBox.confirm(
+      `完成「${item.contractCode}」的费用清算？\n需该房源押金已全部处置（退还/扣留），完成后状态不可再变更。`,
+      '完成清算',
+      { confirmButtonText: '完成清算', cancelButtonText: '取消', type: 'warning' },
+    );
     await completeCheckout(item.id);
     ElMessage.success('退租已完成清算');
-  } finally {
     await load();
+  } catch {
+    // 用户取消或请求错误均已由组件/请求拦截器处理。
   }
 }
 

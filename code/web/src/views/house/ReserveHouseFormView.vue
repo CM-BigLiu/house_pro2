@@ -21,7 +21,7 @@ const communitiesLoading = ref(false);
 const form = reactive<Partial<ReserveProperty>>({
   communityId: undefined, address: '', roomNo: '', layout: '', buildingArea: undefined,
   decoration: '', ownerName: '', ownerPhone: '', ownerQuote: 0,
-  diskType: 'public', sourceChannel: '', keyStatus: '',
+  diskType: 'house', sourceChannel: '', keyStatus: '',
 });
 
 onMounted(async () => {
@@ -56,7 +56,7 @@ function onCommunityChange(id: number) {
 
 async function submit() {
   if (!form.address?.trim() || !form.roomNo?.trim() || !form.layout?.trim()) return ElMessage.warning('请填写地址、门牌号和户型');
-  if (!form.ownerName?.trim() || !form.sourceChannel) return ElMessage.warning('请填写业主和来源渠道');
+  if (!form.ownerName?.trim() || !form.sourceChannel || !form.diskType) return ElMessage.warning('请填写业主、盘源类型和来源渠道');
   submitting.value = true;
   try {
     if (isEdit.value) await updateReserveProperty(editId.value, form);

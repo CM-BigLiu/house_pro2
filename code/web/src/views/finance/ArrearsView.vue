@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
-import { getArrears, createArrear, type Arrear } from '@/api/finance';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { collectArrear, getArrears, createArrear, type Arrear } from '@/api/finance';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
+import { downloadCsv } from '@/utils/csv';
 
 const dictStore = useDictStore();
 const list = ref<Arrear[]>([]);
 const loading = ref(false);
 const dialogVisible = ref(false);
 const form = reactive<Partial<Arrear>>({
-  name: '', identity: 'tenant', phone: '', amount: 0, paidAmount: 0, status: 'unpaid',
+  name: '', identity: 'rent_a', phone: '', amount: 0, paidAmount: 0, status: 'unpaid',
 });
 const query = reactive({ keyword: '', status: '' });
 
@@ -30,15 +31,37 @@ async function load() {
 }
 
 function openCreate() {
-  Object.assign(form, { name: '', identity: 'tenant', phone: '', amount: 0, paidAmount: 0, status: 'unpaid' });
+  Object.assign(form, { name: '', identity: 'rent_a', phone: '', amount: 0, paidAmount: 0, status: 'unpaid' });
   dialogVisible.value = true;
 }
 
 async function submit() {
+  if (!form.name?.trim() || !form.identity) return ElMessage.warning('请填写姓名和身份');
+  if (Number(form.amount) <= 0) return ElMessage.warning('欠款金额必须大于 0');
   await createArrear(form);
   ElMessage.success('创建成功');
   dialogVisible.value = false;
   await load();
+}
+
+async function collect(row: Arrear) {
+  if (Number(row.remainAmount) <= 0) return ElMessage.info('该欠款已结清');
+  await ElMessageBox.confirm(`确认收取剩余欠款 ${formatMoney(row.remainAmount)}？`, '收款确认', { type: 'warning' });
+  await collectArrear(row.id, Number(row.remainAmount));
+  ElMessage.success('收款成功');
+  await load();
+}
+
+function showDetails(row: Arrear) {
+  ElMessageBox.alert(`欠款：${formatMoney(row.amount)}\n已还：${formatMoney(row.paidAmount)}\n剩余：${formatMoney(row.remainAmount)}`, `${row.name} 欠款明细`);
+}
+
+function exportCurrent() {
+  downloadCsv('欠款统计.csv', [
+    ['姓名', '身份', '电话', '欠款金额', '已还金额', '剩余欠款', '状态'],
+    ...list.value.map(row => [row.name, row.identity, row.phone, row.amount, row.paidAmount, row.remainAmount, row.status]),
+  ]);
+  ElMessage.success('已导出当前结果');
 }
 
 function statusClass(status: string) {
@@ -55,7 +78,7 @@ function statusClass(status: string) {
       </div>
       <div class="page-actions">
         <button class="btn btn-primary" @click="openCreate">登记欠款</button>
-        <button v-permission="['finance:export']" class="btn btn-default">导出</button>
+        <button v-permission="['finance:export']" class="btn btn-default" @click="exportCurrent">导出</button>
       </div>
     </div>
 
@@ -97,9 +120,9 @@ function statusClass(status: string) {
         </template>
       </el-table-column>
       <el-table-column label="操作" width="150">
-        <template #default="{}">
-          <button type="button" class="btn btn-ghost btn-sm" v-permission="['finance:bill:modify']">收款</button>
-          <button type="button" class="btn btn-ghost btn-sm">明细</button>
+        <template #default="{ row }">
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['finance:bill:modify']" :disabled="Number(row.remainAmount) <= 0" @click="collect(row)">收款</button>
+          <button type="button" class="btn btn-ghost btn-sm" @click="showDetails(row)">明细</button>
         </template>
       </el-table-column>
     </el-table>

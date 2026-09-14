@@ -22,7 +22,7 @@ async function handleLogin() {
     await userStore.login(form);
     router.push('/home');
   } catch {
-    ElMessage.error('登录失败，请检查账号密码');
+    // 请求拦截器统一展示后端错误，避免同一次失败重复提示。
   } finally {
     loading.value = false;
   }

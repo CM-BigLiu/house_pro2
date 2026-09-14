@@ -92,7 +92,7 @@ export function getProfits(params?: { period?: string; [key: string]: unknown })
 }
 
 export function getProfitSummary() {
-  return get<{ income: number; cost: number; profit: number; margin: string }>('/finance/profits/summary');
+  return get<{ income: number; cost: number; profit: number; margin: number }>('/finance/profits/summary');
 }
 
 export function createProfit(data: Partial<Profit>) {
@@ -117,6 +117,9 @@ export function getIncomeCosts(params?: { period?: string; [key: string]: unknow
 
 export function createIncomeCost(data: Partial<IncomeCost>) {
   return post<IncomeCost>('/finance/income-costs', data);
+}
+export function updateIncomeCost(id: number, data: Partial<IncomeCost>) {
+  return put<IncomeCost>(`/finance/income-costs/${id}`, data);
 }
 
 export function getPerformances(params?: { period?: string; keyword?: string }) {

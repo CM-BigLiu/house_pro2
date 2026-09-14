@@ -5,6 +5,7 @@ import { getDeposits, refundDeposit, deductDeposit, type Deposit } from '@/api/d
 import { useDictStore } from '@/stores/dict';
 import { formatMoney, formatDate } from '@/utils/format';
 import { sumAmounts } from '@/utils/money-summary';
+import { downloadCsv } from '@/utils/csv';
 
 const dictStore = useDictStore();
 const list = ref<Deposit[]>([]);
@@ -54,7 +55,7 @@ function handleSearch() {
 }
 
 async function handleRefund(item: Deposit) {
-  await ElMessageBox.confirm(`确认退还押金 ¥${formatMoney(item.depositAmount)}？`, '退还确认', { type: 'warning' });
+  await ElMessageBox.confirm(`确认退还押金 ${formatMoney(item.depositAmount)}？`, '退还确认', { type: 'warning' });
   await refundDeposit(item.id);
   ElMessage.success('已退还');
   await load();
@@ -64,7 +65,7 @@ async function handleDeduct(item: Deposit) {
   let reason = '';
   try {
     const { value } = await ElMessageBox.prompt(
-      `扣留「${item.contractCode}」押金 ¥${formatMoney(item.depositAmount)}，请填写扣款原因：`,
+      `扣留「${item.contractCode}」押金 ${formatMoney(item.depositAmount)}，请填写扣款原因：`,
       '扣款确认',
       {
         confirmButtonText: '确认扣留',
@@ -92,6 +93,14 @@ function statusClass(status: string) {
   };
   return map[status] || 'pill-gray';
 }
+
+function exportCurrent() {
+  downloadCsv(`押金-${new Date().toISOString().slice(0, 10)}.csv`, [
+    ['合同编号', '租客', '房源', '押金金额', '登记日期', '状态'],
+    ...list.value.map(item => [item.contractCode, item.tenantName, item.houseInfo, item.depositAmount, item.depositDate, item.status]),
+  ]);
+  ElMessage.success('已导出当前页');
+}
 </script>
 
 <template>
@@ -103,7 +112,7 @@ function statusClass(status: string) {
         <div class="page-desc">管理租客押金的退还与扣款操作</div>
       </div>
       <div class="page-actions">
-        <el-button v-permission="['deposit:export']">导出</el-button>
+        <el-button v-permission="['deposit:export']" @click="exportCurrent">导出</el-button>
       </div>
     </div>
 

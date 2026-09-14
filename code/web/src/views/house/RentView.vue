@@ -8,6 +8,7 @@ import { createCheckout } from '@/api/checkout';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
 import { formatBuilding, formatHouseAddress, formatUnit } from '@/utils/address';
+import { downloadCsv } from '@/utils/csv';
 
 const router = useRouter();
 const dictStore = useDictStore();
@@ -115,6 +116,14 @@ function editRoom(item: RentalSet) {
   router.push(`/house/rent/edit/${item.id}`);
 }
 
+function exportCurrent() {
+  downloadCsv(`租房-${new Date().toISOString().slice(0, 10)}.csv`, [
+    ['编号', '小区', '地址', '房号', '租赁方式', '租金', '状态'],
+    ...list.value.map(item => [item.code, item.communityName, item.address, item.roomNo, item.bizType, item.rent, item.status]),
+  ]);
+  ElMessage.success('已导出当前页');
+}
+
 function statusClass(status: string) {
   const map: Record<string, string> = {
     active: 'pill-green',
@@ -179,7 +188,7 @@ function roomReminder(rm: any): PayReminder | null {
         <button v-permission="['renting:add']" class="btn btn-primary" @click="openCreate">
           新增出租房源
         </button>
-        <button v-permission="['renting:export']" class="btn btn-default">导出</button>
+        <button v-permission="['renting:export']" class="btn btn-default" @click="exportCurrent">导出</button>
       </div>
     </div>
 

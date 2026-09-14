@@ -85,6 +85,7 @@ export interface Payout {
   actualAmount: number;
   operateDate: string;
   status: string;
+  type?: string;
   createdAt: string;
 }
 
@@ -102,7 +103,7 @@ export interface Invoice {
   createdAt: string;
 }
 
-export function getBills(params?: { keyword?: string; status?: string }) {
+export function getBills(params?: { keyword?: string; status?: string; category?: string; dateStart?: string; dateEnd?: string; page?: number; pageSize?: number }) {
   return get<{ list: Bill[]; total: number }>('/finance/bills', { params });
 }
 
@@ -114,7 +115,7 @@ export function getBillForEdit(id: number) { return get<Bill>(`/finance/bills/${
 export function updateBill(id: number, data: Partial<Bill>) { return put<Bill>(`/finance/bills/${id}`, data); }
 export function voidBill(id: number) { return post<Bill>(`/finance/bills/${id}/void`); }
 
-export function getFlows(params?: { keyword?: string; type?: string }) {
+export function getFlows(params?: { keyword?: string; type?: string; page?: number; pageSize?: number }) {
   return get<{ list: Flow[]; total: number }>('/finance/flows', { params });
 }
 
@@ -125,31 +126,35 @@ export function createFlow(data: Partial<Flow>) {
 export function getFlowForEdit(id: number) { return get<Flow>(`/finance/flows/${id}/edit`); }
 export function updateFlow(id: number, data: Partial<Flow>) { return put<Flow>(`/finance/flows/${id}`, data); }
 
-export function getPaymentPlans(params?: { keyword?: string; planType?: string; status?: string }) {
+export function getPaymentPlans(params?: { keyword?: string; planType?: string; status?: string; page?: number; pageSize?: number }) {
   return get<{ list: PaymentPlan[]; total: number }>('/finance/plans', { params });
 }
 
 export function createPaymentPlan(data: Partial<PaymentPlan>) {
   return post<PaymentPlan>('/finance/plans', data);
 }
+export function getPaymentPlanForEdit(id: number) { return get<PaymentPlan>(`/finance/plans/${id}/edit`); }
+export function updatePaymentPlan(id: number, data: Partial<PaymentPlan>) { return put<PaymentPlan>(`/finance/plans/${id}`, data); }
 
-export function getArrears(params?: { keyword?: string; status?: string }) {
+export function getArrears(params?: { keyword?: string; status?: string; page?: number; pageSize?: number }) {
   return get<{ list: Arrear[]; total: number }>('/finance/arrears', { params });
 }
 
 export function createArrear(data: Partial<Arrear>) {
   return post<Arrear>('/finance/arrears', data);
 }
+export function collectArrear(id: number, amount: number) { return post<Arrear>(`/finance/arrears/${id}/collect`, { amount }); }
 
-export function getPayouts(params?: { keyword?: string; status?: string }) {
+export function getPayouts(params?: { keyword?: string; status?: string; type?: string; dateStart?: string; dateEnd?: string; page?: number; pageSize?: number }) {
   return get<{ list: Payout[]; total: number }>('/finance/payouts', { params });
 }
 
 export function createPayout(data: Partial<Payout>) {
   return post<Payout>('/finance/payouts', data);
 }
+export function batchPayPayouts(ids: number[]) { return post<{ count: number }>('/finance/payouts/batch-pay', { ids }); }
 
-export function getInvoices(params?: { keyword?: string; status?: string }) {
+export function getInvoices(params?: { keyword?: string; status?: string; page?: number; pageSize?: number }) {
   return get<{ list: Invoice[]; total: number }>('/finance/invoices', { params });
 }
 

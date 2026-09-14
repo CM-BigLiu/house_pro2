@@ -9,6 +9,7 @@ const props = withDefaults(defineProps<{
   isZero?: boolean;
   isOverThreshold?: boolean;
 }>(), { borderColor: 'blue', isZero: false, isOverThreshold: false });
+const emit = defineEmits<{ detail: [] }>();
 
 const borderColorMap: Record<string, string> = {
   red: '#ef4444',
@@ -29,7 +30,7 @@ const valueColor = computed(() => {
     <div class="wc-title">{{ title }}</div>
     <div class="wc-value" :style="{ color: valueColor }">{{ value }}</div>
     <div class="wc-meta">{{ meta }}</div>
-    <a class="wc-link" href="#">详情 &gt;</a>
+    <a class="wc-link" href="#" @click.prevent="emit('detail')">详情 &gt;</a>
   </div>
 </template>
 

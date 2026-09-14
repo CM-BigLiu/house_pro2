@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { getProfits, getProfitSummary, createProfit, type Profit } from '@/api/finance-report';
+import { getProfits, createProfit, type Profit } from '@/api/finance-report';
 import { formatMoney } from '@/utils/format';
+import { downloadCsv } from '@/utils/csv';
 
 const list = ref<Profit[]>([]);
-const summary = ref({ income: 0, cost: 0, profit: 0, margin: '0.00' });
+const summary = ref({ income: 0, cost: 0, profit: 0, margin: 0 });
 const loading = ref(false);
 const dialogVisible = ref(false);
 const form = ref<Partial<Profit>>({ period: '', income: 0, cost: 0 });
@@ -21,24 +22,26 @@ const kpiCards = ref([
   { label: '利润率', value: '0%', color: 'purple' },
 ]);
 
-onMounted(async () => {
-  await load();
-  summary.value = await getProfitSummary();
-  updateKpis();
-});
+onMounted(load);
 
 async function load() {
   loading.value = true;
   try {
     const res = await getProfits();
-    list.value = res.list || [];
+    const prefix = `${query.value.year}${query.value.month ? `-${query.value.month}` : ''}`;
+    list.value = (res.list || []).filter(item => item.period?.startsWith(prefix));
+    const income = list.value.reduce((sum, item) => sum + (Number(item.income) || 0), 0);
+    const cost = list.value.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
+    const profit = income - cost;
+    summary.value = { income, cost, profit, margin: income ? Number((profit / income * 100).toFixed(2)) : 0 };
+    updateKpis();
   } finally {
     loading.value = false;
   }
 }
 
 function updateKpis() {
-  const fmt = (v: number) => `¥${v.toLocaleString('zh-CN')}`;
+  const fmt = (v: number) => formatMoney(Number.isFinite(Number(v)) ? Number(v) : 0);
   kpiCards.value[0].value = fmt(summary.value.income);
   kpiCards.value[1].value = fmt(summary.value.cost);
   kpiCards.value[2].value = fmt(summary.value.profit);
@@ -60,12 +63,20 @@ function openCreate() {
 }
 
 async function submit() {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(form.value.period || '')) return ElMessage.warning('请按 YYYY-MM 填写月份');
+  if (Number(form.value.income) <= 0 || Number(form.value.cost) < 0) return ElMessage.warning('收入必须大于 0，成本不能为负数');
   await createProfit(form.value);
   ElMessage.success('创建成功');
   dialogVisible.value = false;
   await load();
-  summary.value = await getProfitSummary();
-  updateKpis();
+}
+
+function exportCurrent() {
+  downloadCsv(`利润分析-${query.value.year}${query.value.month ? `-${query.value.month}` : ''}.csv`, [
+    ['月份', '收入', '成本', '利润', '利润率'],
+    ...list.value.map(item => [item.period, item.income, item.cost, item.profit, item.margin]),
+  ]);
+  ElMessage.success('已导出当前结果');
 }
 
 function growthClass(val: number) {
@@ -84,8 +95,8 @@ function growthClass(val: number) {
       </div>
       <div class="page-actions">
         <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="openCreate"><i data-lucide="plus"></i> 新增利润</button>
-        <button v-permission="['finance:export']" class="btn btn-default"><i data-lucide="download"></i> 导出报表</button>
-        <button class="btn btn-default"><i data-lucide="circle-help"></i> 使用帮助</button>
+        <button v-permission="['finance:export']" class="btn btn-default" @click="exportCurrent"><i data-lucide="download"></i> 导出报表</button>
+        <button class="btn btn-default" @click="ElMessage.info('利润 = 收入 - 成本；利润率 = 利润 ÷ 收入。')"><i data-lucide="circle-help"></i> 使用帮助</button>
       </div>
     </div>
 

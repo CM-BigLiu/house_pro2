@@ -6,6 +6,28 @@ const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
+function nextId(items) {
+  return Math.max(0, ...items.map(item => Number(item.id) || 0)) + 1;
+}
+
+function paginate(query, items, defaultPageSize = 20) {
+  const page = Math.max(1, Number(query.page) || 1);
+  const pageSize = Math.min(200, Math.max(1, Number(query.pageSize) || defaultPageSize));
+  const start = (page - 1) * pageSize;
+  return { list: items.slice(start, start + pageSize), total: items.length };
+}
+
+function requireText(res, body, fields) {
+  const missing = fields.find(([key]) => !String(body?.[key] ?? '').trim());
+  if (!missing) return false;
+  res.status(400).json({ code: 400, message: `请填写${missing[1]}` });
+  return true;
+}
+
+function notFound(res, message) {
+  return res.status(404).json({ code: 404, message });
+}
+
 const JWT_SECRET = 'house_pro_jwt_secret_key_change_in_production';
 
 // Mock users
@@ -119,6 +141,8 @@ app.post('/api/auth/login', (req, res) => {
     employeeId: user.id,
     mobile: user.mobile,
     name: user.name,
+    role: user.role,
+    roleName: user.roleName,
     storeIds: user.storeIds,
     assignedStoreIds: user.assignedStoreIds,
     groupIds: user.groupIds,
@@ -136,6 +160,8 @@ app.post('/api/auth/login', (req, res) => {
         name: user.name,
         mobile: user.mobile.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2'),
         avatar: user.avatar || '',
+        role: user.role,
+        roleName: user.roleName,
       },
     },
   });
@@ -699,6 +725,22 @@ for (const [code, dict] of Object.entries(saleFormDicts)) {
   DICTS.push({ id: DICTS.length + 1, code, name: dict.name, enabled: true });
   dict.items.forEach(([value, label], index) => {
     DICT_ITEMS.push({ id: DICT_ITEMS.length + 1, dictCode: code, value, label, sort: index + 1, enabled: true, isBuiltin: true });
+  });
+}
+
+const sharedFormDicts = {
+  blacklist_status: { name: '黑名单状态', items: [['active', '生效'], ['inactive', '已移除']] },
+  demand_type: { name: '需求类型', items: [['rent', '求租'], ['buy', '求购'], ['rent_buy', '租购均可']] },
+  urgency: { name: '紧急程度', items: [['normal', '普通'], ['urgent', '紧急'], ['flexible', '时间灵活']] },
+  payment_type: { name: '支付方式', items: [['bank', '银行转账'], ['wechat', '微信'], ['alipay', '支付宝'], ['cash', '现金']] },
+  ticket_status: { name: '开票状态', items: [['pending', '待处理'], ['processing', '审批中'], ['issued', '已开票'], ['void', '已作废']] },
+  identity: { name: '欠款人身份', items: [['rent_a', '整租租客'], ['rent_b', '合租租客'], ['buyer', '买家'], ['landlord', '业主']] },
+  billing_category: { name: '款项种类', items: [['rent', '租金'], ['deposit', '押金'], ['property', '物业费'], ['water', '水费'], ['electric', '电费'], ['gas', '燃气费'], ['other', '其他']] },
+};
+for (const [code, dict] of Object.entries(sharedFormDicts)) {
+  DICTS.push({ id: nextId(DICTS), code, name: dict.name, enabled: true });
+  dict.items.forEach(([value, label], index) => {
+    DICT_ITEMS.push({ id: nextId(DICT_ITEMS), dictCode: code, value, label, sort: index + 1, enabled: true, isBuiltin: true });
   });
 }
 const STORES = [
@@ -1311,6 +1353,33 @@ const EXTRA_RESERVE_CLIENTS = [
 //  ROUTES: 系统路由
 // ============================================================
 // System
+function permissionList(nodes = PERM_TREE, parentId) {
+  return nodes.flatMap(node => {
+    const current = { ...node, parentId, children: undefined };
+    return [current, ...permissionList(node.children || [], node.id)];
+  });
+}
+
+const permissionAliases = {
+  'renting:create': 'renting:add',
+  'sale:create': 'sale:add',
+  'reserve_house:create': 'reserve:house:add',
+  'reserve_client:create': 'reserve:client:add',
+};
+
+function roleResponse(role) {
+  const all = permissionList();
+  const runtimeUser = Object.values(USERS).find(user => user.role === role.code);
+  const runtimeCodes = runtimeUser?.permissions || [];
+  const selectedIds = Array.isArray(role.permissionIds) ? role.permissionIds : null;
+  const permissions = selectedIds
+    ? all.filter(permission => selectedIds.includes(permission.id))
+    : runtimeCodes.includes('*')
+      ? all
+      : all.filter(permission => runtimeCodes.includes(permission.code) || runtimeCodes.includes(permissionAliases[permission.code]));
+  return { ...role, permissions };
+}
+
 app.get('/api/system/dicts', (req, res) => {
   const keyword = (req.query.keyword || '').toLowerCase();
   const data = DICTS.filter(d => !keyword || d.code.includes(keyword) || d.name.includes(keyword));
@@ -1321,13 +1390,22 @@ app.get('/api/system/dicts/:code/items', (req, res) => {
   res.json({ code: 0, data: items });
 });
 app.post('/api/system/dicts', (req, res) => {
-  const dict = { id: DICTS.length + 1, ...req.body, enabled: true };
+  if (requireText(res, req.body, [['code', '字典编码'], ['name', '字典名称']])) return;
+  if (DICTS.some(item => item.code === req.body.code.trim())) return res.status(400).json({ code: 400, message: '字典编码已存在' });
+  const dict = { id: nextId(DICTS), ...req.body, code: req.body.code.trim(), name: req.body.name.trim(), enabled: true };
   DICTS.push(dict);
   res.json({ code: 0, data: dict });
 });
+app.get('/api/system/dicts/id/:id', (req, res) => {
+  const dict = DICTS.find(item => item.id === Number(req.params.id));
+  if (!dict) return notFound(res, '字典不存在');
+  res.json({ code: 0, data: dict });
+});
 app.put('/api/system/dicts/:id', (req, res) => {
+  if (requireText(res, req.body, [['code', '字典编码'], ['name', '字典名称']])) return;
   const idx = DICTS.findIndex(d => d.id === parseInt(req.params.id));
-  if (idx >= 0) Object.assign(DICTS[idx], req.body);
+  if (idx < 0) return notFound(res, '字典不存在');
+  Object.assign(DICTS[idx], req.body, { code: req.body.code.trim(), name: req.body.name.trim() });
   res.json({ code: 0, data: DICTS[idx] });
 });
 app.delete('/api/system/dicts/:id', (req, res) => {
@@ -1337,13 +1415,17 @@ app.delete('/api/system/dicts/:id', (req, res) => {
   res.json({ code: 0, data: null });
 });
 app.post('/api/system/dicts/items', (req, res) => {
-  const item = { id: DICT_ITEMS.length + 1, ...req.body };
+  if (requireText(res, req.body, [['dictCode', '所属字典'], ['value', '字典值'], ['label', '显示名']])) return;
+  if (DICT_ITEMS.some(item => item.dictCode === req.body.dictCode && item.value === req.body.value.trim())) return res.status(400).json({ code: 400, message: '该字典值已存在' });
+  const item = { id: nextId(DICT_ITEMS), ...req.body, value: req.body.value.trim(), label: req.body.label.trim() };
   DICT_ITEMS.push(item);
   res.json({ code: 0, data: item });
 });
 app.put('/api/system/dicts/items/:id', (req, res) => {
+  if (requireText(res, req.body, [['value', '字典值'], ['label', '显示名']])) return;
   const idx = DICT_ITEMS.findIndex(d => d.id === parseInt(req.params.id));
-  if (idx >= 0) Object.assign(DICT_ITEMS[idx], req.body);
+  if (idx < 0) return notFound(res, '字典项不存在');
+  Object.assign(DICT_ITEMS[idx], req.body, { value: req.body.value.trim(), label: req.body.label.trim() });
   res.json({ code: 0, data: DICT_ITEMS[idx] });
 });
 app.delete('/api/system/dicts/items/:id', (req, res) => {
@@ -1363,13 +1445,21 @@ app.get('/api/system/employees', (req, res) => {
   res.json({ code: 0, data: { list: data.slice((page - 1) * pageSize, page * pageSize), total: data.length } });
 });
 app.post('/api/system/employees', (req, res) => {
-  const emp = { id: EMPLOYEES.length + 1, ...req.body, entryDate: new Date().toISOString().slice(0, 10) };
+  if (requireText(res, req.body, [['name', '姓名'], ['mobile', '手机号']])) return;
+  const emp = { id: nextId(EMPLOYEES), ...req.body, entryDate: new Date().toISOString().slice(0, 10) };
   EMPLOYEES.push(emp);
   res.json({ code: 0, data: emp });
 });
+app.get('/api/system/employees/:id/edit', (req, res) => {
+  const employee = EMPLOYEES.find(item => item.id === Number(req.params.id));
+  if (!employee) return notFound(res, '员工不存在');
+  res.json({ code: 0, data: { ...employee, status: employee.status === 'active' ? 'normal' : employee.status } });
+});
 app.put('/api/system/employees/:id', (req, res) => {
+  if (requireText(res, req.body, [['name', '姓名'], ['mobile', '手机号']])) return;
   const idx = EMPLOYEES.findIndex(e => e.id === parseInt(req.params.id));
-  if (idx >= 0) Object.assign(EMPLOYEES[idx], req.body);
+  if (idx < 0) return notFound(res, '员工不存在');
+  Object.assign(EMPLOYEES[idx], req.body);
   res.json({ code: 0, data: EMPLOYEES[idx] });
 });
 app.delete('/api/system/employees/:id', (req, res) => {
@@ -1379,17 +1469,26 @@ app.delete('/api/system/employees/:id', (req, res) => {
   res.json({ code: 0, data: null });
 });
 app.get('/api/system/roles', (req, res) => {
-  res.json({ code: 0, data: ROLES });
+  res.json({ code: 0, data: ROLES.map(roleResponse) });
 });
 app.post('/api/system/roles', (req, res) => {
-  const role = { id: ROLES.length + 1, ...req.body, isBuiltin: false, permissions: [] };
+  if (requireText(res, req.body, [['code', '角色代码'], ['name', '角色名称']])) return;
+  if (ROLES.some(item => item.code === req.body.code.trim())) return res.status(400).json({ code: 400, message: '角色代码已存在' });
+  const role = { id: nextId(ROLES), ...req.body, code: req.body.code.trim(), name: req.body.name.trim(), isBuiltin: false };
   ROLES.push(role);
-  res.json({ code: 0, data: role });
+  res.json({ code: 0, data: roleResponse(role) });
 });
 app.put('/api/system/roles/:id', (req, res) => {
   const idx = ROLES.findIndex(r => r.id === parseInt(req.params.id));
-  if (idx >= 0) Object.assign(ROLES[idx], req.body);
-  res.json({ code: 0, data: ROLES[idx] });
+  if (idx < 0) return notFound(res, '角色不存在');
+  Object.assign(ROLES[idx], req.body);
+  if (Array.isArray(req.body.permissionIds)) {
+    const codes = permissionList()
+      .filter(permission => req.body.permissionIds.includes(permission.id))
+      .map(permission => permissionAliases[permission.code] || permission.code);
+    Object.values(USERS).filter(user => user.role === ROLES[idx].code).forEach(user => { user.permissions = codes; });
+  }
+  res.json({ code: 0, data: roleResponse(ROLES[idx]) });
 });
 app.delete('/api/system/roles/:id', (req, res) => {
   const id = parseInt(req.params.id);
@@ -1423,7 +1522,7 @@ app.get('/api/house/rental-sets', (req, res) => {
   if (keyword) data = data.filter(s => s.code.includes(keyword) || (s.communityName || '').includes(keyword) || s.address.includes(keyword));
   if (status) data = data.filter(s => status === 'vacant' ? ['active', 'vacant'].includes(s.status) : s.status === status);
   if (bizType) data = data.filter(s => s.bizType === bizType);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.post('/api/house/rental-sets', authMiddleware, (req, res) => {
   const set = { id: RENTAL_SETS.length + 1, code: 'ZJ' + String(RENTAL_SETS.length + 1).padStart(3, '0'), ...req.body, rooms: [], createdAt: new Date().toISOString() };
@@ -1523,7 +1622,17 @@ app.post('/api/house/checkouts/:id/confirm', (req, res) => {
   if (!checkout) return res.json({ code: 404, message: '退租记录不存在' });
   if (checkout.status !== 'pending') return res.json({ code: 400, message: '仅待审批的退租记录可审批通过' });
   const linked = checkoutTarget(checkout);
-  if (linked.error) return res.json({ code: 400, message: linked.error });
+  if (linked.error) {
+    // 兼容迁移前没有房源外键的历史退租记录：允许完成审批，但明确标记未自动更新房态。
+    if (!checkout.rentalSetId) {
+      checkout.status = 'confirmed';
+      checkout.confirmedAt = new Date().toISOString();
+      checkout.manualHouseStateRequired = true;
+      checkout.remark = [checkout.remark, '历史记录未关联房源，审批通过但未自动更新房态'].filter(Boolean).join('\n');
+      return res.json({ code: 0, data: checkout });
+    }
+    return res.status(400).json({ code: 400, message: linked.error });
+  }
   const { rentalSet, room, target } = linked;
   if (target.status !== 'checkout') return res.json({ code: 400, message: '房源或房间状态已变化，请刷新后重试' });
   target.status = 'vacant';
@@ -1649,17 +1758,51 @@ app.post('/api/house/sale-properties/:id/change-status', authMiddleware, (req, r
   res.json({ code: 0, data: result.record });
 });
 // 客源
+function customerResponse(customer) {
+  const budgetMatch = String(customer.remark || '').match(/(?:预算)?(\d+)[-到~](\d+)/);
+  const inferredDistrict = ['张江', '联洋', '浦东', '金桥'].find(name => String(customer.remark || '').includes(name)) || '';
+  const customerType = customer.customerType || ({ rent_a: 'tenant', rent_b: 'tenant', buy: 'buyer', both: 'buyer' })[customer.identity] || 'tenant';
+  return {
+    ...customer,
+    mobile: customer.mobile || customer.phone || '',
+    customerType,
+    sourceChannel: customer.sourceChannel || customer.source || '',
+    desiredDistrict: customer.desiredDistrict || inferredDistrict,
+    budgetMin: customer.budgetMin ?? (budgetMatch ? Number(budgetMatch[1]) : undefined),
+    budgetMax: customer.budgetMax ?? (budgetMatch ? Number(budgetMatch[2]) : undefined),
+    status: ({ pending: 'active', following: 'active' })[customer.status] || customer.status,
+  };
+}
 app.get('/api/house/customers', (req, res) => {
-  let data = [...CUSTOMERS];
-  const { keyword, identity } = req.query;
-  if (keyword) data = data.filter(c => c.name.includes(keyword) || c.phone.includes(keyword));
+  let data = CUSTOMERS.map(customerResponse);
+  const { keyword, identity, customerType, status, desiredDistrict, budgetMin, budgetMax } = req.query;
+  if (keyword) data = data.filter(c => [c.name, c.mobile, c.relatedPropertyCode].some(value => String(value || '').includes(keyword)));
   if (identity) data = data.filter(c => c.identity === identity);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  if (customerType) data = data.filter(c => c.customerType === customerType);
+  if (status) data = data.filter(c => c.status === status);
+  if (desiredDistrict) data = data.filter(c => String(c.desiredDistrict || c.remark || '').includes(desiredDistrict));
+  if (budgetMin !== undefined && budgetMin !== '') data = data.filter(c => Number(c.budgetMax ?? c.budgetMin ?? 0) >= Number(budgetMin));
+  if (budgetMax !== undefined && budgetMax !== '') data = data.filter(c => Number(c.budgetMin ?? c.budgetMax ?? 0) <= Number(budgetMax));
+  res.json({ code: 0, data: paginate(req.query, data, 10) });
 });
 app.post('/api/house/customers', (req, res) => {
-  const c = { id: CUSTOMERS.length + 1, ...req.body, createdAt: new Date().toISOString().slice(0, 10) };
+  if (requireText(res, req.body, [['name', '姓名'], ['mobile', '电话'], ['customerType', '客户类型']])) return;
+  if (req.body.budgetMin != null && req.body.budgetMax != null && Number(req.body.budgetMin) > Number(req.body.budgetMax)) return res.status(400).json({ code: 400, message: '最低预算不能高于最高预算' });
+  const c = { id: nextId(CUSTOMERS), ...req.body, createdAt: new Date().toISOString().slice(0, 10) };
   CUSTOMERS.push(c);
-  res.json({ code: 0, data: c });
+  res.json({ code: 0, data: customerResponse(c) });
+});
+app.get('/api/house/customers/:id/edit', (req, res) => {
+  const customer = CUSTOMERS.find(item => item.id === Number(req.params.id));
+  if (!customer) return notFound(res, '客户不存在');
+  res.json({ code: 0, data: customerResponse(customer) });
+});
+app.put('/api/house/customers/:id', (req, res) => {
+  if (requireText(res, req.body, [['name', '姓名'], ['mobile', '电话'], ['customerType', '客户类型']])) return;
+  const customer = CUSTOMERS.find(item => item.id === Number(req.params.id));
+  if (!customer) return notFound(res, '客户不存在');
+  Object.assign(customer, req.body);
+  res.json({ code: 0, data: customerResponse(customer) });
 });
 // 小区
 function communityCityId(item) {
@@ -1689,9 +1832,30 @@ app.get('/api/community', (req, res) => {
   res.json({ code: 0, data: { list: data.slice((page - 1) * pageSize, page * pageSize).map(item => ({ ...item, cityId: communityCityId(item) })), total: data.length } });
 });
 app.post('/api/community', (req, res) => {
-  const c = { id: COMMUNITIES.length + 1, ...req.body, roomCount: 0, createdAt: new Date().toISOString() };
+  if (requireText(res, req.body, [['name', '小区名称']])) return;
+  const cityName = CITIES.find(city => city.id === Number(req.body.cityId))?.name || req.body.cityName || '';
+  const c = { id: nextId(COMMUNITIES), ...req.body, cityName, roomCount: 0, createdAt: new Date().toISOString() };
   COMMUNITIES.push(c);
   res.json({ code: 0, data: c });
+});
+app.get('/api/community/:id', (req, res) => {
+  const community = COMMUNITIES.find(item => item.id === Number(req.params.id));
+  if (!community) return notFound(res, '小区不存在');
+  res.json({ code: 0, data: { ...community, cityId: communityCityId(community) } });
+});
+app.put('/api/community/:id', (req, res) => {
+  if (requireText(res, req.body, [['name', '小区名称']])) return;
+  const community = COMMUNITIES.find(item => item.id === Number(req.params.id));
+  if (!community) return notFound(res, '小区不存在');
+  const cityName = CITIES.find(city => city.id === Number(req.body.cityId))?.name || req.body.cityName || community.cityName;
+  Object.assign(community, req.body, { cityName });
+  res.json({ code: 0, data: community });
+});
+app.delete('/api/community/:id', (req, res) => {
+  const index = COMMUNITIES.findIndex(item => item.id === Number(req.params.id));
+  if (index < 0) return notFound(res, '小区不存在');
+  const [community] = COMMUNITIES.splice(index, 1);
+  res.json({ code: 0, data: { id: community.id } });
 });
 // 黑名单
 app.get('/api/house/blacklist', (req, res) => {
@@ -1700,16 +1864,19 @@ app.get('/api/house/blacklist', (req, res) => {
   if (keyword) data = data.filter(b => b.name.includes(keyword) || (b.mobile || '').includes(keyword));
   if (type) data = data.filter(b => b.type === type);
   if (status) data = data.filter(b => b.status === status);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.post('/api/house/blacklist', (req, res) => {
-  const b = { id: BLACKLIST.length + 1, ...req.body, storeId: 1, createdAt: new Date().toISOString() };
+  if (requireText(res, req.body, [['name', '姓名'], ['type', '黑名单类型'], ['reason', '拉黑原因']])) return;
+  const b = { id: nextId(BLACKLIST), ...req.body, storeId: 1, createdAt: new Date().toISOString().slice(0, 10) };
   BLACKLIST.push(b);
   res.json({ code: 0, data: b });
 });
 app.put('/api/house/blacklist/:id', (req, res) => {
+  if (requireText(res, req.body, [['name', '姓名'], ['type', '黑名单类型'], ['reason', '拉黑原因']])) return;
   const idx = BLACKLIST.findIndex(b => b.id === parseInt(req.params.id));
-  if (idx >= 0) Object.assign(BLACKLIST[idx], req.body);
+  if (idx < 0) return notFound(res, '黑名单记录不存在');
+  Object.assign(BLACKLIST[idx], req.body);
   res.json({ code: 0, data: BLACKLIST[idx] });
 });
 app.delete('/api/house/blacklist/:id', (req, res) => {
@@ -1723,116 +1890,335 @@ app.get('/api/house/blacklist/check', (req, res) => {
   const found = BLACKLIST.filter(b => (mobile && b.mobile === mobile) || (name && b.name === name));
   res.json({ code: 0, data: found });
 });
+app.get('/api/house/blacklist/:id', (req, res) => {
+  const item = BLACKLIST.find(entry => entry.id === Number(req.params.id));
+  if (!item) return notFound(res, '黑名单记录不存在');
+  res.json({ code: 0, data: item });
+});
 // 储备房源
+function reservePropertyResponse(item) {
+  const status = ({ reserved: 'not_rented', pending: 'not_rented', cancelled: 'pause' })[item.status] || item.status;
+  return {
+    ...item,
+    title: item.title || `${item.communityName || item.address || '储备房源'} ${item.roomNo || ''}`.trim(),
+    address: item.address || '', roomNo: item.roomNo || '', layout: item.layout || '',
+    ownerQuote: Number(item.ownerQuote ?? item.expectedPrice ?? 0),
+    expectedPrice: Number(item.ownerQuote ?? item.expectedPrice ?? 0),
+    sourceChannel: item.sourceChannel || item.source || '',
+    source: item.sourceChannel || item.source || '',
+    status,
+  };
+}
 app.get('/api/house/reserve-properties', (req, res) => {
-  let data = [...RESERVE_PROPERTIES];
+  let data = RESERVE_PROPERTIES.map(reservePropertyResponse);
   const { keyword, status } = req.query;
-  if (keyword) data = data.filter(r => r.title.includes(keyword) || r.ownerName.includes(keyword));
+  if (keyword) data = data.filter(r => [r.title, r.communityName, r.address, r.roomNo, r.ownerName, r.ownerPhone].some(value => String(value || '').includes(keyword)));
   if (status) data = data.filter(r => r.status === status);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.post('/api/house/reserve-properties', (req, res) => {
-  const r = { id: RESERVE_PROPERTIES.length + 1, ...req.body, createdAt: new Date().toISOString() };
+  if (requireText(res, req.body, [['address', '地址'], ['roomNo', '门牌号'], ['layout', '户型'], ['ownerName', '业主'], ['sourceChannel', '来源渠道']])) return;
+  const r = { id: nextId(RESERVE_PROPERTIES), ...req.body, status: req.body.status || 'not_rented', createdAt: new Date().toISOString() };
   RESERVE_PROPERTIES.push(r);
-  res.json({ code: 0, data: r });
+  res.json({ code: 0, data: reservePropertyResponse(r) });
 });
 app.put('/api/house/reserve-properties/:id', (req, res) => {
+  if (requireText(res, req.body, [['address', '地址'], ['roomNo', '门牌号'], ['layout', '户型'], ['ownerName', '业主'], ['sourceChannel', '来源渠道']])) return;
   const idx = RESERVE_PROPERTIES.findIndex(r => r.id === parseInt(req.params.id));
-  if (idx >= 0) Object.assign(RESERVE_PROPERTIES[idx], req.body);
-  res.json({ code: 0, data: RESERVE_PROPERTIES[idx] });
+  if (idx < 0) return notFound(res, '储备房源不存在');
+  Object.assign(RESERVE_PROPERTIES[idx], req.body);
+  res.json({ code: 0, data: reservePropertyResponse(RESERVE_PROPERTIES[idx]) });
+});
+app.get('/api/house/reserve-properties/:id/edit', (req, res) => {
+  const item = RESERVE_PROPERTIES.find(entry => entry.id === Number(req.params.id));
+  if (!item) return notFound(res, '储备房源不存在');
+  res.json({ code: 0, data: reservePropertyResponse(item) });
+});
+app.post('/api/house/reserve-properties/:id/transfer', (req, res) => {
+  const item = RESERVE_PROPERTIES.find(entry => entry.id === Number(req.params.id));
+  if (!item) return notFound(res, '储备房源不存在');
+  const employee = EMPLOYEES.find(entry => entry.id === Number(req.body.salesmanId) && entry.status === 'active');
+  if (!employee) return res.status(400).json({ code: 400, message: '请选择有效的在职业务员' });
+  item.salesmanId = employee.id;
+  item.salesmanName = employee.name;
+  res.json({ code: 0, data: reservePropertyResponse(item) });
+});
+app.post('/api/house/reserve-properties/:id/sign-contract', (req, res) => {
+  const item = RESERVE_PROPERTIES.find(entry => entry.id === Number(req.params.id));
+  if (!item) return notFound(res, '储备房源不存在');
+  if (!['not_rented', 'pause', 'reserved', 'pending'].includes(item.status)) return res.status(400).json({ code: 400, message: '当前状态不可拿房签约' });
+  if (requireText(res, req.body, [['bizType', '租赁方式'], ['leaseStart', '开始日期'], ['leaseEnd', '结束日期']])) return;
+  if (Number(req.body.landlordRent) <= 0) return res.status(400).json({ code: 400, message: '房东租金必须大于 0' });
+  const id = nextId(RENTAL_SETS);
+  const rentalSet = {
+    id, code: `ZJ${String(id).padStart(3, '0')}`,
+    communityId: item.communityId, communityName: item.communityName, address: item.address,
+    roomNo: item.roomNo, layout: item.layout, buildingArea: item.buildingArea, decoration: item.decoration,
+    landlordName: item.ownerName, landlordPhone: item.ownerPhone, landlordRent: Number(req.body.landlordRent),
+    bizType: req.body.bizType, leaseStart: req.body.leaseStart, leaseEnd: req.body.leaseEnd,
+    deposit: Number(req.body.deposit || 0), status: 'vacant', storeId: item.storeId, rooms: [], createdAt: new Date().toISOString(),
+  };
+  RENTAL_SETS.push(rentalSet);
+  item.status = 'signed';
+  item.contractCode = req.body.contractCode || `HT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${item.id}`;
+  res.json({ code: 0, data: { reserveId: item.id, rentalSetId: rentalSet.id, contractCode: item.contractCode, status: item.status } });
 });
 // 储备客源 (extra version)
+function reserveClientResponse(item) {
+  const status = ({ active: 'not_rented', contacted: 'not_rented', inactive: 'pause' })[item.status] || item.status;
+  return {
+    ...item,
+    clientName: item.clientName || item.name || '', clientMobile: item.clientMobile || item.phone || '',
+    desiredLocation: item.desiredLocation || '', demandType: item.demandType || 'rent',
+    desiredLayout: item.desiredLayout || item.intention || '',
+    areaMin: Number(item.areaMin || 0), areaMax: Number(item.areaMax || 0),
+    priceMin: Number(item.priceMin ?? item.budget ?? 0), priceMax: Number(item.priceMax ?? item.budget ?? 0),
+    sourceChannel: item.sourceChannel || item.source || '', urgency: item.urgency || 'normal',
+    ownership: item.ownership || 'house', salesmanName: item.salesmanName || item.employeeName || '', status,
+  };
+}
 app.get('/api/house/reserve-clients', (req, res) => {
-  let data = [...EXTRA_RESERVE_CLIENTS];
+  let data = EXTRA_RESERVE_CLIENTS.map(reserveClientResponse);
   const { keyword, demandType, status } = req.query;
-  if (keyword) data = data.filter(c => c.name.includes(keyword) || c.phone.includes(keyword));
+  if (keyword) data = data.filter(c => [c.clientName, c.clientMobile, c.desiredLocation, c.desiredLayout].some(value => String(value || '').includes(keyword)));
+  if (demandType) data = data.filter(c => c.demandType === demandType);
   if (status) data = data.filter(c => c.status === status);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.post('/api/house/reserve-clients', (req, res) => {
-  const c = { id: EXTRA_RESERVE_CLIENTS.length + 1, ...req.body, createdAt: new Date().toISOString() };
+  if (requireText(res, req.body, [['clientName', '姓名'], ['demandType', '需求类型']])) return;
+  if (req.body.priceMin != null && req.body.priceMax != null && Number(req.body.priceMin) > Number(req.body.priceMax)) return res.status(400).json({ code: 400, message: '最低预算不能高于最高预算' });
+  const c = { id: nextId(EXTRA_RESERVE_CLIENTS), ...req.body, status: req.body.status || 'not_rented', followUps: [], createdAt: new Date().toISOString() };
   EXTRA_RESERVE_CLIENTS.push(c);
-  res.json({ code: 0, data: c });
+  res.json({ code: 0, data: reserveClientResponse(c) });
 });
 app.put('/api/house/reserve-clients/:id', (req, res) => {
+  if (requireText(res, req.body, [['clientName', '姓名'], ['demandType', '需求类型']])) return;
   const idx = EXTRA_RESERVE_CLIENTS.findIndex(c => c.id === parseInt(req.params.id));
-  if (idx >= 0) Object.assign(EXTRA_RESERVE_CLIENTS[idx], req.body);
-  res.json({ code: 0, data: EXTRA_RESERVE_CLIENTS[idx] });
+  if (idx < 0) return notFound(res, '储备客源不存在');
+  Object.assign(EXTRA_RESERVE_CLIENTS[idx], req.body);
+  res.json({ code: 0, data: reserveClientResponse(EXTRA_RESERVE_CLIENTS[idx]) });
+});
+app.get('/api/house/reserve-clients/:id/edit', (req, res) => {
+  const item = EXTRA_RESERVE_CLIENTS.find(entry => entry.id === Number(req.params.id));
+  if (!item) return notFound(res, '储备客源不存在');
+  res.json({ code: 0, data: reserveClientResponse(item) });
+});
+app.post('/api/house/reserve-clients/:id/follow-ups', (req, res) => {
+  const item = EXTRA_RESERVE_CLIENTS.find(entry => entry.id === Number(req.params.id));
+  if (!item) return notFound(res, '储备客源不存在');
+  if (requireText(res, req.body, [['content', '跟进内容']])) return;
+  item.followUps ||= [];
+  const followUp = { id: nextId(item.followUps), ...req.body, createdAt: new Date().toISOString() };
+  item.followUps.push(followUp);
+  item.lastFollowAt = followUp.createdAt;
+  res.json({ code: 0, data: followUp });
+});
+app.post('/api/house/reserve-clients/:id/convert', (req, res) => {
+  const item = EXTRA_RESERVE_CLIENTS.find(entry => entry.id === Number(req.params.id));
+  if (!item) return notFound(res, '储备客源不存在');
+  if (requireText(res, req.body, [['contractCode', '合同编号']])) return;
+  if (!['not_rented', 'deposit', 'active', 'contacted'].includes(item.status)) return res.status(400).json({ code: 400, message: '当前状态不可转签约' });
+  const data = reserveClientResponse(item);
+  const customer = {
+    id: nextId(CUSTOMERS), name: data.clientName, mobile: data.clientMobile,
+    customerType: data.demandType === 'buy' ? 'buyer' : 'tenant', status: 'done', sourceChannel: data.sourceChannel,
+    relatedPropertyCode: req.body.contractCode, contractEndDate: req.body.contractEndDate || undefined,
+    desiredDistrict: data.desiredLocation, budgetMin: data.priceMin, budgetMax: data.priceMax,
+    employeeName: data.salesmanName, createdAt: new Date().toISOString(),
+  };
+  CUSTOMERS.push(customer);
+  item.status = 'rented';
+  res.json({ code: 0, data: { reserveClientId: item.id, customerId: customer.id, contractCode: req.body.contractCode, status: item.status } });
 });
 
 // ============================================================
 //  ROUTES: 财务路由
 // ============================================================
+function billResponse(item) {
+  const category = item.category || item.billSource || 'other';
+  return {
+    ...item, category, billSource: item.billSource || category,
+    title: item.title || `${item.payer || item.payee || item.roomCode || item.bizId || '账单'}-${category}`,
+    tenantName: item.tenantName || item.payer || '', houseTitle: item.houseTitle || item.roomCode || item.bizId || '',
+    paidAmount: Number(item.paidAmount ?? item.actualAmount ?? 0),
+    billDate: item.billDate || item.createdAt?.slice(0, 10), status: item.status || 'pending',
+  };
+}
 app.get('/api/finance/bills', (req, res) => {
-  let data = [...BILLS];
-  const { keyword, status } = req.query;
-  if (keyword) data = data.filter(b => b.title.includes(keyword) || (b.tenantName || '').includes(keyword));
+  let data = BILLS.map(billResponse);
+  const { keyword, status, category, dateStart, dateEnd } = req.query;
+  if (keyword) data = data.filter(b => [b.title, b.tenantName, b.houseTitle, b.bizId, b.roomCode].some(value => String(value || '').includes(keyword)));
   if (status) data = data.filter(b => b.status === status);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  if (category) data = data.filter(b => b.category === category);
+  if (dateStart) data = data.filter(b => String(b.dueDate || '') >= dateStart);
+  if (dateEnd) data = data.filter(b => String(b.dueDate || '') <= dateEnd);
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.post('/api/finance/bills', (req, res) => {
-  const b = { id: BILLS.length + 1, ...req.body, createdAt: new Date().toISOString() };
+  if (requireText(res, req.body, [['bizType', '业务类型'], ['billSource', '款项种类'], ['dueDate', '到期日']])) return;
+  if (Number(req.body.amount) <= 0) return res.status(400).json({ code: 400, message: '账单金额必须大于 0' });
+  const b = { id: nextId(BILLS), ...req.body, status: 'pending', paidAmount: 0, createdAt: new Date().toISOString() };
   BILLS.push(b);
-  res.json({ code: 0, data: b });
+  res.json({ code: 0, data: billResponse(b) });
 });
+app.get('/api/finance/bills/:id/edit', (req, res) => {
+  const bill = BILLS.find(item => item.id === Number(req.params.id));
+  if (!bill) return notFound(res, '账单不存在');
+  res.json({ code: 0, data: billResponse(bill) });
+});
+app.put('/api/finance/bills/:id', (req, res) => {
+  if (requireText(res, req.body, [['bizType', '业务类型'], ['billSource', '款项种类'], ['dueDate', '到期日']])) return;
+  if (Number(req.body.amount) <= 0) return res.status(400).json({ code: 400, message: '账单金额必须大于 0' });
+  const bill = BILLS.find(item => item.id === Number(req.params.id));
+  if (!bill) return notFound(res, '账单不存在');
+  Object.assign(bill, req.body);
+  res.json({ code: 0, data: billResponse(bill) });
+});
+app.post('/api/finance/bills/:id/void', (req, res) => {
+  const bill = BILLS.find(item => item.id === Number(req.params.id));
+  if (!bill) return notFound(res, '账单不存在');
+  if (bill.status === 'paid') return res.status(400).json({ code: 400, message: '已缴账单不可作废' });
+  bill.status = 'cancelled';
+  res.json({ code: 0, data: billResponse(bill) });
+});
+function flowResponse(item) {
+  return {
+    ...item, title: item.title || item.remark || '未命名流水', remark: item.remark || item.title || '',
+    type: item.type || item.direction || 'expense', direction: item.direction || item.type || 'expense',
+    flowDate: item.flowDate || item.occurredOn || item.createdAt?.slice(0, 10),
+    occurredOn: item.occurredOn || item.flowDate || item.createdAt?.slice(0, 10),
+    status: item.status || 'pending', audited: Boolean(item.audited), isRed: Boolean(item.isRed),
+  };
+}
 app.get('/api/finance/flows', (req, res) => {
-  let data = [...FLOWS];
+  let data = FLOWS.map(flowResponse);
   const { keyword, type } = req.query;
-  if (keyword) data = data.filter(f => f.title.includes(keyword));
+  if (keyword) data = data.filter(f => [f.title, f.remark, f.houseTitle, f.customerName].some(value => String(value || '').includes(keyword)));
   if (type) data = data.filter(f => f.type === type);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.post('/api/finance/flows', (req, res) => {
-  const f = { id: FLOWS.length + 1, ...req.body, createdAt: new Date().toISOString() };
+  if (requireText(res, req.body, [['remark', '摘要'], ['direction', '收支方向']])) return;
+  if (Number(req.body.amount) <= 0) return res.status(400).json({ code: 400, message: '流水金额必须大于 0' });
+  const f = { id: nextId(FLOWS), ...req.body, status: 'pending', audited: false, createdAt: new Date().toISOString() };
   FLOWS.push(f);
-  res.json({ code: 0, data: f });
+  res.json({ code: 0, data: flowResponse(f) });
+});
+app.get('/api/finance/flows/:id/edit', (req, res) => {
+  const flow = FLOWS.find(item => item.id === Number(req.params.id));
+  if (!flow) return notFound(res, '流水不存在');
+  res.json({ code: 0, data: flowResponse(flow) });
+});
+app.put('/api/finance/flows/:id', (req, res) => {
+  if (requireText(res, req.body, [['remark', '摘要'], ['direction', '收支方向']])) return;
+  if (Number(req.body.amount) <= 0) return res.status(400).json({ code: 400, message: '流水金额必须大于 0' });
+  const flow = FLOWS.find(item => item.id === Number(req.params.id));
+  if (!flow) return notFound(res, '流水不存在');
+  if (flow.audited || flow.isRed) return res.status(400).json({ code: 400, message: '已审核或红冲流水不可编辑' });
+  Object.assign(flow, req.body);
+  res.json({ code: 0, data: flowResponse(flow) });
 });
 app.get('/api/finance/plans', (req, res) => {
   let data = [...PAYMENT_PLANS];
   const { keyword, planType, status } = req.query;
-  if (keyword) data = data.filter(p => p.title.includes(keyword));
+  if (keyword) data = data.filter(p => [p.title, p.billingCategory, p.reason].some(value => String(value || '').includes(keyword)));
   if (planType) data = data.filter(p => p.planType === planType);
   if (status) data = data.filter(p => p.status === status);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.post('/api/finance/plans', (req, res) => {
-  const p = { id: PAYMENT_PLANS.length + 1, ...req.body, createdAt: new Date().toISOString() };
+  if (requireText(res, req.body, [['planType', '计划类型']])) return;
+  if (Number(req.body.totalPeriods) <= 0 || Number(req.body.totalAmount) <= 0) return res.status(400).json({ code: 400, message: '总期数和总金额必须大于 0' });
+  if (!String(req.body.billingCategory || req.body.reason || '').trim()) return res.status(400).json({ code: 400, message: '请填写款项种类或原因' });
+  const p = {
+    id: nextId(PAYMENT_PLANS),
+    ...req.body,
+    title: req.body.title || req.body.reason || req.body.billingCategory,
+    amount: Number(req.body.totalAmount) / Number(req.body.totalPeriods),
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  };
   PAYMENT_PLANS.push(p);
   res.json({ code: 0, data: p });
 });
+app.get('/api/finance/plans/:id/edit', (req, res) => {
+  const plan = PAYMENT_PLANS.find(item => item.id === Number(req.params.id));
+  if (!plan) return notFound(res, '收支计划不存在');
+  res.json({ code: 0, data: plan });
+});
+app.put('/api/finance/plans/:id', (req, res) => {
+  const plan = PAYMENT_PLANS.find(item => item.id === Number(req.params.id));
+  if (!plan) return notFound(res, '收支计划不存在');
+  if (Number(req.body.totalPeriods) <= 0 || Number(req.body.totalAmount) <= 0) return res.status(400).json({ code: 400, message: '总期数和总金额必须大于 0' });
+  Object.assign(plan, req.body, {
+    title: req.body.title || req.body.reason || req.body.billingCategory,
+    amount: Number(req.body.totalAmount) / Number(req.body.totalPeriods),
+  });
+  res.json({ code: 0, data: plan });
+});
 app.get('/api/finance/arrears', (req, res) => {
-  let data = [...ARREARS];
+  let data = ARREARS.map(item => ({ ...item, status: Number(item.remainAmount) > 0 ? 'unpaid' : 'paid' }));
   const { keyword, status } = req.query;
   if (keyword) data = data.filter(a => a.name.includes(keyword));
   if (status) data = data.filter(a => a.status === status);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.post('/api/finance/arrears', (req, res) => {
-  const a = { id: ARREARS.length + 1, ...req.body, createdAt: new Date().toISOString() };
+  if (requireText(res, req.body, [['name', '姓名'], ['identity', '身份']])) return;
+  if (Number(req.body.amount) <= 0) return res.status(400).json({ code: 400, message: '欠款金额必须大于 0' });
+  const a = { id: nextId(ARREARS), ...req.body, paidAmount: Number(req.body.paidAmount || 0), remainAmount: Number(req.body.amount) - Number(req.body.paidAmount || 0), status: 'unpaid', createdAt: new Date().toISOString() };
   ARREARS.push(a);
   res.json({ code: 0, data: a });
 });
+app.post('/api/finance/arrears/:id/collect', (req, res) => {
+  const item = ARREARS.find(entry => entry.id === Number(req.params.id));
+  if (!item) return notFound(res, '欠款记录不存在');
+  const amount = Number(req.body.amount);
+  if (amount <= 0 || amount > Number(item.remainAmount)) return res.status(400).json({ code: 400, message: '收款金额必须大于 0 且不能超过剩余欠款' });
+  item.paidAmount = Number(item.paidAmount || 0) + amount;
+  item.remainAmount = Number(item.amount || 0) - item.paidAmount;
+  item.status = item.remainAmount > 0 ? 'unpaid' : 'paid';
+  res.json({ code: 0, data: item });
+});
 app.get('/api/finance/payouts', (req, res) => {
-  let data = [...PAYOUTS];
-  const { keyword, status } = req.query;
-  if (keyword) data = data.filter(p => p.accountName.includes(keyword) || (p.batchNo || '').includes(keyword));
+  let data = PAYOUTS.map(item => ({
+    ...item,
+    type: item.type || (/装修/.test(item.accountName) ? 'decorate' : /物业/.test(item.accountName) ? 'property' : /电力|能源/.test(item.accountName) ? 'energy' : /刘建国|王芳|孙丽/.test(item.accountName) ? 'rent_cost' : 'other'),
+  }));
+  const { keyword, status, type, dateStart, dateEnd } = req.query;
+  if (keyword) data = data.filter(p => [p.accountName, p.bankName, p.batchNo].some(value => String(value || '').includes(keyword)));
   if (status) data = data.filter(p => p.status === status);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  if (type) data = data.filter(p => (p.type || 'other') === type);
+  if (dateStart) data = data.filter(p => String(p.operateDate || '') >= dateStart);
+  if (dateEnd) data = data.filter(p => String(p.operateDate || '') <= dateEnd);
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.post('/api/finance/payouts', (req, res) => {
-  const p = { id: PAYOUTS.length + 1, ...req.body, batchNo: 'ZF' + new Date().toISOString().slice(0, 10).replace(/-/g, ''), createdAt: new Date().toISOString() };
+  if (requireText(res, req.body, [['accountName', '收款人'], ['bankName', '开户行'], ['operateDate', '计划付款日']])) return;
+  if (Number(req.body.payoutAmount) <= 0) return res.status(400).json({ code: 400, message: '代付金额必须大于 0' });
+  const p = { id: nextId(PAYOUTS), ...req.body, batchNo: 'ZF' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + String(nextId(PAYOUTS)).padStart(3, '0'), actualAmount: 0, status: 'pending', createdAt: new Date().toISOString() };
   PAYOUTS.push(p);
   res.json({ code: 0, data: p });
+});
+app.post('/api/finance/payouts/batch-pay', (req, res) => {
+  const ids = Array.isArray(req.body.ids) ? req.body.ids.map(Number) : [];
+  if (!ids.length) return res.status(400).json({ code: 400, message: '请选择待支付记录' });
+  const changed = PAYOUTS.filter(item => ids.includes(item.id) && item.status === 'pending');
+  changed.forEach(item => { item.status = 'paid'; item.actualAmount = Number(item.payoutAmount || item.payableAmount || 0); });
+  res.json({ code: 0, data: { count: changed.length } });
 });
 app.get('/api/finance/invoices', (req, res) => {
   let data = [...INVOICES];
   const { keyword, status } = req.query;
   if (keyword) data = data.filter(v => v.buyerName.includes(keyword));
   if (status) data = data.filter(v => v.status === status);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.post('/api/finance/invoices', (req, res) => {
-  const v = { id: INVOICES.length + 1, ...req.body, createdAt: new Date().toISOString() };
+  if (requireText(res, req.body, [['applySource', '开票项目'], ['buyerName', '购方名称']])) return;
+  if (Number(req.body.amountWithTax) <= 0) return res.status(400).json({ code: 400, message: '价税合计必须大于 0' });
+  const v = { id: nextId(INVOICES), ...req.body, status: 'pending', createdAt: new Date().toISOString() };
   INVOICES.push(v);
   res.json({ code: 0, data: v });
 });
@@ -1856,10 +2242,15 @@ app.get('/api/finance/rent-increases', (req, res) => {
   if (year) data = data.filter(r => r.year === parseInt(year));
   if (month) data = data.filter(r => r.month === parseInt(month));
   if (keyword) data = data.filter(r => r.roomCode.includes(keyword));
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.post('/api/finance/rent-increases', (req, res) => {
-  const r = { id: RENT_INCREASES.length + 1, ...req.body };
+  if (requireText(res, req.body, [['roomCode', '房源编号']])) return;
+  const lastRent = Number(req.body.lastRent), currentRent = Number(req.body.currentRent);
+  if (lastRent <= 0 || currentRent <= 0) return res.status(400).json({ code: 400, message: '原租金和现租金必须大于 0' });
+  if (currentRent <= lastRent) return res.status(400).json({ code: 400, message: '现租金必须高于原租金' });
+  const increaseAmount = currentRent - lastRent;
+  const r = { id: nextId(RENT_INCREASES), ...req.body, lastRent, currentRent, increaseAmount, increaseRate: Number((increaseAmount / lastRent * 100).toFixed(1)), status: req.body.status || 'pending' };
   RENT_INCREASES.push(r);
   res.json({ code: 0, data: r });
 });
@@ -1867,14 +2258,18 @@ app.get('/api/finance/profits', (req, res) => {
   let data = [...PROFITS];
   const { period } = req.query;
   if (period) data = data.filter(p => p.period === period);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.get('/api/finance/profits/summary', (req, res) => {
-  const latest = PROFITS[PROFITS.length - 1];
-  res.json({ code: 0, data: { income: latest.income, cost: latest.cost, profit: latest.profit, margin: latest.margin + '%' } });
+  const latest = (req.query.period ? PROFITS.filter(item => item.period === req.query.period) : PROFITS).at(-1) || { income: 0, cost: 0, profit: 0, margin: 0 };
+  res.json({ code: 0, data: { income: Number(latest.income || 0), cost: Number(latest.cost || 0), profit: Number(latest.profit || 0), margin: Number(latest.margin || 0) } });
 });
 app.post('/api/finance/profits', (req, res) => {
-  const p = { id: PROFITS.length + 1, ...req.body };
+  if (requireText(res, req.body, [['period', '月份']])) return;
+  const income = Number(req.body.income), cost = Number(req.body.cost);
+  if (income <= 0 || cost < 0) return res.status(400).json({ code: 400, message: '收入必须大于 0，成本不能为负数' });
+  const profit = income - cost;
+  const p = { id: nextId(PROFITS), ...req.body, income, cost, profit, margin: Number((profit / income * 100).toFixed(1)) };
   PROFITS.push(p);
   res.json({ code: 0, data: p });
 });
@@ -1896,14 +2291,35 @@ app.put('/api/finance/partners/:id', (req, res) => {
 });
 app.get('/api/finance/income-costs', (req, res) => {
   let data = [...INCOME_COSTS];
-  const { period } = req.query;
+  const { period, keyword, dateStart, dateEnd } = req.query;
   if (period) data = data.filter(ic => ic.period === period);
+  if (keyword) data = data.filter(ic => String(ic.period || '').includes(keyword));
+  if (dateStart) data = data.filter(ic => `${ic.period}-01` >= dateStart);
+  if (dateEnd) data = data.filter(ic => `${ic.period}-01` <= dateEnd);
   res.json({ code: 0, data: { list: data, total: data.length } });
 });
 app.post('/api/finance/income-costs', (req, res) => {
-  const ic = { id: INCOME_COSTS.length + 1, ...req.body };
+  if (requireText(res, req.body, [['period', '月份']])) return;
+  const incomeFields = ['rentIncome', 'depositIncome', 'energyIncome', 'otherIncome'];
+  const costFields = ['rentCost', 'energyCost', 'decorateCost', 'laborCost', 'otherCost'];
+  const totalIncome = incomeFields.reduce((sum, key) => sum + Number(req.body[key] || 0), 0);
+  const totalCost = costFields.reduce((sum, key) => sum + Number(req.body[key] || 0), 0);
+  if (totalIncome <= 0 && totalCost <= 0) return res.status(400).json({ code: 400, message: '收入或成本至少填写一项有效金额' });
+  const ic = { id: nextId(INCOME_COSTS), ...req.body, totalIncome, totalCost };
   INCOME_COSTS.push(ic);
   res.json({ code: 0, data: ic });
+});
+app.put('/api/finance/income-costs/:id', (req, res) => {
+  if (requireText(res, req.body, [['period', '月份']])) return;
+  const item = INCOME_COSTS.find(entry => entry.id === Number(req.params.id));
+  if (!item) return notFound(res, '收入成本记录不存在');
+  const incomeFields = ['rentIncome', 'depositIncome', 'energyIncome', 'otherIncome'];
+  const costFields = ['rentCost', 'energyCost', 'decorateCost', 'laborCost', 'otherCost'];
+  const totalIncome = incomeFields.reduce((sum, key) => sum + Number(req.body[key] || 0), 0);
+  const totalCost = costFields.reduce((sum, key) => sum + Number(req.body[key] || 0), 0);
+  if (totalIncome <= 0 && totalCost <= 0) return res.status(400).json({ code: 400, message: '收入或成本至少填写一项有效金额' });
+  Object.assign(item, req.body, { totalIncome, totalCost });
+  res.json({ code: 0, data: item });
 });
 app.get('/api/finance/performances', (req, res) => {
   let data = [...PERFORMANCES];
@@ -1913,18 +2329,25 @@ app.get('/api/finance/performances', (req, res) => {
   res.json({ code: 0, data: { list: data, total: data.length } });
 });
 app.post('/api/finance/performances', (req, res) => {
-  const p = { id: PERFORMANCES.length + 1, ...req.body };
+  if (requireText(res, req.body, [['employeeName', '员工'], ['period', '月份']])) return;
+  if (Number(req.body.totalPerformance) <= 0) return res.status(400).json({ code: 400, message: '业绩金额必须大于 0' });
+  const p = { id: nextId(PERFORMANCES), ...req.body };
   PERFORMANCES.push(p);
   res.json({ code: 0, data: p });
 });
 app.get('/api/finance/accountings', (req, res) => {
   let data = [...ACCOUNTINGS];
-  const { period } = req.query;
+  const { period, dateStart, dateEnd } = req.query;
   if (period) data = data.filter(a => a.period === period);
-  res.json({ code: 0, data: { list: data, total: data.length } });
+  if (dateStart) data = data.filter(a => `${a.period}-01` >= dateStart);
+  if (dateEnd) data = data.filter(a => `${a.period}-01` <= dateEnd);
+  res.json({ code: 0, data: paginate(req.query, data) });
 });
 app.post('/api/finance/accountings', (req, res) => {
-  const a = { id: ACCOUNTINGS.length + 1, ...req.body };
+  if (requireText(res, req.body, [['period', '月份']])) return;
+  const values = ['revenue', 'receivable', 'payable', 'actualIncome', 'actualExpense'].map(key => Number(req.body[key] || 0));
+  if (values.every(value => value === 0)) return res.status(400).json({ code: 400, message: '至少填写一项有效金额' });
+  const a = { id: nextId(ACCOUNTINGS), ...req.body, diff: Number(req.body.actualIncome || 0) - Number(req.body.actualExpense || 0) };
   ACCOUNTINGS.push(a);
   res.json({ code: 0, data: a });
 });

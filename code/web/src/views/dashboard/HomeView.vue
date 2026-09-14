@@ -218,6 +218,7 @@ onMounted(loadDashboard);
             :border-color="item.color"
             :is-zero="item.value === 0"
             :is-over-threshold="item.color === 'red'"
+            @detail="router.push('/finance/arrears')"
           />
         </div>
       </section>

@@ -2,6 +2,7 @@
 import { ref, onMounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { getPaymentPlans, type PaymentPlan } from '@/api/finance';
+import { formatMoney } from '@/utils/format';
 
 const router = useRouter();
 const list = ref<PaymentPlan[]>([]);
@@ -57,12 +58,12 @@ function typeClass(type: string) {
       <el-table-column prop="reason" label="原因" show-overflow-tooltip />
       <el-table-column prop="totalPeriods" label="总期数" />
       <el-table-column prop="totalAmount" label="总金额">
-        <template #default="{ row }">¥{{ row.totalAmount.toLocaleString() }}</template>
+        <template #default="{ row }">{{ formatMoney(row.totalAmount ?? row.amount ?? 0) }}</template>
       </el-table-column>
       <el-table-column prop="auditStatus" label="审批状态" />
       <el-table-column label="操作" width="120">
-        <template #default="{}">
-          <button type="button" class="btn btn-ghost btn-sm" v-permission="['finance:bill:modify']">编辑</button>
+        <template #default="{ row }">
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['finance:bill:modify']" @click="router.push(`/finance/plan/edit/${row.id}`)">编辑</button>
         </template>
       </el-table-column>
     </el-table>

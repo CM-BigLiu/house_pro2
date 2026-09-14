@@ -172,3 +172,69 @@ test('sale: editable detail, saved price/title, allowed transitions and approval
   assert.equal((await request('/house/sale-properties/1', 'PUT', { status: 'sold' })).code, 400);
   assert.equal((await request('/house/sale-properties/9999/edit')).code, 404);
 });
+
+test('reported list pages return distinct slices and normalized customer fields', async () => {
+  for (const path of ['/house/rental-sets', '/house/customers', '/finance/bills', '/finance/flows']) {
+    const first = await ok(`${path}?page=1&pageSize=2`);
+    const second = await ok(`${path}?page=2&pageSize=2`);
+    assert.equal(first.list.length, 2, path);
+    assert.equal(second.list.length, 2, path);
+    assert.notEqual(first.list[0].id, second.list[0].id, path);
+  }
+  const customers = await ok('/house/customers?customerType=tenant&status=active&pageSize=5');
+  assert.ok(customers.list.length > 0);
+  assert.ok(customers.list.every(item => item.mobile && item.customerType === 'tenant' && item.status === 'active'));
+  const editable = await ok(`/house/customers/${customers.list[0].id}/edit`);
+  assert.equal(editable.mobile, customers.list[0].mobile);
+});
+
+test('reserve property and client workflows expose one contract for list, edit and actions', async () => {
+  const properties = await ok('/house/reserve-properties?status=not_rented&pageSize=3');
+  assert.ok(properties.list.length > 0);
+  assert.ok(properties.list.every(item => item.ownerQuote >= 0 && item.sourceChannel && item.status === 'not_rented'));
+  const property = properties.list[0];
+  assert.equal((await ok(`/house/reserve-properties/${property.id}/edit`)).id, property.id);
+  assert.equal((await ok(`/house/reserve-properties/${property.id}/transfer`, 'POST', { salesmanId: 4 })).salesmanName, '李娜');
+
+  for (const code of ['demand_type', 'urgency', 'blacklist_status', 'payment_type', 'ticket_status', 'identity']) {
+    assert.ok((await ok(`/system/dicts/${code}/items`)).length > 0, code);
+  }
+  const clients = await ok('/house/reserve-clients?status=not_rented&pageSize=2');
+  assert.equal(clients.list.length, 2);
+  assert.ok(clients.list.every(item => item.clientName && item.clientMobile && item.demandType));
+  const client = clients.list[0];
+  assert.equal((await ok(`/house/reserve-clients/${client.id}/edit`)).clientName, client.clientName);
+  assert.ok((await ok(`/house/reserve-clients/${client.id}/follow-ups`, 'POST', { followType: 'phone', content: '回归跟进' })).id);
+  const converted = await ok(`/house/reserve-clients/${client.id}/convert`, 'POST', { contractCode: 'HT-REGRESSION-001' });
+  assert.ok(converted.customerId > 0);
+});
+
+test('system forms reject blank base data and roles reflect runtime permissions', async () => {
+  assert.equal((await request('/system/dicts', 'POST', { code: '', name: '' })).code, 400);
+  assert.equal((await request('/system/dicts/items', 'POST', { dictCode: 'source_channel', value: '', label: '' })).code, 400);
+  assert.equal((await request('/system/roles', 'POST', { code: '', name: '' })).code, 400);
+  const roles = await ok('/system/roles');
+  assert.ok(roles.every(role => Array.isArray(role.permissions) && role.permissions.length > 0));
+  assert.equal((await ok('/system/employees/4/edit')).name, '李娜');
+  assert.equal((await ok('/house/blacklist/1')).name, '张某某');
+  assert.equal((await ok('/community/1')).id, 1);
+});
+
+test('financial forms validate data and preserve submitted DTO fields', async () => {
+  assert.equal((await request('/finance/rent-increases', 'POST', { roomCode: '', lastRent: 0, currentRent: 0 })).code, 400);
+  assert.equal((await request('/finance/profits', 'POST', { period: '', income: 0, cost: 0 })).code, 400);
+  assert.equal((await request('/finance/plans', 'POST', { planType: 'income', totalPeriods: 1, totalAmount: 0 })).code, 400);
+  const plan = await ok('/finance/plans', 'POST', { planType: 'income', billingCategory: '其他收入', reason: '计划搜索回归', totalPeriods: 2, totalAmount: 200 });
+  assert.equal(plan.title, '计划搜索回归');
+  assert.equal((await ok('/finance/plans?keyword=计划搜索回归')).total, 1);
+  const flow = await ok('/finance/flows', 'POST', { remark: '回归流水', direction: 'income', amount: 123, paymentType: 'bank' });
+  assert.equal(flow.title, '回归流水');
+  assert.equal(flow.type, 'income');
+  assert.equal((await ok(`/finance/flows/${flow.id}/edit`)).direction, 'income');
+  const filtered = await ok('/finance/flows?keyword=回归流水&type=income');
+  assert.equal(filtered.total, 1);
+  const summary = await ok('/finance/profits/summary');
+  assert.equal(typeof summary.margin, 'number');
+  const legacy = await ok('/house/checkouts/3/confirm', 'POST', {});
+  assert.equal(legacy.manualHouseStateRequired, true);
+});

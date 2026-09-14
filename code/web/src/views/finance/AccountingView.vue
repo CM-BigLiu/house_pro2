@@ -3,6 +3,7 @@ import { ref, onMounted, reactive, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { getAccountings, createAccounting, type Accounting } from '@/api/finance-report';
 import { formatMoney } from '@/utils/format';
+import { downloadCsv } from '@/utils/csv';
 
 const list = ref<Accounting[]>([]);
 const loading = ref(false);
@@ -59,10 +60,20 @@ function openCreate() {
 }
 
 async function submit() {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(form.period || '')) return ElMessage.warning('请按 YYYY-MM 填写月份');
+  if (['revenue', 'receivable', 'payable', 'actualIncome', 'actualExpense'].every(key => Number(form[key as keyof Accounting] || 0) === 0)) return ElMessage.warning('至少填写一项有效金额');
   await createAccounting(form);
   ElMessage.success('创建成功');
   dialogVisible.value = false;
   await load();
+}
+
+function exportCurrent() {
+  downloadCsv('财务核算.csv', [
+    ['月份', '营业收入', '应收账款', '应付账款', '实际收款', '实际付款', '差异'],
+    ...list.value.map(row => [row.period, row.revenue, row.receivable, row.payable, row.actualIncome, row.actualExpense, row.diff]),
+  ]);
+  ElMessage.success('已导出当前结果');
 }
 </script>
 
@@ -75,8 +86,8 @@ async function submit() {
       </div>
       <div class="page-actions">
         <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="openCreate"><i data-lucide="plus"></i> 新增核算</button>
-        <button v-permission="['finance:export']" class="btn btn-default"><i data-lucide="download"></i> 导出报表</button>
-        <button class="btn btn-default"><i data-lucide="circle-help"></i> 使用帮助</button>
+        <button v-permission="['finance:export']" class="btn btn-default" @click="exportCurrent"><i data-lucide="download"></i> 导出报表</button>
+        <button class="btn btn-default" @click="ElMessage.info('差异按实际收款减实际付款计算；筛选结果会同步更新汇总指标。')"><i data-lucide="circle-help"></i> 使用帮助</button>
       </div>
     </div>
 

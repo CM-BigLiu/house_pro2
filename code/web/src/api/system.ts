@@ -24,6 +24,10 @@ export function getDicts(params?: { keyword?: string }) {
   return get<Dict[]>('/system/dicts', { params });
 }
 
+export function getDict(id: number) {
+  return get<Dict>(`/system/dicts/id/${id}`);
+}
+
 export function getDictItems(code: string, tree = false) {
   return get<DictItem[]>(`/system/dicts/${code}/items`, { params: { tree: String(tree) } });
 }

@@ -7,6 +7,7 @@ export interface Deposit {
   tenantName?: string;
   houseInfo?: string;
   depositAmount: number;
+  depositDate?: string;
   status: 'pending' | 'refunded' | 'deducted';
   refundDate?: string;
   deductReason?: string;

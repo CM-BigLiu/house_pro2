@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { getPerformances, createPerformance, type Performance } from '@/api/finance-report';
+import { downloadCsv } from '@/utils/csv';
+import { formatMoney } from '@/utils/format';
 
 const list = ref<Performance[]>([]);
 const loading = ref(false);
@@ -33,10 +35,25 @@ function openCreate() {
 }
 
 async function submit() {
+  if (!form.employeeName?.trim()) return ElMessage.warning('请填写员工姓名');
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(form.period || '')) return ElMessage.warning('请按 YYYY-MM 填写月份');
+  if (Number(form.totalPerformance) <= 0) return ElMessage.warning('业绩金额必须大于 0');
   await createPerformance(form);
   ElMessage.success('创建成功');
   dialogVisible.value = false;
   await load();
+}
+
+function exportCurrent() {
+  downloadCsv('业绩核算.csv', [
+    ['员工', '月份', '收房数', '收客数', '带看数', '成交数', '业绩金额', '提成'],
+    ...list.value.map(row => [row.employeeName, row.period, row.newHouseCount, row.newCustomerCount, row.showingCount, row.dealCount, row.totalPerformance, row.commission]),
+  ]);
+  ElMessage.success('已导出当前结果');
+}
+
+function showDetails(row: Performance) {
+  ElMessageBox.alert(`业绩：${formatMoney(row.totalPerformance)}\n已分配：${formatMoney(row.distributed)}\n留存：${formatMoney(row.retained)}\n提成：${formatMoney(row.commission)}`, `${row.employeeName} · ${row.period}`);
 }
 </script>
 
@@ -49,7 +66,7 @@ async function submit() {
       </div>
       <div class="page-actions">
         <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="openCreate">新增业绩</button>
-        <button v-permission="['finance:export']" class="btn btn-default">导出</button>
+        <button v-permission="['finance:export']" class="btn btn-default" @click="exportCurrent">导出</button>
       </div>
     </div>
 
@@ -68,7 +85,7 @@ async function submit() {
       <el-table-column prop="dealCount" label="成交数" />
       <el-table-column prop="totalPerformance" label="业绩金额">
         <template #default="{ row }">
-          <span class="profit">¥{{ row.totalPerformance.toLocaleString() }}</span>
+          <span class="profit">{{ formatMoney(row.totalPerformance) }}</span>
         </template>
       </el-table-column>
       <el-table-column prop="distributed" label="已分配" />
@@ -76,8 +93,8 @@ async function submit() {
       <el-table-column prop="transferred" label="转移留存" />
       <el-table-column prop="commission" label="提成" />
       <el-table-column label="操作" width="120">
-        <template #default="{}">
-          <button type="button" class="btn btn-ghost btn-sm">明细</button>
+        <template #default="{ row }">
+          <button type="button" class="btn btn-ghost btn-sm" @click="showDetails(row)">明细</button>
         </template>
       </el-table-column>
     </el-table>

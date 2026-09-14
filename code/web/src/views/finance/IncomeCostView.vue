@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed } from 'vue';
-import { ElMessage } from 'element-plus';
-import { getIncomeCosts, createIncomeCost, type IncomeCost } from '@/api/finance-report';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { getIncomeCosts, createIncomeCost, updateIncomeCost, type IncomeCost } from '@/api/finance-report';
 import { formatMoney } from '@/utils/format';
+import { downloadCsv } from '@/utils/csv';
 
 const list = ref<IncomeCost[]>([]);
 const loading = ref(false);
 const dialogVisible = ref(false);
+const editingId = ref(0);
 const form = reactive<Partial<IncomeCost>>({
   period: '', rentIncome: 0, depositIncome: 0, energyIncome: 0, otherIncome: 0,
   rentCost: 0, energyCost: 0, decorateCost: 0, laborCost: 0, otherCost: 0,
@@ -60,6 +62,7 @@ function onReset() {
 }
 
 function openCreate() {
+  editingId.value = 0;
   Object.assign(form, {
     period: '', rentIncome: 0, depositIncome: 0, energyIncome: 0, otherIncome: 0,
     rentCost: 0, energyCost: 0, decorateCost: 0, laborCost: 0, otherCost: 0,
@@ -68,10 +71,32 @@ function openCreate() {
 }
 
 async function submit() {
-  await createIncomeCost(form);
-  ElMessage.success('创建成功');
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(form.period || '')) return ElMessage.warning('请按 YYYY-MM 填写月份');
+  const fields = ['rentIncome', 'depositIncome', 'energyIncome', 'otherIncome', 'rentCost', 'energyCost', 'decorateCost', 'laborCost', 'otherCost'] as const;
+  if (fields.every(key => Number(form[key] || 0) === 0)) return ElMessage.warning('收入或成本至少填写一项有效金额');
+  if (editingId.value) await updateIncomeCost(editingId.value, form);
+  else await createIncomeCost(form);
+  ElMessage.success(editingId.value ? '保存成功' : '创建成功');
   dialogVisible.value = false;
   await load();
+}
+
+function openEdit(row: IncomeCost) {
+  editingId.value = row.id;
+  Object.assign(form, row);
+  dialogVisible.value = true;
+}
+
+function showDetails(row: IncomeCost) {
+  ElMessageBox.alert(`收入：${formatMoney(row.totalIncome)}\n成本：${formatMoney(row.totalCost)}\n净额：${formatMoney(Number(row.totalIncome || 0) - Number(row.totalCost || 0))}`, `${row.period} 收入成本明细`);
+}
+
+function exportCurrent() {
+  downloadCsv('收入成本.csv', [
+    ['月份', '租金收入', '押金收入', '能源收入', '其他收入', '总收入', '总成本'],
+    ...list.value.map(row => [row.period, row.rentIncome, row.depositIncome, row.energyIncome, row.otherIncome, row.totalIncome, row.totalCost]),
+  ]);
+  ElMessage.success('已导出当前结果');
 }
 </script>
 
@@ -84,7 +109,7 @@ async function submit() {
       </div>
       <div class="page-actions">
         <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="openCreate"><i data-lucide="plus"></i> 新增收入</button>
-        <button v-permission="['finance:export']" class="btn btn-default"><i data-lucide="download"></i> 导出</button>
+        <button v-permission="['finance:export']" class="btn btn-default" @click="exportCurrent"><i data-lucide="download"></i> 导出</button>
       </div>
     </div>
 
@@ -151,8 +176,8 @@ async function submit() {
               <td>{{ row.period || '-' }}</td>
               <td>
                 <div class="operation-cell">
-                  <button class="btn btn-ghost btn-sm">查看</button>
-                  <button v-permission="['finance:bill:modify']" class="btn btn-ghost btn-sm">编辑</button>
+                  <button class="btn btn-ghost btn-sm" @click="showDetails(row)">查看</button>
+                  <button v-permission="['finance:bill:modify']" class="btn btn-ghost btn-sm" @click="openEdit(row)">编辑</button>
                 </div>
               </td>
             </tr>
@@ -167,7 +192,7 @@ async function submit() {
     </div>
 
     <!-- 新增对话框 -->
-    <el-dialog v-model="dialogVisible" title="新增收入" width="600px">
+    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑收入' : '新增收入'" width="600px">
       <el-form :model="form" label-width="90px">
         <el-form-item label="月份">
           <el-input v-model="form.period" placeholder="YYYY-MM" />

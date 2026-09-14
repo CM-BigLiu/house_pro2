@@ -15,7 +15,7 @@ export interface Blacklist {
 
 export type BlacklistHit = Pick<Blacklist, 'id' | 'name' | 'type' | 'reason' | 'source' | 'status'>;
 
-export function getBlacklist(params?: { keyword?: string; type?: string; status?: string }) {
+export function getBlacklist(params?: { keyword?: string; type?: string; status?: string; page?: number; pageSize?: number }) {
   return get<{ list: Blacklist[]; total: number }>('/house/blacklist', { params });
 }
 

@@ -41,9 +41,11 @@ async function remove(item: Blacklist) {
 
 function typeClass(type: string) {
   const map: Record<string, string> = {
-    tenant: 'pill-blue',
-    landlord: 'pill-green',
-    supplier: 'pill-orange',
+    debt: 'pill-red',
+    damage: 'pill-orange',
+    noise: 'pill-orange',
+    breach: 'pill-red',
+    fraud: 'pill-red',
     other: 'pill-gray',
   };
   return map[type] || 'pill-gray';

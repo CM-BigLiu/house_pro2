@@ -113,7 +113,7 @@ const logoUrl = ref('/logo.svg');
       <el-avatar :size="28" :src="userStore.userInfo?.avatar" class="user-avatar">{{ userStore.name?.[0] }}</el-avatar>
       <div style="flex:1;min-width:0">
         <div class="su-name">{{ userStore.name }}</div>
-        <div class="su-role">管理员</div>
+        <div class="su-role">{{ userStore.userInfo?.roleName || userStore.userInfo?.role || '用户' }}</div>
       </div>
       <button class="logout-btn" @click="onLogout" title="退出登录">
         <LogOut :size="15" />

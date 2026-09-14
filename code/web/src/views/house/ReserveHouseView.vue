@@ -87,7 +87,11 @@ function exportCurrent() {
 }
 
 function diskClass(type: string) {
-  return type === 'private' ? 'pill-purple' : 'pill-blue';
+  return type === 'shop' || type === 'office' ? 'pill-purple' : 'pill-blue';
+}
+
+function reserveStatusLabel(status: string) {
+  return ({ not_rented: '未租', rented: '已租', sold: '已售', signed: '已签约', deposit_paid: '已交定', pause: '暂停' } as Record<string, string>)[status] || status || '-';
 }
 </script>
 
@@ -133,7 +137,7 @@ function diskClass(type: string) {
           <div class="detail-card-title">{{ item.title }}</div>
           <div class="pills">
             <span :class="['pill', diskClass(item.diskType)]">{{ dictStore.getLabel('disk_type', item.diskType) }}</span>
-            <span :class="['pill', 'pill-gray']">{{ dictStore.getLabel('house_status', item.status) }}</span>
+            <span :class="['pill', 'pill-gray']">{{ reserveStatusLabel(item.status) }}</span>
           </div>
         </div>
         <div class="detail-card-body">
@@ -144,7 +148,7 @@ function diskClass(type: string) {
             </div>
             <div class="field-item">
               <span class="field-label">期望价</span>
-              <span class="field-value price">{{ formatMoney(item.expectedPrice) }}</span>
+              <span class="field-value price">{{ formatMoney(item.ownerQuote ?? item.expectedPrice) }}</span>
             </div>
             <div class="field-item">
               <span class="field-label">业主</span>
@@ -152,7 +156,7 @@ function diskClass(type: string) {
             </div>
             <div class="field-item">
               <span class="field-label">来源</span>
-              <span class="field-value">{{ dictStore.getLabel('source_channel', item.source) || '-' }}</span>
+              <span class="field-value">{{ dictStore.getLabel('source_channel', item.sourceChannel || item.source) || '-' }}</span>
             </div>
           </div>
         </div>

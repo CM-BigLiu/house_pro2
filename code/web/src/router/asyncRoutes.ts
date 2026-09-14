@@ -280,6 +280,12 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '审批中心', permission: 'system:approval' },
   },
   {
+    path: '/finance/plan/edit/:id',
+    name: 'FinancePlanEdit',
+    component: () => import('@/views/finance/PlanFormView.vue'),
+    meta: { title: '编辑计划', permission: 'finance:plan', actionPermission: 'finance:bill:modify', hidden: true },
+  },
+  {
     path: '/system/role',
     name: 'SystemRole',
     component: () => import('@/views/system/RoleView.vue'),

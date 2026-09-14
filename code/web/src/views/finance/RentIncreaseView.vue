@@ -7,6 +7,7 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import VChart from 'vue-echarts';
 import { getRentIncreases, createRentIncrease, type RentIncrease } from '@/api/finance-report';
 import { ElMessage } from 'element-plus';
+import { downloadCsv } from '@/utils/csv';
 
 use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, LegendComponent]);
 
@@ -77,8 +78,9 @@ function buildChart() {
 function computeStats() {
   const current = list.value.filter((x) => x.year === query.year);
   const count = current.length;
-  const totalIncrease = current.reduce((sum, x) => sum + Number(x.increaseAmount), 0);
-  const avgRate = count ? current.reduce((sum, x) => sum + Number(x.increaseRate), 0) / count : 0;
+  const safeNumber = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
+  const totalIncrease = current.reduce((sum, x) => sum + safeNumber(x.increaseAmount), 0);
+  const avgRate = count ? current.reduce((sum, x) => sum + safeNumber(x.increaseRate), 0) / count : 0;
   stats.value[0].value = count;
   stats.value[1].value = Number(avgRate.toFixed(2));
   stats.value[2].value = totalIncrease;
@@ -95,6 +97,9 @@ function openCreate() {
 }
 
 async function submit() {
+  if (!form.roomCode?.trim()) return ElMessage.warning('请填写房源编号');
+  if (Number(form.lastRent) <= 0 || Number(form.currentRent) <= 0) return ElMessage.warning('原租金和现租金必须大于 0');
+  if (Number(form.currentRent) <= Number(form.lastRent)) return ElMessage.warning('现租金必须高于原租金');
   await createRentIncrease(form);
   ElMessage.success('创建成功');
   dialogVisible.value = false;
@@ -103,9 +108,17 @@ async function submit() {
 
 function formatStat(v: number | null, prefix?: string, unit?: string) {
   if (v === null) return '未统计';
-  const str = v.toLocaleString('zh-CN');
+  const str = (Number.isFinite(Number(v)) ? Number(v) : 0).toLocaleString('zh-CN');
   if (prefix) return `${prefix}${str}`;
   return `${str}${unit || ''}`;
+}
+
+function exportCurrent() {
+  downloadCsv(`涨价统计-${query.year}.csv`, [
+    ['房源编号', '年份', '月份', '原租金', '现租金', '涨价金额', '涨幅', '状态'],
+    ...list.value.map(item => [item.roomCode, item.year, item.month, item.lastRent, item.currentRent, item.increaseAmount, item.increaseRate, item.status]),
+  ]);
+  ElMessage.success('已导出当前结果');
 }
 </script>
 
@@ -118,7 +131,7 @@ function formatStat(v: number | null, prefix?: string, unit?: string) {
       </div>
       <div class="page-actions">
         <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="openCreate">新增涨价</button>
-        <button v-permission="['finance:export']" class="btn btn-default">导出</button>
+        <button v-permission="['finance:export']" class="btn btn-default" @click="exportCurrent">导出</button>
       </div>
     </div>
 

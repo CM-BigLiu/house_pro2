@@ -17,6 +17,9 @@ const form = reactive({
 const submitting = ref(false);
 
 async function submit() {
+  if (!form.applySource.trim() || !form.buyerName.trim()) return ElMessage.warning('请填写开票项目和开票对象');
+  if (Number(form.amountWithTax) <= 0) return ElMessage.warning('开票金额必须大于 0');
+  if (form.invoiceType === 'special' && !form.buyerTaxNo.trim()) return ElMessage.warning('专票必须填写纳税人识别号');
   submitting.value = true;
   try {
     const taxRate = 0.06;

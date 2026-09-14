@@ -12,7 +12,7 @@ const submitting = ref(false);
 const isEdit = computed(() => Boolean(route.params.id));
 
 const form = reactive<Partial<Blacklist>>({
-  name: '', mobile: '', idCard: '', type: 'tenant', reason: '', source: '', status: 'active',
+  name: '', mobile: '', idCard: '', type: 'other', reason: '', source: '', status: 'active',
 });
 
 onMounted(async () => {
@@ -64,7 +64,7 @@ async function submit() {
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="类型" required>
+            <el-form-item label="黑名单类型" required>
               <el-select v-model="form.type" style="width: 100%;">
                 <el-option v-for="item in dictStore.getItems('blacklist_type')" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>

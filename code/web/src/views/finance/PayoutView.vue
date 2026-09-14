@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
-import { getPayouts, type Payout } from '@/api/finance';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { batchPayPayouts, getPayouts, type Payout } from '@/api/finance';
 import { useUserStore } from '@/stores/user';
 import { formatMoney } from '@/utils/format';
+import { downloadCsv } from '@/utils/csv';
 
 const router = useRouter();
 void useUserStore;
@@ -35,7 +36,7 @@ onMounted(loadData);
 async function loadData() {
   loading.value = true;
   try {
-    const res = await getPayouts();
+    const res = await getPayouts(query);
     rows.value = res.list || [];
   } finally {
     loading.value = false;
@@ -54,8 +55,25 @@ function onReset() {
   loadData();
 }
 
-function batchPay() {
-  ElMessage.success('批量支付任务已提交');
+async function batchPay() {
+  const ids = rows.value.filter(row => row.status === 'pending').map(row => row.id);
+  if (!ids.length) return ElMessage.info('当前结果没有待支付记录');
+  await ElMessageBox.confirm(`确认支付当前结果中的 ${ids.length} 笔待支付记录？`, '批量支付', { type: 'warning' });
+  const result = await batchPayPayouts(ids);
+  ElMessage.success(`已完成 ${result.count} 笔支付`);
+  await loadData();
+}
+
+function exportCurrent() {
+  downloadCsv('代付管理.csv', [
+    ['批次号', '收款人', '银行', '卡号', '应付金额', '实付金额', '操作日期', '状态'],
+    ...rows.value.map(row => [row.batchNo, row.accountName, row.bankName, row.bankCardNo, row.payableAmount, row.actualAmount, row.operateDate, statusLabel(row.status)]),
+  ]);
+  ElMessage.success('已导出当前结果');
+}
+
+function showDetails(row: Payout) {
+  ElMessageBox.alert(`收款人：${row.accountName}\n银行：${row.bankName}\n卡号：${row.bankCardNo || '-'}\n应付：${formatMoney(row.payableAmount)}\n实付：${formatMoney(row.actualAmount)}`, row.batchNo || '代付详情');
 }
 
 function statusClass(status: string) {
@@ -83,7 +101,7 @@ function statusLabel(status: string) {
       <div class="page-actions">
         <button v-permission="['finance:payout:create']" class="btn btn-primary" @click="router.push('/finance/payout/create')"><i data-lucide="plus"></i> 新增支出</button>
         <button v-permission="['finance:payout:batch']" class="btn btn-default" @click="batchPay"><i data-lucide="layers"></i> 批量支付</button>
-        <button v-permission="['finance:export']" class="btn btn-default"><i data-lucide="download"></i> 导出</button>
+        <button v-permission="['finance:export']" class="btn btn-default" @click="exportCurrent"><i data-lucide="download"></i> 导出</button>
       </div>
     </div>
 
@@ -148,8 +166,8 @@ function statusLabel(status: string) {
               </td>
               <td>
                 <div class="operation-cell">
-                  <button class="btn btn-ghost btn-sm">查看</button>
-                  <button class="btn btn-ghost btn-sm">明细</button>
+                  <button class="btn btn-ghost btn-sm" @click="showDetails(row)">查看</button>
+                  <button class="btn btn-ghost btn-sm" @click="showDetails(row)">明细</button>
                 </div>
               </td>
             </tr>

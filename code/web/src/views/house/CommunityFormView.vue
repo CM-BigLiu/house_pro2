@@ -3,19 +3,22 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { createCommunity, getCommunity, type Community, updateCommunity } from '@/api/community';
+import { getCities } from '@/api/organization';
 
 const router = useRouter();
 const route = useRoute();
 const submitting = ref(false);
 const loading = ref(false);
+const cities = ref<{ id: number; name: string }[]>([]);
 const isEdit = computed(() => Boolean(route.params.id));
 
 const form = reactive<Partial<Community>>({
-  name: '', alias: '', cityId: undefined, districtId: undefined,
+  name: '', alias: '', cityId: undefined, district: '',
   businessCircle: '', address: '', longitude: undefined, latitude: undefined,
 });
 
 onMounted(async () => {
+  cities.value = await getCities();
   if (!isEdit.value) return;
   loading.value = true;
   try {
@@ -72,10 +75,12 @@ async function submit() {
           <el-input v-model="form.alias" placeholder="请输入别名" />
         </el-form-item>
         <el-form-item label="城市">
-          <el-input-number v-model="form.cityId" :min="1" controls-position="right" style="width: 100%;" />
+          <el-select v-model="form.cityId" clearable placeholder="请选择城市" style="width: 100%;">
+            <el-option v-for="city in cities" :key="city.id" :label="city.name" :value="city.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="区域">
-          <el-input-number v-model="form.districtId" :min="1" controls-position="right" style="width: 100%;" />
+          <el-input v-model="form.district" placeholder="如：浦东新区" />
         </el-form-item>
         <el-form-item label="商圈">
           <el-input v-model="form.businessCircle" placeholder="请输入商圈" />

@@ -91,6 +91,11 @@ function statusClass(status: string) {
   };
   return map[status] || 'pill-gray';
 }
+
+function statusLabel(status: string) {
+  return ({ not_rented: '未租', rented: '已签约', pause: '暂停', deposit: '已交定', sold: '已成交' } as Record<string, string>)[status]
+    || dictStore.getLabel('customer_status', status) || status;
+}
 </script>
 
 <template>
@@ -121,7 +126,7 @@ function statusClass(status: string) {
       <div v-for="item in list" :key="item.id" class="house-card">
         <div class="card-header">
           <div class="card-title">{{ item.clientName }}</div>
-          <span :class="['pill', statusClass(item.status)]">{{ dictStore.getLabel('customer_status', item.status) }}</span>
+          <span :class="['pill', statusClass(item.status)]">{{ statusLabel(item.status) }}</span>
         </div>
         <div class="card-body">
           <div class="info-row">

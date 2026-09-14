@@ -75,6 +75,7 @@ function selectAll() {
   selectedBizCircle.value = '';
   query.keyword = '';
   filterKeyword.value = '';
+  treeKeyword.value = '';
   query.page = 1;
   load();
 }

@@ -25,6 +25,8 @@ onMounted(async () => {
 });
 
 async function submit() {
+  if (!form.code.trim() || !form.name.trim()) return ElMessage.warning('请填写角色代码和角色名称');
+  if (!/^[a-z][a-z0-9_:.-]*$/i.test(form.code.trim())) return ElMessage.warning('角色代码只能包含字母、数字、下划线、冒号、点和连字符');
   submitting.value = true;
   try {
     const payload = { ...form };

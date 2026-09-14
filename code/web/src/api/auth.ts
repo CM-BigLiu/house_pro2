@@ -13,6 +13,8 @@ export interface LoginResult {
     name: string;
     mobile: string;
     avatar?: string;
+    role?: string;
+    roleName?: string;
   };
 }
 
@@ -26,6 +28,8 @@ export interface UserInfo {
   name: string;
   mobile: string;
   avatar?: string;
+  role?: string;
+  roleName?: string;
   storeIds: number[];
   groupIds: number[];
   dataScope: string;

@@ -146,7 +146,10 @@ function collectActions(node: Permission): Permission[] {
 
 const parentById = computed(() => {
   const map = new Map<number, Permission>();
-  const walk = (nodes: Permission[]) => nodes.forEach((node) => { map.set(node.id, node); walk(node.children || []); });
+  const walk = (nodes: Permission[], parentId?: number) => nodes.forEach((node) => {
+    map.set(node.id, { ...node, parentId });
+    walk(node.children || [], node.id);
+  });
   walk(permissions.value);
   return map;
 });

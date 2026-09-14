@@ -19,7 +19,7 @@ const form = reactive<Partial<ReserveClient>>({
   clientName: '', clientMobile: '', desiredLocation: '', demandType: 'rent',
   desiredLayout: '', areaMin: undefined, areaMax: undefined,
   priceMin: undefined, priceMax: undefined, sourceChannel: '',
-  usage: '', urgency: 'normal', ownership: 'public', status: 'not_rented',
+  usage: '', urgency: 'normal', ownership: 'house', status: 'not_rented',
 });
 
 onMounted(async () => {
@@ -39,6 +39,7 @@ onMounted(async () => {
 async function submit() {
   if (!form.clientName?.trim()) return ElMessage.warning('请填写姓名');
   if (!form.demandType) return ElMessage.warning('请选择需求类型');
+  if (form.priceMin != null && form.priceMax != null && Number(form.priceMin) > Number(form.priceMax)) return ElMessage.warning('最低预算不能高于最高预算');
   submitting.value = true;
   try {
     if (isEdit.value) await updateReserveClient(editId.value, form);

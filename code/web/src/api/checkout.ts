@@ -21,6 +21,7 @@ export interface Checkout {
   settlementBlockReason?: string;
   confirmedAt?: string;
   completedAt?: string;
+  manualHouseStateRequired?: boolean;
 }
 
 export interface CheckoutQuery {

@@ -110,6 +110,7 @@ function openEditItem(row: DictItem) {
 }
 
 async function submitItem() {
+  if (!itemForm.value?.trim() || !itemForm.label?.trim()) return ElMessage.warning('请填写字典值和显示名');
   const payload = { ...itemForm };
   if (!payload.parentValue) delete payload.parentValue;
   if (isItemEdit.value) {

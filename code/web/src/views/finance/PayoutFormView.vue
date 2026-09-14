@@ -18,6 +18,8 @@ const form = reactive({
 const submitting = ref(false);
 
 async function submit() {
+  if (!form.accountName.trim() || !form.bankName.trim() || !form.operateDate) return ElMessage.warning('请填写收款户名、收款银行和计划付款日');
+  if (Number(form.payoutAmount) <= 0) return ElMessage.warning('支出金额必须大于 0');
   submitting.value = true;
   try {
     const payload: Partial<Payout> = {
