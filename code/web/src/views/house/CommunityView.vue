@@ -137,7 +137,7 @@ async function deleteCommunity(item: Community) {
         <div class="page-desc">小区信息、楼栋结构、房源数量统计</div>
       </div>
       <div class="page-actions">
-        <div class="search-input-wrap">
+        <div class="search-input-wrap query-input-shell">
           <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
           </svg>
@@ -158,7 +158,7 @@ async function deleteCommunity(item: Community) {
     <div class="split-layout">
       <!-- Tree panel -->
       <div class="tree-panel">
-        <div class="tree-search">
+        <div class="tree-search query-input-shell">
           <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
           </svg>
@@ -327,64 +327,13 @@ async function deleteCommunity(item: Community) {
 
 /* ── Tree search ── */
 .tree-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: var(--ink-50);
-  border: 1px solid var(--ink-200);
-  border-radius: var(--radius-sm);
+  width: 100%;
   margin-bottom: 4px;
-
-  .lucide {
-    width: 14px;
-    height: 14px;
-    color: var(--ink-400);
-    flex: none;
-  }
-
-  .input-tree {
-    border: none;
-    background: transparent;
-    outline: none;
-    font-size: 13px;
-    color: var(--ink-700);
-    width: 100%;
-    font-family: inherit;
-  }
-  .input-tree::placeholder { color: var(--ink-300); }
 }
 
 /* ── Search input in page-actions ── */
 .search-input-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  background: #fff;
-  border: 1px solid var(--ink-200);
-  border-radius: var(--radius-sm);
   min-width: 220px;
-
-  .lucide {
-    width: 14px;
-    height: 14px;
-    color: var(--ink-400);
-    flex: none;
-  }
-
-  .input {
-    border: none;
-    background: transparent;
-    outline: none;
-    font-size: 13px;
-    color: var(--ink-700);
-    padding: 7px 0;
-    width: 100%;
-    min-width: 0;
-    font-family: inherit;
-  }
-  .input::placeholder { color: var(--ink-300); }
 }
 
 /* ── Cards grid ── */

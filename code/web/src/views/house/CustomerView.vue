@@ -73,10 +73,10 @@ function statusLabel(status: string) {
       <button v-for="tab in statusTabs" :key="tab.value" :class="['status-tab', { active: activeTab === tab.value }]" @click="onTabChange(tab.value)">{{ tab.label }}</button>
     </div>
     <div class="filter-bar">
-      <input v-model="query.keyword" class="filter-input" placeholder="姓名 / 电话 / 合同编号" @keyup.enter="search" />
-      <select v-model="query.customerType" class="filter-select"><option value="">全部类型</option><option value="tenant">租客</option><option value="buyer">买家</option><option value="landlord">业主</option></select>
-      <div class="filter-range"><input v-model="query.budgetMin" type="number" min="0" class="filter-input range-input" placeholder="预算 min" /><span class="range-sep">~</span><input v-model="query.budgetMax" type="number" min="0" class="filter-input range-input" placeholder="预算 max" /></div>
-      <input v-model="query.desiredDistrict" class="filter-input" placeholder="期望区域" />
+      <input v-model="query.keyword" class="input filter-input" placeholder="姓名 / 电话 / 合同编号" @keyup.enter="search" />
+      <select v-model="query.customerType" class="select filter-select"><option value="">全部类型</option><option value="tenant">租客</option><option value="buyer">买家</option><option value="landlord">业主</option></select>
+      <div class="filter-range"><input v-model="query.budgetMin" type="number" min="0" class="input filter-input range-input" placeholder="预算 min" /><span class="range-sep">~</span><input v-model="query.budgetMax" type="number" min="0" class="input filter-input range-input" placeholder="预算 max" /></div>
+      <input v-model="query.desiredDistrict" class="input filter-input" placeholder="期望区域" />
       <button class="btn btn-primary btn-sm" @click="search">筛选</button><button class="btn btn-ghost btn-sm" @click="reset">重置</button>
     </div>
     <div class="summary-row"><span class="summary-chip">符合条件 {{ stats.all }}</span><span class="summary-chip">· 当前页租客 {{ stats.rent }}</span><span class="summary-chip">· 当前页买家 {{ stats.buy }}</span></div>
@@ -101,4 +101,12 @@ function statusLabel(status: string) {
 
 <style scoped lang="scss">
 .house-view { min-height: 100%; }
+.filter-input { width: 180px; }
+.filter-select { width: 130px; }
+.filter-range .range-input { width: 100px; }
+
+@media (max-width: 768px) {
+  .filter-input, .filter-select, .filter-range { width: 100%; }
+  .filter-range .range-input { flex: 1; width: 100%; }
+}
 </style>

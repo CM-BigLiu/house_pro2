@@ -79,6 +79,11 @@
 
 /* ---------------- 筛选区 ---------------- */
 .filter-bar {
+  --query-control-height: 32px;
+  --query-control-radius: var(--radius-sm);
+  --query-control-border: var(--ink-200);
+  --query-control-border-hover: var(--ink-300);
+  --query-control-placeholder: var(--ink-300);
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
   padding: 13px 16px; background: #fff; border: 1px solid var(--ink-200);
   border-radius: var(--radius); margin-bottom: 16px; box-shadow: var(--shadow-xs);
@@ -86,14 +91,100 @@
 .filter-group { display: flex; align-items: center; gap: 7px; }
 .filter-label { color: var(--ink-400); font-size: 12px; flex: none; }
 .input, .select {
-  height: 32px; padding: 0 11px; border: 1px solid var(--ink-200); border-radius: var(--radius-sm);
+  height: var(--query-control-height, 32px); padding: 0 11px; border: 1px solid var(--query-control-border, var(--ink-200)); border-radius: var(--query-control-radius, var(--radius-sm));
   font-size: 13px; color: var(--ink-700); background: #fff; min-width: 132px; transition: all 0.15s; font-family: inherit;
 }
-.input::placeholder { color: var(--ink-300); }
-.input:hover, .select:hover { border-color: var(--ink-300); }
+.input::placeholder { color: var(--query-control-placeholder, var(--ink-300)); }
+.input:hover, .select:hover { border-color: var(--query-control-border-hover, var(--ink-300)); }
 .input:focus, .select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(46, 107, 240, 0.12); }
 .input-sm { min-width: 104px; }
 textarea.input { height: auto; min-height: 96px; padding: 9px 11px; line-height: 1.6; resize: vertical; }
+
+/* 查询控件统一规范：兼容原生控件和 Element Plus，避免不同页面出现两套视觉。 */
+.filter-bar .el-input__wrapper,
+.filter-bar .el-select__wrapper {
+  min-height: var(--query-control-height);
+  padding: 0 11px;
+  border-radius: var(--query-control-radius);
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--query-control-border) inset;
+  transition: box-shadow 0.15s, background-color 0.15s;
+}
+.filter-bar .el-input__wrapper:hover,
+.filter-bar .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--query-control-border-hover) inset;
+}
+.filter-bar .el-input__wrapper:focus-within,
+.filter-bar .el-select__wrapper:focus-within {
+  box-shadow: 0 0 0 1px var(--primary) inset, 0 0 0 3px rgba(46, 107, 240, 0.12) !important;
+}
+.filter-bar .el-input__inner,
+.filter-bar .el-select__selected-item,
+.filter-bar .el-date-editor .el-range-input {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ink-700);
+}
+.filter-bar .el-input__inner::placeholder,
+.filter-bar .el-date-editor .el-range-input::placeholder,
+.filter-bar .el-select__placeholder.is-transparent {
+  color: var(--query-control-placeholder);
+}
+.filter-bar > .input,
+.filter-bar > .el-input { width: 220px; }
+.filter-bar > .select,
+.filter-bar > .el-select { width: 144px; }
+.filter-bar > .el-date-editor { width: 148px; }
+.filter-bar > .filter-range:not(.el-input) {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.filter-bar > .filter-range:not(.el-input) > .range-input {
+  width: 110px;
+  min-width: 0;
+}
+
+/* 用于不在筛选栏内、但承担列表查询职责的搜索框。 */
+.query-input-shell {
+  --query-control-height: 32px;
+  --query-control-radius: var(--radius-sm);
+  --query-control-border: var(--ink-200);
+  --query-control-border-hover: var(--ink-300);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--query-control-height);
+  padding: 0 11px;
+  background: #fff;
+  border: 1px solid var(--query-control-border);
+  border-radius: var(--query-control-radius);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.query-input-shell:hover { border-color: var(--query-control-border-hover); }
+.query-input-shell:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(46, 107, 240, 0.12);
+}
+.query-input-shell > svg.lucide {
+  width: 14px;
+  height: 14px;
+  color: var(--ink-400);
+  flex: none;
+}
+.query-input-shell > input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-700);
+}
+.query-input-shell > input::placeholder { color: var(--ink-300); }
 
 /* ---------------- 标签页 ---------------- */
 .tabs { display: flex; max-width: 100%; overflow-x: auto; border-bottom: 1px solid var(--ink-200); margin-bottom: 16px; }
@@ -266,6 +357,13 @@ textarea.input { height: auto; min-height: 96px; padding: 9px 11px; line-height:
   .filter-bar { flex-direction: column; align-items: stretch; }
   .filter-group { width: 100%; }
   .filter-group .input, .filter-group .select { flex: 1; min-width: 0; }
+  .filter-bar > .input,
+  .filter-bar > .select,
+  .filter-bar > .el-input,
+  .filter-bar > .el-select,
+  .filter-bar > .el-date-editor { width: 100%; }
+  .filter-bar > .filter-range:not(.el-input) { width: 100%; }
+  .filter-bar > .filter-range:not(.el-input) > .range-input { flex: 1; width: 100%; }
   .page-header { flex-direction: column; align-items: stretch; gap: 10px; }
   .page-actions .btn { flex: 1 1 calc(50% - 4px); justify-content: center; }
   .split-layout { flex-direction: column; }
