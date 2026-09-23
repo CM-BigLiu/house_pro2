@@ -252,7 +252,7 @@ async function removeItem(data: DictItem) {
           </el-select>
         </el-form-item>
         <el-form-item label="排序">
-          <el-input-number v-model="itemForm.sort" :min="1" controls-position="right" style="width: 100%;" />
+          <PlainNumberInput v-model="itemForm.sort" :min="1" style="width: 100%;" />
         </el-form-item>
         <el-form-item label="状态">
           <el-switch v-model="itemForm.enabled" active-text="启用" inactive-text="禁用" />

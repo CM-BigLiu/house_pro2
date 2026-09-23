@@ -1,7 +1,65 @@
-import { get, post, put } from '@/utils/request';
+import { del, get, post, put } from '@/utils/request';
+
+export type ReserveType = 'rent' | 'sale';
+
+export interface ReserveRoomDetails {
+  roomNo?: string;
+  roomType?: string;
+  rentPrice?: number;
+  listedPrice?: number;
+  depositAmount?: number;
+  status?: string;
+  paymentMethod?: string;
+  leaseTerm?: string;
+  tenantName?: string;
+  tenantPhone?: string;
+  leaseStart?: string;
+  leaseEnd?: string;
+}
+
+export interface ReservePropertyDetails {
+  bizType?: 'entire' | 'shared';
+  building?: string;
+  unit?: string;
+  landlordRent?: number;
+  landlordDeposit?: number;
+  leaseStart?: string;
+  leaseEnd?: string;
+  rentFreePeriod?: string;
+  rent?: number;
+  deposit?: number; // 历史字段：储备房源押金，按房东押金兼容读取
+  tenantName?: string;
+  tenantPhone?: string;
+  tenantPaymentMethod?: string;
+  tenantLeaseStart?: string;
+  tenantLeaseEnd?: string;
+  rooms?: ReserveRoomDetails[];
+  title?: string;
+  propertyType?: string;
+  floor?: string;
+  layoutRooms?: number;
+  layoutHalls?: number;
+  layoutBathrooms?: number;
+  layoutBalconies?: number;
+  interiorArea?: number;
+  orientation?: string;
+  elevator?: string;
+  buildYear?: number;
+  unitPrice?: number;
+  floorPrice?: number;
+  taxType?: string;
+  debt?: number;
+  certificateType?: string;
+  ownerPhoneBackup?: string;
+  tags?: string[];
+  description?: string;
+  isCitywideSale?: boolean;
+}
 
 export interface ReserveProperty {
   id: number;
+  reserveType: ReserveType;
+  details?: ReservePropertyDetails;
   title: string;
   communityName: string;
   communityId?: number;
@@ -15,7 +73,7 @@ export interface ReserveProperty {
   ownerName: string;
   ownerPhone: string;
   expectedPrice: number;
-  ownerQuote: number;
+  ownerQuote: number | null;
   status: string;
   diskType: string;
   source: string;
@@ -37,7 +95,7 @@ export interface ReserveClient {
   createdAt: string;
 }
 
-export function getReserveProperties(params?: { keyword?: string; status?: string; page?: number; pageSize?: number }) {
+export function getReserveProperties(params?: { keyword?: string; status?: string; reserveType?: string; page?: number; pageSize?: number }) {
   return get<{ list: ReserveProperty[]; total: number }>('/house/reserve-properties', { params });
 }
 
@@ -47,6 +105,10 @@ export function createReserveProperty(data: Partial<ReserveProperty>) {
 
 export function updateReserveProperty(id: number, data: Partial<ReserveProperty>) {
   return put<ReserveProperty>(`/house/reserve-properties/${id}`, data);
+}
+
+export function deleteReserveProperty(id: number) {
+  return del<{ id: number }>(`/house/reserve-properties/${id}`);
 }
 
 export function getReservePropertyForEdit(id: number) {
@@ -63,7 +125,12 @@ export function signReserveProperty(id: number, data: {
   leaseStart: string;
   leaseEnd: string;
   landlordRent: number;
-  deposit?: number;
+  landlordDeposit?: number;
+  communityId?: number;
+  address?: string;
+  roomNo?: string;
+  layout?: string;
+  ownerName?: string;
 }) {
   return post<{ reserveId: number; rentalSetId: number; contractCode: string; status: string }>(`/house/reserve-properties/${id}/sign-contract`, data);
 }

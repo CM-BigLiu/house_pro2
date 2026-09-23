@@ -67,10 +67,10 @@ async function submit() {
           <el-input v-model="form.reason" />
         </el-form-item>
         <el-form-item label="总期数">
-          <el-input-number v-model="form.totalPeriods" :min="1" controls-position="right" style="width: 100%;" />
+          <PlainNumberInput v-model="form.totalPeriods" :min="1" style="width: 100%;" />
         </el-form-item>
         <el-form-item label="总金额">
-          <el-input-number v-model="form.totalAmount" :min="0" :precision="2" controls-position="right" style="width: 100%;" />
+          <PlainNumberInput v-model="form.totalAmount" :min="0" :precision="2" style="width: 100%;" /><MoneyUppercase :value="form.totalAmount" />
         </el-form-item>
       </el-form>
     </div>

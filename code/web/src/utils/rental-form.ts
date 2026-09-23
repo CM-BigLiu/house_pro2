@@ -4,7 +4,8 @@ export function rentalFormErrors(form: Record<string, any>, landlordRent: unknow
   const text = (key: string, label: string, value: unknown, required = true) => {
     if (required && (typeof value !== 'string' || !value.trim())) errors[key] = `请填写${label}`;
   };
-  const amount = (key: string, label: string, value: unknown, positive = false) => {
+  const amount = (key: string, label: string, value: unknown, positive = false, required = true) => {
+    if (!required && (value === null || value === undefined || String(value).trim() === '')) return;
     if (value === null || value === undefined || !/^\d+(\.\d{1,2})?$/.test(String(value).trim()) || !Number.isFinite(Number(value)) || (positive && Number(value) <= 0)) {
       errors[key] = `${label}须为${positive ? '大于 0 的' : '非负'}数字，最多两位小数`;
     }
@@ -22,12 +23,13 @@ export function rentalFormErrors(form: Record<string, any>, landlordRent: unknow
   if (!Number.isInteger(form.communityId) || form.communityId <= 0) errors.communityId = '请选择小区';
   amount('buildingArea', '面积', form.buildingArea, true);
   amount('landlordRent', '承租价', landlordRent);
+  amount('landlordDeposit', '房东押金', form.landlordDeposit, false, false);
   phone('landlordPhone', form.landlordPhone);
   dates('leaseDateRange', form.leaseStart, form.leaseEnd);
   if (form.bizType === 'entire') {
-    amount('rent', '客租价', tenantRent);
-    amount('deposit', '押金', form.deposit);
     const occupied = ['rented', 'checkout'].includes(form.status) || !!(form.tenantName || form.tenantPhone);
+    amount('rent', '客租价', tenantRent, false, occupied);
+    amount('deposit', '租客押金', form.deposit, false, occupied);
     text('tenantName', '租客姓名', form.tenantName, occupied);
     phone('tenantPhone', form.tenantPhone, occupied);
     text('tenantPaymentMethod', '付款方式', form.tenantPaymentMethod, occupied);
@@ -39,9 +41,9 @@ export function rentalFormErrors(form: Record<string, any>, landlordRent: unknow
       const prefix = `rooms.${index}.`;
       text(prefix + 'roomNo', '房间房号', room.roomNo);
       if (room.roomNo?.trim() && rooms.filter((other: any) => other.roomNo?.trim() === room.roomNo.trim()).length > 1) errors[prefix + 'roomNo'] = '房间房号不能重复';
-      amount(prefix + 'rentPrice', '租金', room.rentPrice);
-      amount(prefix + 'depositAmount', '押金', room.depositAmount);
       const occupied = ['rented', 'checkout'].includes(room.status) || !!(room.tenantName || room.tenantPhone);
+      amount(prefix + 'rentPrice', '租金', room.rentPrice, false, occupied);
+      amount(prefix + 'depositAmount', '押金', room.depositAmount, false, occupied);
       text(prefix + 'tenantName', '租客姓名', room.tenantName, occupied);
       phone(prefix + 'tenantPhone', room.tenantPhone, occupied);
       text(prefix + 'paymentMethod', '付款方式', room.paymentMethod, occupied);

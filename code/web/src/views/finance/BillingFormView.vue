@@ -69,7 +69,7 @@ async function submit() {
           <el-input v-model="form.buyerTaxNo" />
         </el-form-item>
         <el-form-item label="金额" required>
-          <el-input-number v-model="form.amountWithTax" :min="0" controls-position="right" style="width: 100%;" />
+          <PlainNumberInput v-model="form.amountWithTax" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.amountWithTax" />
         </el-form-item>
         <el-form-item label="发票类型">
           <el-radio-group v-model="form.invoiceType">

@@ -1,5 +1,55 @@
 import type { FormRules } from 'element-plus';
 
+export function calculateUnitPrice(totalPrice: unknown, buildingArea: unknown): number {
+  const price = Number(totalPrice);
+  const area = Number(buildingArea);
+  if (!Number.isFinite(price) || !Number.isFinite(area) || price <= 0 || area <= 0) return 0;
+  return Number((price / area).toFixed(2));
+}
+
+export function formatRmbUppercase(value: unknown): string {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount < 0) return '';
+
+  const digits = '零壹贰叁肆伍陆柒捌玖';
+  const places = ['', '拾', '佰', '仟'];
+  const groups = ['', '万', '亿'];
+  const cents = Math.round(amount * 100);
+  const yuan = Math.floor(cents / 100);
+  let integerText = '';
+  let skippedGroup = false;
+
+  for (let groupIndex = groups.length - 1; groupIndex >= 0; groupIndex--) {
+    const group = Math.floor(yuan / 10000 ** groupIndex) % 10000;
+    if (!group) {
+      if (integerText) skippedGroup = true;
+      continue;
+    }
+    if (integerText && (skippedGroup || group < 1000)) integerText += '零';
+    let groupText = '';
+    let pendingZero = false;
+    for (let place = 3; place >= 0; place--) {
+      const digit = Math.floor(group / 10 ** place) % 10;
+      if (!digit) {
+        if (groupText) pendingZero = true;
+      } else {
+        if (pendingZero) groupText += '零';
+        groupText += digits[digit] + places[place];
+        pendingZero = false;
+      }
+    }
+    integerText += groupText + groups[groupIndex];
+    skippedGroup = false;
+  }
+
+  const jiao = Math.floor(cents % 100 / 10);
+  const fen = cents % 10;
+  const fractionText = !jiao && !fen
+    ? '整'
+    : `${jiao ? digits[jiao] + '角' : ''}${fen ? (jiao ? '' : '零') + digits[fen] + '分' : ''}`;
+  return `${integerText || '零'}元${fractionText}`;
+}
+
 const textRule = (label: string, max: number) => [
   { required: true, whitespace: true, message: `请填写${label}`, trigger: 'blur' },
   { max, message: `${label}不能超过 ${max} 个字符`, trigger: 'blur' },

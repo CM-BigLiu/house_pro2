@@ -85,6 +85,8 @@ export interface WizardSaleProperty {
 }
 
 export interface WizardReserveProperty {
+  reserveType?: 'rent' | 'sale';
+  details?: Record<string, unknown>;
   storeId: number;
   groupId?: number;
   communityId?: number;
@@ -113,5 +115,5 @@ export function createSaleProperty(data: Partial<WizardSaleProperty>) {
 }
 
 export function createReserveProperty(data: Partial<WizardReserveProperty>) {
-  return post<WizardReserveProperty>('/house/reserves/properties', data);
+  return post<WizardReserveProperty>('/house/reserve-properties', data);
 }

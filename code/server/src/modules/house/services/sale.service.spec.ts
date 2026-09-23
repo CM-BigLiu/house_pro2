@@ -11,7 +11,7 @@ function setup() {
   for (const key of ['leftJoinAndSelect', 'leftJoin', 'where', 'andWhere', 'orderBy', 'skip', 'take']) qb[key] = jest.fn().mockReturnValue(qb);
   qb.getManyAndCount = jest.fn().mockResolvedValue([[item], 1]);
   qb.getOne = jest.fn().mockResolvedValue(item);
-  const repo = { createQueryBuilder: jest.fn().mockReturnValue(qb), update: jest.fn().mockResolvedValue({ affected: 1 }), create: jest.fn((v) => v), save: jest.fn((v) => v) };
+  const repo = { createQueryBuilder: jest.fn().mockReturnValue(qb), update: jest.fn().mockResolvedValue({ affected: 1 }), delete: jest.fn().mockResolvedValue({ affected: 1 }), create: jest.fn((v) => v), save: jest.fn((v) => v) };
   const blacklist = { check: jest.fn().mockResolvedValue([]) };
   return { service: new SaleService(repo as any, blacklist as any), qb, repo, blacklist };
 }
@@ -75,6 +75,14 @@ describe('sale functional regressions', () => {
     expect(repo.update).toHaveBeenCalledWith({ id: 1, status: 'pre_publish' }, { status: 'published' });
     repo.update.mockResolvedValue({ affected: 0 });
     await expect(service.changeStatus(1, SaleStatus.PUBLISHED, admin)).rejects.toThrow('已变化');
+  });
+  it('deletes an unsold property with permission and rejects a sold property', async () => {
+    const { service, repo, qb } = setup();
+    await expect(service.remove(1, admin)).resolves.toEqual({ id: 1 });
+    expect(repo.delete).toHaveBeenCalledWith(1);
+    qb.getOne.mockResolvedValue({ id: 2, status: 'sold', salePrice: 1 });
+    await expect(service.remove(2, admin)).rejects.toThrow('已售房源不能删除');
+    await expect(service.remove(1, { ...admin, permissions: ['house:sale'] })).rejects.toThrow('无操作权限');
   });
   it('keeps all editable DTO fields, while rejecting direct status and negative price', async () => {
     const dto = plainToInstance(UpdateSalePropertyDto, { roomNo: 'QA2', communityId: 2, buildingArea: 88.88, salePrice: 100, orientation: 'south' });

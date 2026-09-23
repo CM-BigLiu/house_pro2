@@ -407,7 +407,7 @@ const roleEnabled = (role: Role) => ['enabled', 'active', 'normal'].includes(rol
 
 /* ── left panel ── */
 .tree-panel {
-  width: 300px;
+  width: 360px;
   flex-shrink: 0;
   .card { margin-bottom: 0; }
   .card-body {
@@ -450,19 +450,29 @@ const roleEnabled = (role: Role) => ['enabled', 'active', 'normal'].includes(rol
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .role-item-name {
   font-size: 13.5px;
   font-weight: 600;
   color: var(--ink-800);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .role-item-code {
   font-size: 12px;
   color: var(--ink-400);
   font-family: var(--font-num);
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+.role-item-head .pill { flex-shrink: 0; }
 
 .role-item-meta {
   display: flex;

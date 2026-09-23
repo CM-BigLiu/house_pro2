@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
-import { getSaleProperties, changeSaleStatus, exportSalePage, type SaleProperty } from '@/api/sale';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { deleteSaleProperty, getSaleProperties, changeSaleStatus, exportSalePage, type SaleProperty } from '@/api/sale';
 import { useDictStore } from '@/stores/dict';
 import { downloadCsv } from '@/utils/csv';
 import { formatMoney } from '@/utils/format';
@@ -16,6 +16,7 @@ const statusItem = ref<SaleProperty>();
 const nextStatus = ref('');
 const savingStatus = ref(false);
 const exporting = ref(false);
+const deletingId = ref<number>();
 const saleStatuses = [
   { value: 'pre_publish', label: '待发布' }, { value: 'published', label: '已发布' },
   { value: 'price_negotiation', label: '议价中' }, { value: 'quick_sale', label: '急售' },
@@ -45,6 +46,22 @@ function openCreate() {
 
 function openEdit(item: SaleProperty) {
   router.push('/house/sale/edit/' + item.id);
+}
+
+async function removeProperty(item: SaleProperty) {
+  if (item.status === 'sold' || deletingId.value) return;
+  try {
+    await ElMessageBox.confirm(`确认删除售房房源“${item.title}”？删除后无法恢复。`, '删除确认', {
+      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
+    });
+    deletingId.value = item.id;
+    await deleteSaleProperty(item.id);
+    if (list.value.length === 1 && query.page > 1) query.page--;
+    await load();
+    ElMessage.success('售房房源已删除');
+  } catch {
+    // 用户取消时保持原列表；接口错误由请求拦截器提示。
+  } finally { deletingId.value = undefined; }
 }
 
 function search() { query.page = 1; load(); }
@@ -163,6 +180,7 @@ async function exportPage() {
           <div class="house-actions" style="margin-top: 12px;">
             <button class="btn btn-default btn-sm" @click="router.push(`/house/sale/detail/${item.id}`)">详情 / 流程</button>
             <button v-permission="['sale:edit']" class="btn btn-default btn-sm" @click="openEdit(item)">编辑</button>
+            <button v-permission="['sale:delete']" class="btn btn-ghost btn-sm btn-danger-text" :disabled="item.status === 'sold' || deletingId === item.id" :title="item.status === 'sold' ? '已售房源不能删除' : '删除房源'" @click="removeProperty(item)">删除</button>
             <button v-permission="['sale:changeStatus']" class="btn btn-default btn-sm" @click="openStatus(item)">变更状态</button>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { PartialType } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, IsIn, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -148,6 +148,12 @@ export class CreateRentalSetDto {
   @Type(() => Number)
   landlordRent?: number;
 
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  @Type(() => Number)
+  landlordDeposit?: number;
+
   @IsString()
   @IsOptional()
   landlordName?: string;
@@ -272,5 +278,12 @@ export class RentalController {
     @CurrentUser() user: any,
   ) {
     return this.rentalService.updateSet(+id, data, user);
+  }
+
+  @Delete(':id')
+  @RequirePermission('renting:delete')
+  @Audit('house', 'rental:delete', { objectType: 'rental_set' })
+  async remove(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.rentalService.removeSet(+id, user);
   }
 }

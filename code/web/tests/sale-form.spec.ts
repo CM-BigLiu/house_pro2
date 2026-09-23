@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import Schema from 'async-validator';
-import { saleFormRules } from '@/utils/sale-form';
+import { calculateUnitPrice, formatRmbUppercase, saleFormRules } from '@/utils/sale-form';
 
 const valid = {
   code: 'SALE-TEST', title: '测试房源', communityId: 1, propertyType: 'residential',
@@ -26,5 +26,25 @@ describe('售房表单校验', () => {
     ['ownerPhone', '138123'], ['ownerPhone', '138****1234'], ['unitPrice', -1], ['title', '字'.repeat(256)],
   ])('%s 的非法值 %s 被拒绝', async (key, value) => {
     await expect(schema.validate({ ...valid, [key]: value })).rejects.toBeDefined();
+  });
+});
+
+describe('售房价格联动', () => {
+  it('根据售价和面积计算每平方米单价并保留两位小数', () => {
+    expect(calculateUnitPrice(1000000, 80)).toBe(12500);
+    expect(calculateUnitPrice(1000000, 90)).toBe(11111.11);
+    expect(calculateUnitPrice('1234567.89', '100')).toBe(12345.68);
+    expect(calculateUnitPrice(1000000, 0)).toBe(0);
+  });
+
+  it.each([
+    [0, '零元整'],
+    [1, '壹元整'],
+    [1000000, '壹佰万元整'],
+    [100010001, '壹亿零壹万零壹元整'],
+    [1234567.89, '壹佰贰拾叁万肆仟伍佰陆拾柒元捌角玖分'],
+    [1001.01, '壹仟零壹元零壹分'],
+  ])('售价 %s 显示大写金额', (value, expected) => {
+    expect(formatRmbUppercase(value)).toBe(expected);
   });
 });

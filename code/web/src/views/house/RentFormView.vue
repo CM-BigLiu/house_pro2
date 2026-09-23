@@ -46,12 +46,13 @@ function createEmptyForm(): FormState {
     buildingArea: 0,
     decoration: '',
     landlordRent: 0,
+    landlordDeposit: 0,
     leaseStart: '',
     leaseEnd: '',
     rentFreePeriod: '',
     rent: 0,
     deposit: 0,
-    status: 'active',
+    status: 'vacant',
     storeId: userStore.userInfo?.storeIds[0],
     salesmanId: undefined,
     housekeeperId: undefined,
@@ -75,18 +76,17 @@ const tenantRentText = ref('');
 const occupied = (item: { status?: string; tenantName?: string; tenantPhone?: string }) => ['rented', 'checkout'].includes(item.status || '') || !!(item.tenantName || item.tenantPhone);
 const rules = computed<FormRules>(() => {
   const required = ['code', 'bizType', 'communityId', 'address', 'building', 'unit', 'roomNo', 'layout', 'buildingArea', 'landlordRent'];
-  const fields = [...required, 'landlordPhone', 'leaseDateRange'];
+  const fields = [...required, 'landlordPhone', 'landlordDeposit', 'leaseDateRange'];
   if (form.bizType === 'entire') {
     fields.push('rent', 'deposit', 'tenantName', 'tenantPhone', 'tenantPaymentMethod', 'tenantLeaseDateRange');
-    required.push('rent', 'deposit');
-    if (occupied(form)) required.push('tenantName', 'tenantPhone', 'tenantPaymentMethod', 'tenantLeaseDateRange');
+    if (occupied(form)) required.push('rent', 'deposit', 'tenantName', 'tenantPhone', 'tenantPaymentMethod', 'tenantLeaseDateRange');
   } else {
     fields.push('rooms');
     form.rooms.forEach((room, index) => {
       const prefix = `rooms.${index}.`;
       for (const key of ['roomNo', 'rentPrice', 'depositAmount', 'tenantName', 'tenantPhone', 'paymentMethod', 'leaseDateRange']) fields.push(prefix + key);
-      for (const key of ['roomNo', 'rentPrice', 'depositAmount']) required.push(prefix + key);
-      if (occupied(room)) for (const key of ['tenantName', 'tenantPhone', 'paymentMethod', 'leaseDateRange']) required.push(prefix + key);
+      required.push(prefix + 'roomNo');
+      if (occupied(room)) for (const key of ['rentPrice', 'depositAmount', 'tenantName', 'tenantPhone', 'paymentMethod', 'leaseDateRange']) required.push(prefix + key);
     });
   }
   return Object.fromEntries(fields.map(key => [key, [{
@@ -110,7 +110,7 @@ watch(
     loading.value = true;
     loadError.value = '';
     try {
-    await dictStore.ensureLoaded(['house_status', 'room_status', 'decoration', 'payment_method', 'lease_term']);
+    await dictStore.ensureLoaded(['house_status', 'room_status', 'decoration_level', 'payment_method', 'lease_term']);
     await loadCommunities();
     if (isEdit.value) {
       await loadData(editId.value);
@@ -145,6 +145,7 @@ async function loadData(id: string) {
       buildingArea: data.buildingArea ?? 0,
       decoration: data.decoration ?? '',
       landlordRent: data.landlordRent ?? 0,
+      landlordDeposit: data.landlordDeposit ?? 0,
       leaseStart: data.leaseStart ?? '',
       leaseEnd: data.leaseEnd ?? '',
       rentFreePeriod: data.rentFreePeriod ?? '',
@@ -324,12 +325,18 @@ async function submit() {
   try {
     if (!await formRef.value?.validate().catch(() => false)) return;
     form.landlordRent = Number(landlordRentText.value);
-    if (form.bizType === 'entire') form.rent = Number(tenantRentText.value);
+    form.landlordDeposit = Number(form.landlordDeposit) || 0;
+    if (form.bizType === 'entire') form.rent = Number(tenantRentText.value || 0);
     form.buildingArea = Number(form.buildingArea);
     form.deposit = Number(form.deposit) || 0;
     const rooms = form.rooms.map(({ leaseDateRange: _l, ...room }) => ({
-      ...room, roomNo: room.roomNo?.trim(), rentPrice: Number(room.rentPrice), depositAmount: Number(room.depositAmount),
+      ...room, roomNo: room.roomNo?.trim(), rentPrice: Number(room.rentPrice || 0), depositAmount: Number(room.depositAmount || 0),
+      status: room.status === 'vacant' && (room.tenantName || room.tenantPhone) ? 'rented' : room.status,
     })) as RentalRoom[];
+    if (['active', 'vacant'].includes(form.status || '') &&
+      (form.bizType === 'entire' ? form.tenantName || form.tenantPhone : rooms.some(room => room.status === 'rented'))) {
+      form.status = 'rented';
+    }
     const payload = { ...form, rooms: form.bizType === 'entire' ? [] : rooms } as Partial<RentalSet> & { leaseDateRange?: unknown; tenantLeaseDateRange?: unknown; rooms: RentalRoom[] };
     delete (payload as Record<string, unknown>).leaseDateRange;
     delete (payload as Record<string, unknown>).tenantLeaseDateRange;
@@ -362,7 +369,7 @@ async function submit() {
 
     <div class="card" style="padding: 24px;">
       <div v-if="loadError" role="alert">{{ loadError }}</div>
-      <p class="text-muted">红色 * 为必填项。空置房源可不填租客；填写租客后请补齐电话、租期和付款方式。</p>
+      <p class="text-muted">红色 * 为必填项。未出租房源可留空租客信息、客租价和押金；录入租客后请补齐电话、租期和付款方式。</p>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" scroll-to-error>
         <el-row :gutter="12">
           <el-col :span="12">
@@ -434,7 +441,7 @@ async function submit() {
           <el-col :span="12">
             <el-form-item label="装修" prop="decoration">
               <el-select v-model="form.decoration" style="width: 100%;">
-                <el-option v-for="item in dictStore.getItems('decoration')" :key="item.value" :label="item.label" :value="item.value" />
+                <el-option v-for="item in dictStore.getItems('decoration_level')" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -459,6 +466,16 @@ async function submit() {
                 <el-input v-model="landlordRentText" placeholder="请输入承租价" />
                 <span style="font-size: 12px; color: #94a3b8; flex: none;">元</span>
               </div>
+              <MoneyUppercase :value="landlordRentText" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="房东押金" prop="landlordDeposit">
+              <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
+                <PlainNumberInput v-model="form.landlordDeposit" :min="0" :precision="2" placeholder="请输入房东押金" style="flex: 1;" />
+                <span style="font-size: 12px; color: #94a3b8; flex: none;">元</span>
+              </div>
+              <MoneyUppercase :value="form.landlordDeposit" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -501,14 +518,16 @@ async function submit() {
                   <el-input v-model="tenantRentText" placeholder="请输入对房客的租价" />
                   <span style="font-size: 12px; color: #94a3b8; flex: none;">元</span>
                 </div>
+                <MoneyUppercase :value="tenantRentText" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="押金" prop="deposit">
+              <el-form-item label="租客押金" prop="deposit">
                 <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
-                  <el-input v-model="form.deposit" placeholder="请输入押金" />
+                  <el-input v-model="form.deposit" placeholder="请输入租客押金" />
                   <span style="font-size: 12px; color: #94a3b8; flex: none;">元</span>
                 </div>
+                <MoneyUppercase :value="form.deposit" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -576,6 +595,7 @@ async function submit() {
                   <el-input v-model="room.rentPrice" placeholder="0">
                     <template #append>元</template>
                   </el-input>
+                  <MoneyUppercase :value="room.rentPrice" />
                 </el-form-item>
               </el-col>
               <el-col :span="8">
@@ -583,6 +603,7 @@ async function submit() {
                   <el-input v-model="room.depositAmount" placeholder="0">
                     <template #append>元</template>
                   </el-input>
+                  <MoneyUppercase :value="room.depositAmount" />
                 </el-form-item>
               </el-col>
               <el-col :span="8">

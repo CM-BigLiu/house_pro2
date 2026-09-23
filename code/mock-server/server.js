@@ -48,7 +48,7 @@ const USERS = {
     id: 3, name: '张店长', mobile: 'store_manager', avatar: '',
     role: 'store_manager', roleName: '店长', dataScope: 'store',
     storeIds: [1], groupIds: [1], assignedStoreIds: [],
-    permissions: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:customer', 'house:community', 'house:blacklist', 'house:checkout', 'house:deposit', 'renting:add', 'renting:edit', 'renting:checkout', 'renting:export', 'renting:approve', 'checkout:list', 'checkout:confirm', 'checkout:export', 'deposit:list', 'deposit:refund', 'deposit:deduct', 'deposit:export', 'sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'system:approval', 'system:approval:review'],
+    permissions: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:customer', 'house:community', 'house:blacklist', 'house:checkout', 'house:deposit', 'renting:add', 'renting:edit', 'renting:delete', 'renting:checkout', 'renting:export', 'renting:approve', 'checkout:list', 'checkout:confirm', 'checkout:export', 'deposit:list', 'deposit:refund', 'deposit:deduct', 'deposit:export', 'sale:add', 'sale:edit', 'sale:delete', 'sale:changeStatus', 'sale:export', 'reserve:house:add', 'reserve:house:delete', 'reserve:house:take', 'reserve:house:transfer', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'system:approval', 'system:approval:review'],
   },
   salesman: {
     id: 4, name: '李业务员', mobile: 'salesman', avatar: '',
@@ -93,8 +93,6 @@ const ALL_MENUS = [
       { id: 'bill', label: '账单', path: '/finance/bill', permission: 'finance:bill' },
       { id: 'daily-account', label: '流水账', path: '/finance/daily-account', permission: 'finance:flow' },
       { id: 'rent-increase', label: '涨价统计', path: '/finance/rent-increase', permission: 'finance:rent_increase' },
-      { id: 'profit', label: '公寓利润', path: '/finance/profit', permission: 'finance:profit' },
-      { id: 'partner', label: '合伙人', path: '/finance/partner', permission: 'finance:partner' },
       { id: 'income-cost', label: '收入成本', path: '/finance/income-cost', permission: 'finance:income_cost' },
       { id: 'performance', label: '业绩核算', path: '/finance/performance', permission: 'finance:performance' },
       { id: 'accounting', label: '财务核算', path: '/finance/accounting', permission: 'finance:accounting' },
@@ -820,15 +818,18 @@ const PERM_TREE = [
       { id: 213, code: 'renting:edit', name: '编辑', type: 'action', sort: 3, status: 'active' },
       { id: 214, code: 'renting:checkout', name: '退租', type: 'action', sort: 4, status: 'active' },
       { id: 215, code: 'renting:export', name: '导出', type: 'action', sort: 5, status: 'active' },
+      { id: 216, code: 'renting:delete', name: '删除', type: 'action', sort: 6, status: 'active' },
     ]},
     { id: 22, code: 'house:sale', name: '售房管理', type: 'menu', sort: 2, status: 'active', children: [
       { id: 221, code: 'sale:list', name: '查看列表', type: 'action', sort: 1, status: 'active' },
       { id: 222, code: 'sale:create', name: '新增出售', type: 'action', sort: 2, status: 'active' },
       { id: 223, code: 'sale:edit', name: '编辑', type: 'action', sort: 3, status: 'active' },
+      { id: 224, code: 'sale:delete', name: '删除', type: 'action', sort: 4, status: 'active' },
     ]},
     { id: 23, code: 'house:reserve_house', name: '储备房源', type: 'menu', sort: 3, status: 'active', children: [
       { id: 231, code: 'reserve_house:list', name: '查看列表', type: 'action', sort: 1, status: 'active' },
       { id: 232, code: 'reserve_house:create', name: '新增', type: 'action', sort: 2, status: 'active' },
+      { id: 233, code: 'reserve:house:delete', name: '删除', type: 'action', sort: 3, status: 'active' },
     ]},
     { id: 24, code: 'house:reserve_client', name: '储备客源', type: 'menu', sort: 4, status: 'active', children: [
       { id: 241, code: 'reserve_client:list', name: '查看列表', type: 'action', sort: 1, status: 'active' },
@@ -863,15 +864,13 @@ const PERM_TREE = [
     { id: 31, code: 'finance:bill', name: '账单', type: 'menu', sort: 1, status: 'active' },
     { id: 32, code: 'finance:flow', name: '流水账', type: 'menu', sort: 2, status: 'active' },
     { id: 33, code: 'finance:rent_increase', name: '涨价统计', type: 'menu', sort: 3, status: 'active' },
-    { id: 34, code: 'finance:profit', name: '公寓利润', type: 'menu', sort: 4, status: 'active' },
-    { id: 35, code: 'finance:partner', name: '合伙人', type: 'menu', sort: 5, status: 'active' },
-    { id: 36, code: 'finance:income_cost', name: '收入成本', type: 'menu', sort: 6, status: 'active' },
-    { id: 37, code: 'finance:performance', name: '业绩核算', type: 'menu', sort: 7, status: 'active' },
-    { id: 38, code: 'finance:accounting', name: '财务核算', type: 'menu', sort: 8, status: 'active' },
-    { id: 39, code: 'finance:arrears', name: '欠款统计', type: 'menu', sort: 9, status: 'active' },
-    { id: 310, code: 'finance:plan', name: '收支计划', type: 'menu', sort: 10, status: 'active' },
-    { id: 311, code: 'finance:payout', name: '代付管理', type: 'menu', sort: 11, status: 'active' },
-    { id: 312, code: 'finance:billing', name: '开票管理', type: 'menu', sort: 12, status: 'active' },
+    { id: 36, code: 'finance:income_cost', name: '收入成本', type: 'menu', sort: 4, status: 'active' },
+    { id: 37, code: 'finance:performance', name: '业绩核算', type: 'menu', sort: 5, status: 'active' },
+    { id: 38, code: 'finance:accounting', name: '财务核算', type: 'menu', sort: 6, status: 'active' },
+    { id: 39, code: 'finance:arrears', name: '欠款统计', type: 'menu', sort: 7, status: 'active' },
+    { id: 310, code: 'finance:plan', name: '收支计划', type: 'menu', sort: 8, status: 'active' },
+    { id: 311, code: 'finance:payout', name: '代付管理', type: 'menu', sort: 9, status: 'active' },
+    { id: 312, code: 'finance:billing', name: '开票管理', type: 'menu', sort: 10, status: 'active' },
   ]},
   { id: 4, code: 'system', name: '系统管理', type: 'menu', sort: 4, status: 'active', icon: 'settings', children: [
     { id: 41, code: 'system:role', name: '角色管理', type: 'menu', sort: 1, status: 'active', children: [
@@ -1250,14 +1249,6 @@ function createStatusApproval(entityType, entityId, toStatus, user, remark) {
 // ============================================================
 //  MOCK DATA: 报表数据
 // ============================================================
-const PROFITS = [
-  { id: 1, period: '2026-03', income: 172400, cost: 79100, profit: 93300, margin: 54.1 },
-  { id: 2, period: '2026-04', income: 178600, cost: 80200, profit: 98400, margin: 55.1 },
-  { id: 3, period: '2026-05', income: 181900, cost: 81400, profit: 100500, margin: 55.3 },
-  { id: 4, period: '2026-06', income: 186500, cost: 82300, profit: 104200, margin: 55.9 },
-  { id: 5, period: '2026-07', income: 198200, cost: 85600, profit: 112600, margin: 56.8 },
-  { id: 6, period: '2026-08', income: 216800, cost: 89200, profit: 127600, margin: 58.9 },
-];
 const INCOME_COSTS = [
   { id: 1, period: '2026-03', rentIncome: 138000, depositIncome: 24000, energyIncome: 7600, otherIncome: 2800, rentCost: 58000, energyCost: 7600, decorateCost: 6500, laborCost: 4200, otherCost: 800, totalIncome: 172400, totalCost: 79100 },
   { id: 2, period: '2026-04', rentIncome: 141000, depositIncome: 26000, energyIncome: 7900, otherIncome: 3700, rentCost: 59000, energyCost: 7900, decorateCost: 7200, laborCost: 4200, otherCost: 1900, totalIncome: 178600, totalCost: 80200 },
@@ -1283,14 +1274,6 @@ const ACCOUNTINGS = [
   { id: 4, period: '2026-06', revenue: 186500, receivable: 28000, payable: 15000, actualIncome: 158500, actualExpense: 82300, diff: 76200 },
   { id: 5, period: '2026-07', revenue: 198200, receivable: 32000, payable: 18600, actualIncome: 166200, actualExpense: 85600, diff: 80600 },
   { id: 6, period: '2026-08', revenue: 216800, receivable: 35000, payable: 22000, actualIncome: 181800, actualExpense: 89200, diff: 92600 },
-];
-const PARTNERS = [
-  { id: 1, name: '张伟', mobile: '13800000002', share: 30, invest: 500000, profit: 156000, dividend: 46800, status: 'active', remark: '张江店合伙人' },
-  { id: 2, name: '李娜', mobile: '13800000003', share: 20, invest: 300000, profit: 156000, dividend: 31200, status: 'active', remark: '联洋店合伙人' },
-  { id: 3, name: '王强', mobile: '13800000004', share: 15, invest: 200000, profit: 156000, dividend: 23400, status: 'active', remark: '浦东店合伙人' },
-  { id: 4, name: '郑凯', mobile: '13800000016', share: 10, invest: 150000, profit: 156000, dividend: 15600, status: 'active', remark: '金桥店合伙人' },
-  { id: 5, name: '卫东', mobile: '13800000019', share: 8, invest: 120000, profit: 156000, dividend: 12480, status: 'active', remark: '北蔡店合伙人' },
-  { id: 6, name: '冯雪', mobile: '13800000017', share: 7, invest: 100000, profit: 156000, dividend: 10920, status: 'inactive', remark: '已退出，待结算' },
 ];
 const RENT_INCREASES = [
   { id: 1, roomCode: 'ZJ001', year: 2026, month: 9, lastRent: 5800, currentRent: 6200, increaseAmount: 400, increaseRate: 6.9, status: 'approved' },
@@ -1639,6 +1622,19 @@ app.put('/api/house/rental-sets/:id', authMiddleware, (req, res) => {
   recordHouseOperation(req, 'rental_set', next.id, 'rental:update');
   res.json({ code: 0, data: next });
 });
+app.delete('/api/house/rental-sets/:id', authMiddleware, requirePermission('renting:delete'), (req, res) => {
+  const index = RENTAL_SETS.findIndex(item => item.id === Number(req.params.id));
+  if (index < 0) return notFound(res, '出租房源不存在');
+  const item = RENTAL_SETS[index];
+  const hasBusiness = !['active', 'vacant', 'pause', 'maintenance'].includes(item.status)
+    || item.tenantName || item.tenantPhone
+    || (item.rooms || []).some(room => !['vacant', 'maintenance'].includes(room.status) || room.tenantName || room.tenantPhone)
+    || CHECKOUTS.some(checkout => checkout.rentalSetId === item.id);
+  if (hasBusiness) return res.status(400).json({ code: 400, message: '房源已有出租、租客或退租业务记录，不能删除' });
+  RENTAL_SETS.splice(index, 1);
+  recordHouseOperation(req, 'rental_set', item.id, 'rental:delete');
+  res.json({ code: 0, data: { id: item.id } });
+});
 // 退租管理
 function normalizeHouseInfo(value) {
   return (value || '').trim().replace(/(号楼|栋|座|单元|室)/gu, ' ').replace(/[\s-]+/g, '-').replace(/-$/, '');
@@ -1846,6 +1842,16 @@ app.put('/api/house/sale-properties/:id', authMiddleware, (req, res) => {
   recordHouseOperation(req, 'sale_property', item.id, 'sale:update');
   res.json({ code: 0, data: saleResponse(item) });
 });
+app.delete('/api/house/sale-properties/:id', authMiddleware, requirePermission('sale:delete'), (req, res) => {
+  const index = SALE_PROPERTIES.findIndex(item => item.id === Number(req.params.id));
+  if (index < 0) return notFound(res, '售房房源不存在');
+  if (normalizeSaleStatus(SALE_PROPERTIES[index].status) === 'sold') {
+    return res.status(400).json({ code: 400, message: '已售房源不能删除' });
+  }
+  const [item] = SALE_PROPERTIES.splice(index, 1);
+  recordHouseOperation(req, 'sale_property', item.id, 'sale:delete');
+  res.json({ code: 0, data: { id: item.id } });
+});
 app.post('/api/house/sale-properties/:id/change-status', authMiddleware, requirePermission('sale:changeStatus'), (req, res) => {
   const result = createStatusApproval('sale_property', Number(req.params.id), req.body.status, req.user, req.body.remark);
   if (result.error) return res.json(result.error);
@@ -2024,6 +2030,15 @@ app.put('/api/house/reserve-properties/:id', (req, res) => {
   Object.assign(RESERVE_PROPERTIES[idx], req.body);
   res.json({ code: 0, data: reservePropertyResponse(RESERVE_PROPERTIES[idx]) });
 });
+app.delete('/api/house/reserve-properties/:id', authMiddleware, requirePermission('reserve:house:delete'), (req, res) => {
+  const index = RESERVE_PROPERTIES.findIndex(item => item.id === Number(req.params.id));
+  if (index < 0) return notFound(res, '储备房源不存在');
+  if (['taken', 'signed', 'sold', 'rented', 'deposit_paid'].includes(RESERVE_PROPERTIES[index].status)) {
+    return res.status(400).json({ code: 400, message: '已签约、成交或流转的储备房源不能删除' });
+  }
+  const [item] = RESERVE_PROPERTIES.splice(index, 1);
+  res.json({ code: 0, data: { id: item.id } });
+});
 app.get('/api/house/reserve-properties/:id/edit', (req, res) => {
   const item = RESERVE_PROPERTIES.find(entry => entry.id === Number(req.params.id));
   if (!item) return notFound(res, '储备房源不存在');
@@ -2043,6 +2058,19 @@ app.post('/api/house/reserve-properties/:id/sign-contract', (req, res) => {
   if (!item) return notFound(res, '储备房源不存在');
   if (!['not_rented', 'pause', 'reserved', 'pending'].includes(item.status)) return res.status(400).json({ code: 400, message: '当前状态不可拿房签约' });
   if (requireText(res, req.body, [['bizType', '租赁方式'], ['leaseStart', '开始日期'], ['leaseEnd', '结束日期']])) return;
+  const completed = {
+    communityId: req.body.communityId || item.communityId,
+    address: String(req.body.address || item.address || '').trim(),
+    roomNo: String(req.body.roomNo || item.roomNo || '').trim(),
+    layout: String(req.body.layout || item.layout || '').trim(),
+    ownerName: String(req.body.ownerName || item.ownerName || '').trim(),
+  };
+  const missing = [
+    !completed.communityId && '小区', !completed.address && '地址', !completed.roomNo && '房号',
+    !completed.layout && '户型', !completed.ownerName && '房东姓名',
+  ].filter(Boolean);
+  if (missing.length) return res.status(400).json({ code: 400, message: `请补充签约必填信息：${missing.join('、')}` });
+  Object.assign(item, completed);
   if (Number(req.body.landlordRent) <= 0) return res.status(400).json({ code: 400, message: '房东租金必须大于 0' });
   const id = nextId(RENTAL_SETS);
   const rentalSet = {
@@ -2050,8 +2078,10 @@ app.post('/api/house/reserve-properties/:id/sign-contract', (req, res) => {
     communityId: item.communityId, communityName: item.communityName, address: item.address,
     roomNo: item.roomNo, layout: item.layout, buildingArea: item.buildingArea, decoration: item.decoration,
     landlordName: item.ownerName, landlordPhone: item.ownerPhone, landlordRent: Number(req.body.landlordRent),
+    landlordDeposit: Number(req.body.landlordDeposit ?? item.details?.landlordDeposit ?? item.details?.deposit ?? 0),
     bizType: req.body.bizType, leaseStart: req.body.leaseStart, leaseEnd: req.body.leaseEnd,
-    deposit: Number(req.body.deposit || 0), status: 'vacant', storeId: item.storeId, rooms: [], createdAt: new Date().toISOString(),
+    deposit: 0,
+    status: 'vacant', storeId: item.storeId, rooms: [], createdAt: new Date().toISOString(),
   };
   RENTAL_SETS.push(rentalSet);
   item.status = 'signed';
@@ -2073,7 +2103,7 @@ function reserveClientResponse(item) {
   };
 }
 app.get('/api/house/reserve-clients', (req, res) => {
-  let data = EXTRA_RESERVE_CLIENTS.map(reserveClientResponse);
+  let data = EXTRA_RESERVE_CLIENTS.map(reserveClientResponse).filter(item => item.status !== 'converted');
   const { keyword, demandType, status } = req.query;
   if (keyword) data = data.filter(c => [c.clientName, c.clientMobile, c.desiredLocation, c.desiredLayout].some(value => String(value || '').includes(keyword)));
   if (demandType) data = data.filter(c => c.demandType === demandType);
@@ -2112,19 +2142,19 @@ app.post('/api/house/reserve-clients/:id/follow-ups', (req, res) => {
 app.post('/api/house/reserve-clients/:id/convert', (req, res) => {
   const item = EXTRA_RESERVE_CLIENTS.find(entry => entry.id === Number(req.params.id));
   if (!item) return notFound(res, '储备客源不存在');
-  if (requireText(res, req.body, [['contractCode', '合同编号']])) return;
-  if (!['not_rented', 'deposit', 'active', 'contacted'].includes(item.status)) return res.status(400).json({ code: 400, message: '当前状态不可转签约' });
+  if (!['not_rented', 'deposit', 'active', 'contacted'].includes(item.status)) return res.status(400).json({ code: 400, message: '当前状态不可转为正式客户' });
   const data = reserveClientResponse(item);
+  const contractCode = String(req.body?.contractCode || '').trim() || undefined;
   const customer = {
     id: nextId(CUSTOMERS), name: data.clientName, mobile: data.clientMobile,
-    customerType: data.demandType === 'buy' ? 'buyer' : 'tenant', status: 'done', sourceChannel: data.sourceChannel,
-    relatedPropertyCode: req.body.contractCode, contractEndDate: req.body.contractEndDate || undefined,
+    customerType: data.demandType === 'sale' ? 'buyer' : 'tenant', status: 'active', sourceChannel: data.sourceChannel,
+    relatedPropertyCode: contractCode, contractEndDate: contractCode ? req.body.contractEndDate || undefined : undefined,
     desiredDistrict: data.desiredLocation, budgetMin: data.priceMin, budgetMax: data.priceMax,
     employeeName: data.salesmanName, createdAt: new Date().toISOString(),
   };
   CUSTOMERS.push(customer);
-  item.status = 'rented';
-  res.json({ code: 0, data: { reserveClientId: item.id, customerId: customer.id, contractCode: req.body.contractCode, status: item.status } });
+  item.status = 'converted';
+  res.json({ code: 0, data: { reserveClientId: item.id, customerId: customer.id, contractCode, status: item.status } });
 });
 
 // ============================================================
@@ -2352,41 +2382,6 @@ app.post('/api/finance/rent-increases', (req, res) => {
   const r = { id: nextId(RENT_INCREASES), ...req.body, lastRent, currentRent, increaseAmount, increaseRate: Number((increaseAmount / lastRent * 100).toFixed(1)), status: req.body.status || 'pending' };
   RENT_INCREASES.push(r);
   res.json({ code: 0, data: r });
-});
-app.get('/api/finance/profits', (req, res) => {
-  let data = [...PROFITS];
-  const { period } = req.query;
-  if (period) data = data.filter(p => p.period === period);
-  res.json({ code: 0, data: paginate(req.query, data) });
-});
-app.get('/api/finance/profits/summary', (req, res) => {
-  const latest = (req.query.period ? PROFITS.filter(item => item.period === req.query.period) : PROFITS).at(-1) || { income: 0, cost: 0, profit: 0, margin: 0 };
-  res.json({ code: 0, data: { income: Number(latest.income || 0), cost: Number(latest.cost || 0), profit: Number(latest.profit || 0), margin: Number(latest.margin || 0) } });
-});
-app.post('/api/finance/profits', (req, res) => {
-  if (requireText(res, req.body, [['period', '月份']])) return;
-  const income = Number(req.body.income), cost = Number(req.body.cost);
-  if (income <= 0 || cost < 0) return res.status(400).json({ code: 400, message: '收入必须大于 0，成本不能为负数' });
-  const profit = income - cost;
-  const p = { id: nextId(PROFITS), ...req.body, income, cost, profit, margin: Number((profit / income * 100).toFixed(1)) };
-  PROFITS.push(p);
-  res.json({ code: 0, data: p });
-});
-app.get('/api/finance/partners', (req, res) => {
-  let data = [...PARTNERS];
-  const { keyword } = req.query;
-  if (keyword) data = data.filter(p => p.name.includes(keyword));
-  res.json({ code: 0, data: { list: data, total: data.length } });
-});
-app.post('/api/finance/partners', (req, res) => {
-  const p = { id: PARTNERS.length + 1, ...req.body };
-  PARTNERS.push(p);
-  res.json({ code: 0, data: p });
-});
-app.put('/api/finance/partners/:id', (req, res) => {
-  const idx = PARTNERS.findIndex(p => p.id === parseInt(req.params.id));
-  if (idx >= 0) Object.assign(PARTNERS[idx], req.body);
-  res.json({ code: 0, data: PARTNERS[idx] });
 });
 app.get('/api/finance/income-costs', (req, res) => {
   let data = [...INCOME_COSTS];

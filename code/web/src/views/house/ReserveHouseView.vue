@@ -1,27 +1,60 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
-import { getReserveProperties, signReserveProperty, transferReserveProperty, type ReserveProperty } from '@/api/reserve-property';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { deleteReserveProperty, getReserveProperties, signReserveProperty, transferReserveProperty, type ReserveProperty } from '@/api/reserve-property';
 import { getEmployees, type Employee } from '@/api/organization';
+import { getCommunities, type Community } from '@/api/community';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
 import { downloadCsv } from '@/utils/csv';
+import { buildLeasePeriod } from '@/utils/rental-schedule';
 
 const router = useRouter();
 const dictStore = useDictStore();
 const list = ref<ReserveProperty[]>([]);
 const total = ref(0);
 const loading = ref(false);
-const query = reactive({ keyword: '', status: '', page: 1, pageSize: 20 });
+const query = reactive({ keyword: '', status: '', reserveType: '', page: 1, pageSize: 20 });
+const statusOptions = computed(() => [
+  { label: '全部', value: '' },
+  ...(!query.reserveType || query.reserveType === 'rent' ? [
+    { label: '未租', value: 'not_rented' }, { label: '已租', value: 'rented' },
+    { label: '已签约', value: 'signed' },
+  ] : []),
+  ...(!query.reserveType || query.reserveType === 'sale' ? [
+    { label: '未售', value: 'not_sold' }, { label: '已售', value: 'sold' },
+  ] : []),
+  { label: '已交定', value: 'deposit_paid' },
+]);
 const selected = ref<ReserveProperty | null>(null);
 const signVisible = ref(false);
 const transferVisible = ref(false);
 const actionLoading = ref(false);
+const deletingId = ref<number>();
 const employees = ref<Employee[]>([]);
+const communities = ref<Community[]>([]);
+const communityLoading = ref(false);
 const transferSalesmanId = ref<number>();
 const signForm = reactive({
-  contractCode: '', bizType: 'entire' as 'entire' | 'shared', leaseStart: '', leaseEnd: '', landlordRent: 0, deposit: 0,
+  contractCode: '', bizType: 'entire' as 'entire' | 'shared', leaseStart: '', leaseEnd: '', landlordRent: 0, landlordDeposit: 0,
+  communityId: undefined as number | undefined, address: '', roomNo: '', layout: '', ownerName: '',
+});
+const leasePresets = [
+  { label: '1年', years: 1 },
+  { label: '3年', years: 3 },
+  { label: '5年', years: 5 },
+];
+const missingSignFields = computed(() => {
+  const item = selected.value;
+  if (!item) return [];
+  return [
+    !item.communityId && '小区',
+    !item.address?.trim() && '地址',
+    !item.roomNo?.trim() && '房号',
+    !item.layout?.trim() && '户型',
+    !item.ownerName?.trim() && '房东姓名',
+  ].filter(Boolean) as string[];
 });
 
 onMounted(async () => {
@@ -44,14 +77,63 @@ function openEdit(item: ReserveProperty) {
   router.push(`/house/reserve-house/edit/${item.id}`);
 }
 
-function openSign(item: ReserveProperty) {
+function canDelete(item: ReserveProperty) {
+  return !['taken', 'signed', 'sold', 'rented', 'deposit_paid'].includes(item.status);
+}
+
+async function removeProperty(item: ReserveProperty) {
+  if (!canDelete(item) || deletingId.value) return;
+  try {
+    await ElMessageBox.confirm(`确认删除储备房源“${item.title}”？删除后无法恢复。`, '删除确认', {
+      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
+    });
+    deletingId.value = item.id;
+    await deleteReserveProperty(item.id);
+    if (list.value.length === 1 && query.page > 1) query.page--;
+    await load();
+    ElMessage.success('储备房源已删除');
+  } catch {
+    // 用户取消时保持原列表；接口错误由请求拦截器提示。
+  } finally { deletingId.value = undefined; }
+}
+
+async function openSign(item: ReserveProperty) {
+  if (item.reserveType === 'sale') return ElMessage.warning('售房储备不能办理租房签约');
   selected.value = item;
-  Object.assign(signForm, { contractCode: '', bizType: 'entire', leaseStart: '', leaseEnd: '', landlordRent: Number(item.ownerQuote || item.expectedPrice || 0), deposit: 0 });
+  Object.assign(signForm, {
+    contractCode: '', bizType: item.details?.bizType || 'entire', leaseStart: '', leaseEnd: '',
+    landlordRent: Number(item.details?.landlordRent ?? item.ownerQuote ?? 0),
+    landlordDeposit: Number(item.details?.landlordDeposit ?? item.details?.deposit ?? 0),
+    communityId: item.communityId, address: item.address || '', roomNo: item.roomNo || '',
+    layout: item.layout || '', ownerName: item.ownerName || '',
+  });
   signVisible.value = true;
+  if (!item.communityId && !communities.value.length) {
+    communityLoading.value = true;
+    try {
+      communities.value = (await getCommunities({ page: 1, pageSize: 1000 })).list;
+    } finally {
+      communityLoading.value = false;
+    }
+  }
+}
+
+function applyLeasePreset(years: number) {
+  const period = buildLeasePeriod(signForm.leaseStart, years);
+  if (!period) return;
+  signForm.leaseStart = period.start;
+  signForm.leaseEnd = period.end;
 }
 
 async function submitSign() {
-  if (!selected.value || !signForm.leaseStart || !signForm.leaseEnd || signForm.landlordRent < 0) return ElMessage.warning('请完整填写合同期限与租金');
+  if (!selected.value) return;
+  const missing = [
+    !signForm.communityId && '小区', !signForm.address.trim() && '地址',
+    !signForm.roomNo.trim() && '房号', !signForm.layout.trim() && '户型',
+    !signForm.ownerName.trim() && '房东姓名',
+  ].filter(Boolean);
+  if (missing.length) return ElMessage.warning(`请补充：${missing.join('、')}`);
+  if (!signForm.leaseStart || !signForm.leaseEnd || signForm.landlordRent < 0) return ElMessage.warning('请完整填写合同期限与租金');
   actionLoading.value = true;
   try {
     const result = await signReserveProperty(selected.value.id, signForm);
@@ -81,8 +163,8 @@ async function submitTransfer() {
 
 function exportCurrent() {
   downloadCsv(`储备房源-${new Date().toISOString().slice(0, 10)}.csv`, [
-    ['标题', '小区', '地址', '门牌号', '户型', '业主', '电话', '报价', '状态'],
-    ...list.value.map((item) => [item.title, item.communityName, item.address, item.roomNo, item.layout, item.ownerName, item.ownerPhone, item.ownerQuote, item.status]),
+    ['类型', '标题', '小区', '地址', '门牌号', '户型', '业主', '电话', '报价', '状态'],
+    ...list.value.map((item) => [item.reserveType === 'sale' ? '售房储备' : '租房储备', item.title, item.communityName, item.address, item.roomNo, item.layout, item.ownerName, item.ownerPhone, item.ownerQuote, item.status]),
   ]);
 }
 
@@ -91,7 +173,7 @@ function diskClass(type: string) {
 }
 
 function reserveStatusLabel(status: string) {
-  return ({ not_rented: '未租', rented: '已租', sold: '已售', signed: '已签约', deposit_paid: '已交定', pause: '暂停' } as Record<string, string>)[status] || status || '-';
+  return ({ not_rented: '未租', not_sold: '未售', rented: '已租', sold: '已售', signed: '已签约', deposit_paid: '已交定', pause: '暂停' } as Record<string, string>)[status] || status || '-';
 }
 </script>
 
@@ -111,9 +193,14 @@ function reserveStatusLabel(status: string) {
 
     <!-- Filter Bar -->
     <div class="filter-bar">
+      <el-select v-model="query.reserveType" placeholder="储备类型" style="width: 132px;" @change="query.status = ''; query.page = 1; load()">
+        <el-option label="全部类型" value="" />
+        <el-option label="租房储备" value="rent" />
+        <el-option label="售房储备" value="sale" />
+      </el-select>
       <div class="status-tabs">
         <span
-          v-for="opt in [{ label: '全部', value: '' }, { label: '未租', value: 'not_rented' }, { label: '已租', value: 'rented' }, { label: '已售', value: 'sold' }, { label: '已签约', value: 'signed' }, { label: '已交定', value: 'deposit_paid' }]"
+          v-for="opt in statusOptions"
           :key="opt.value"
           :class="['status-tab', { active: query.status === opt.value }]"
           @click="query.status = opt.value; query.page = 1; load()"
@@ -136,6 +223,7 @@ function reserveStatusLabel(status: string) {
         <div class="detail-card-header">
           <div class="detail-card-title">{{ item.title }}</div>
           <div class="pills">
+            <span :class="['pill', item.reserveType === 'sale' ? 'pill-purple' : 'pill-green']">{{ item.reserveType === 'sale' ? '售房储备' : '租房储备' }}</span>
             <span :class="['pill', diskClass(item.diskType)]">{{ dictStore.getLabel('disk_type', item.diskType) }}</span>
             <span :class="['pill', 'pill-gray']">{{ reserveStatusLabel(item.status) }}</span>
           </div>
@@ -147,8 +235,16 @@ function reserveStatusLabel(status: string) {
               <span class="field-value">{{ item.communityName || '-' }}</span>
             </div>
             <div class="field-item">
-              <span class="field-label">期望价</span>
-              <span class="field-value price">{{ formatMoney(item.ownerQuote ?? item.expectedPrice) }}</span>
+              <span class="field-label">{{ item.reserveType === 'sale' ? '售价' : '房东报价' }}</span>
+              <span class="field-value price">{{ formatMoney(item.ownerQuote ?? undefined) }}</span>
+            </div>
+            <div v-if="item.reserveType === 'sale' && item.details?.unitPrice" class="field-item">
+              <span class="field-label">单价</span>
+              <span class="field-value">{{ formatMoney(item.details.unitPrice) }}/㎡</span>
+            </div>
+            <div v-if="item.reserveType !== 'sale' && item.details?.bizType" class="field-item">
+              <span class="field-label">租赁方式</span>
+              <span class="field-value">{{ item.details.bizType === 'shared' ? '合租' : '整租' }}</span>
             </div>
             <div class="field-item">
               <span class="field-label">业主</span>
@@ -161,9 +257,10 @@ function reserveStatusLabel(status: string) {
           </div>
         </div>
         <div class="detail-card-footer">
-          <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:house:take']" :disabled="!['not_rented', 'pause'].includes(item.status)" @click="openSign(item)">拿房签约</button>
-          <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:house:transfer']" :disabled="['taken', 'signed'].includes(item.status)" @click="openTransfer(item)">转业务员</button>
+          <button v-if="item.reserveType !== 'sale'" type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:house:take']" :disabled="!['not_rented', 'pause'].includes(item.status)" @click="openSign(item)">拿房签约</button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:house:transfer']" :disabled="['taken', 'signed', 'sold'].includes(item.status)" @click="openTransfer(item)">转业务员</button>
           <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:house:add']" @click="openEdit(item)">编辑</button>
+          <button type="button" class="btn btn-ghost btn-sm btn-danger-text" v-permission="['reserve:house:delete']" :disabled="!canDelete(item) || deletingId === item.id" :title="canDelete(item) ? '删除房源' : '已签约、成交或流转的房源不能删除'" @click="removeProperty(item)">删除</button>
         </div>
       </div>
     </div>
@@ -179,17 +276,41 @@ function reserveStatusLabel(status: string) {
       />
     </div>
 
-    <el-dialog v-model="signVisible" title="拿房签约" width="520px">
+    <el-dialog v-model="signVisible" title="拿房签约" width="min(640px, 92vw)">
       <el-form :model="signForm" label-width="100px">
+        <template v-if="missingSignFields.length">
+          <el-alert :title="`还需补充：${missingSignFields.join('、')}`" type="warning" :closable="false" class="sign-missing-alert" />
+          <div class="sign-missing-grid">
+            <el-form-item v-if="!selected?.communityId" label="小区" required>
+              <el-select v-model="signForm.communityId" filterable :loading="communityLoading" placeholder="请选择小区" style="width: 100%;">
+                <el-option v-for="community in communities" :key="community.id" :label="community.name" :value="community.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item v-if="!selected?.address?.trim()" label="地址" required><el-input v-model="signForm.address" /></el-form-item>
+            <el-form-item v-if="!selected?.roomNo?.trim()" label="房号" required><el-input v-model="signForm.roomNo" /></el-form-item>
+            <el-form-item v-if="!selected?.layout?.trim()" label="户型" required><el-input v-model="signForm.layout" placeholder="如：2室1厅1卫" /></el-form-item>
+            <el-form-item v-if="!selected?.ownerName?.trim()" label="房东姓名" required><el-input v-model="signForm.ownerName" /></el-form-item>
+          </div>
+        </template>
         <el-form-item label="合同编号"><el-input v-model="signForm.contractCode" placeholder="留空由系统生成" /></el-form-item>
         <el-form-item label="租赁方式" required><el-radio-group v-model="signForm.bizType"><el-radio value="entire">整租</el-radio><el-radio value="shared">合租</el-radio></el-radio-group></el-form-item>
         <el-form-item label="合同期限" required>
-          <el-date-picker v-model="signForm.leaseStart" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" style="width: 48%;" />
-          <span style="margin: 0 8px;">至</span>
-          <el-date-picker v-model="signForm.leaseEnd" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" style="width: 48%;" />
+          <div class="contract-period-field">
+            <div class="contract-date-row">
+              <el-date-picker v-model="signForm.leaseStart" class="contract-date-picker" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" />
+              <span class="contract-date-separator">至</span>
+              <el-date-picker v-model="signForm.leaseEnd" class="contract-date-picker" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" />
+            </div>
+            <div class="contract-presets">
+              <span>快捷期限</span>
+              <button v-for="preset in leasePresets" :key="preset.years" type="button" class="lease-preset-btn" @click="applyLeasePreset(preset.years)">
+                {{ preset.label }}
+              </button>
+            </div>
+          </div>
         </el-form-item>
-        <el-form-item label="房东租金" required><el-input-number v-model="signForm.landlordRent" :min="0" style="width: 100%;" /></el-form-item>
-        <el-form-item label="押金"><el-input-number v-model="signForm.deposit" :min="0" style="width: 100%;" /></el-form-item>
+        <el-form-item label="房东租金" required><PlainNumberInput v-model="signForm.landlordRent" :min="0" style="width: 100%;" /><MoneyUppercase :value="signForm.landlordRent" /></el-form-item>
+        <el-form-item label="房东押金"><PlainNumberInput v-model="signForm.landlordDeposit" :min="0" :precision="2" style="width: 100%;" /><MoneyUppercase :value="signForm.landlordDeposit" /></el-form-item>
       </el-form>
       <template #footer><button type="button" class="btn btn-default" @click="signVisible = false">取消</button><button type="button" class="btn btn-primary" :aria-busy="actionLoading" :disabled="actionLoading" @click="submitSign">确认签约并流转</button></template>
     </el-dialog>
@@ -204,6 +325,55 @@ function reserveStatusLabel(status: string) {
 
 <style scoped lang="scss">
 .house-view { min-height: 100%; }
+.sign-missing-alert { margin-bottom: 16px; }
+.sign-missing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+}
+.sign-missing-grid :deep(.el-form-item) { min-width: 0; }
+.contract-period-field { width: 100%; min-width: 0; }
+.contract-date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+.contract-date-picker {
+  flex: 1 1 0;
+  width: 0 !important;
+  min-width: 0;
+}
+.contract-date-separator { flex: none; color: var(--ink-500); }
+.contract-presets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--ink-500);
+  font-size: 12px;
+}
+.lease-preset-btn {
+  padding: 3px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #3b82f6;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.lease-preset-btn:hover { background: #dbeafe; border-color: #3b82f6; }
+
+@media (max-width: 520px) {
+  .sign-missing-grid { grid-template-columns: 1fr; }
+  .contract-date-row { flex-wrap: wrap; }
+  .contract-date-picker { flex-basis: calc(50% - 20px); width: calc(50% - 20px) !important; }
+  .contract-presets { flex-wrap: wrap; }
+}
 
 /* ---- Filter Bar ---- */
 .filter-bar {

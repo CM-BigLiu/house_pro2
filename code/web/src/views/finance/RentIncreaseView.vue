@@ -171,16 +171,16 @@ function exportCurrent() {
           <el-input v-model="form.roomCode" />
         </el-form-item>
         <el-form-item label="年份">
-          <el-input-number v-model="form.year" :min="2000" :max="2100" controls-position="right" style="width: 100%;" />
+          <PlainNumberInput v-model="form.year" :min="2000" :max="2100" style="width: 100%;" />
         </el-form-item>
         <el-form-item label="月份">
-          <el-input-number v-model="form.month" :min="1" :max="12" controls-position="right" style="width: 100%;" />
+          <PlainNumberInput v-model="form.month" :min="1" :max="12" style="width: 100%;" />
         </el-form-item>
         <el-form-item label="上年租金">
-          <el-input-number v-model="form.lastRent" :min="0" controls-position="right" style="width: 100%;" />
+          <PlainNumberInput v-model="form.lastRent" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.lastRent" />
         </el-form-item>
         <el-form-item label="本年租金">
-          <el-input-number v-model="form.currentRent" :min="0" controls-position="right" style="width: 100%;" />
+          <PlainNumberInput v-model="form.currentRent" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.currentRent" />
         </el-form-item>
       </el-form>
       <template #footer>

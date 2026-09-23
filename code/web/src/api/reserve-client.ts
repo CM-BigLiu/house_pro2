@@ -45,6 +45,6 @@ export function addReserveClientFollowUp(id: number, data: { followType: string;
   return post(`/house/reserve-clients/${id}/follow-ups`, data);
 }
 
-export function convertReserveClient(id: number, data: { contractCode: string; contractEndDate?: string }) {
-  return post<{ reserveClientId: number; customerId: number; contractCode: string; status: string }>(`/house/reserve-clients/${id}/convert`, data);
+export function convertReserveClient(id: number, data: { contractCode?: string; contractEndDate?: string } = {}) {
+  return post<{ reserveClientId: number; customerId: number; contractCode?: string; status: string }>(`/house/reserve-clients/${id}/convert`, data);
 }

@@ -46,8 +46,8 @@ const groups = computed<{ title: string; fields: Field[] }[]>(() => {
   ];
   return [
     { title: '房源信息', fields: [...basics, ['出租方式', p.bizType === 'shared' ? '合租' : '整租'], ['户型', p.layout], ['商圈', p.businessCircle], ['门店编号', p.storeId], ['业务员编号', p.salesmanId], ['管家编号', p.housekeeperId]] },
-    { title: '业主与收房信息', fields: [['业主姓名', p.landlordName], ['业主电话', p.landlordPhone], ['收房租金（元）', money(p.landlordRent)], ['收房租期', period(p.leaseStart, p.leaseEnd)], ['免租期', p.rentFreePeriod]] },
-    ...(p.bizType === 'shared' ? [] : [{ title: '租客与出租信息', fields: [['租客姓名', p.tenantName], ['租客电话', p.tenantPhone], ['出租租金（元）', money(p.rent)], ['押金（元）', money(p.deposit)], ['出租租期', period(p.tenantLeaseStart, p.tenantLeaseEnd)], ['付款方式', dict.getLabel('payment_method', p.tenantPaymentMethod)]] as Field[] }]),
+    { title: '业主与收房信息', fields: [['业主姓名', p.landlordName], ['业主电话', p.landlordPhone], ['收房租金（元）', money(p.landlordRent)], ['房东押金（元）', money(p.landlordDeposit)], ['收房租期', period(p.leaseStart, p.leaseEnd)], ['免租期', p.rentFreePeriod]] },
+    ...(p.bizType === 'shared' ? [] : [{ title: '租客与出租信息', fields: [['租客姓名', p.tenantName], ['租客电话', p.tenantPhone], ['出租租金（元）', money(p.rent)], ['租客押金（元）', money(p.deposit)], ['出租租期', period(p.tenantLeaseStart, p.tenantLeaseEnd)], ['付款方式', dict.getLabel('payment_method', p.tenantPaymentMethod)]] as Field[] }]),
   ];
 });
 function action(value: string) {

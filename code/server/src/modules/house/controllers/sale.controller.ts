@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Put, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Delete, Get, Post, Body, Put, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray, IsEnum, Min, IsInt, Matches, IsEmpty } from 'class-validator';
 import { PartialType, OmitType } from '@nestjs/swagger';
 import { SkipMasking } from '../../../common/decorators/skip-masking.decorator';
@@ -337,5 +337,12 @@ export class SaleController {
   @Audit('house', 'sale:update', { objectType: 'sale_property' })
   async update(@Param('id') id: string, @Body() data: UpdateSalePropertyDto, @CurrentUser() user: any) {
     return this.saleService.update(+id, data, user);
+  }
+
+  @Delete(':id')
+  @RequirePermission('sale:delete')
+  @Audit('house', 'sale:delete', { objectType: 'sale_property' })
+  async remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.saleService.remove(id, user);
   }
 }

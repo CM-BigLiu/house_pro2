@@ -96,24 +96,24 @@ async function submit() {
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="面积最小">
-              <el-input-number v-model="form.areaMin" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.areaMin" :min="0" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="面积最大">
-              <el-input-number v-model="form.areaMax" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.areaMax" :min="0" style="width: 100%;" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="预算最小">
-              <el-input-number v-model="form.priceMin" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.priceMin" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.priceMin" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="预算最大">
-              <el-input-number v-model="form.priceMax" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.priceMax" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.priceMax" />
             </el-form-item>
           </el-col>
         </el-row>

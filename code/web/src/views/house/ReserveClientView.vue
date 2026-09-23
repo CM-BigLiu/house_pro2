@@ -64,10 +64,14 @@ function openConvert(item: ReserveClient) {
 }
 
 async function submitConvert() {
-  if (!selected.value || !convertForm.contractCode.trim()) return ElMessage.warning('请填写已签合同编号');
+  if (!selected.value) return;
   actionLoading.value = true;
   try {
-    await convertReserveClient(selected.value.id, convertForm);
+    const contractCode = convertForm.contractCode.trim();
+    await convertReserveClient(selected.value.id, {
+      ...(contractCode ? { contractCode } : {}),
+      ...(contractCode && convertForm.contractEndDate ? { contractEndDate: convertForm.contractEndDate } : {}),
+    });
     ElMessage.success('客源已转为正式客户');
     convertVisible.value = false;
     await load();
@@ -117,7 +121,7 @@ function statusLabel(status: string) {
         <el-option v-for="item in dictStore.getItems('demand_type')" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
       <el-select v-model="query.status" placeholder="状态" clearable @change="load">
-        <el-option v-for="item in dictStore.getItems('customer_status')" :key="item.value" :label="item.label" :value="item.value" />
+        <el-option v-for="item in dictStore.getItems('customer_status').filter(item => item.value !== 'converted')" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
       <button type="button" class="btn btn-primary" @click="load">查询</button>
     </div>
@@ -155,7 +159,7 @@ function statusLabel(status: string) {
           </div>
         </div>
         <div class="card-footer">
-          <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:client:transfer']" :disabled="!['not_rented', 'deposit'].includes(item.status)" @click="openConvert(item)">转签约</button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:client:transfer']" :disabled="!['not_rented', 'deposit'].includes(item.status)" @click="openConvert(item)">转正式客户</button>
           <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:client:add']" @click="openFollow(item)">跟进</button>
           <button type="button" class="btn btn-ghost btn-sm" v-permission="['reserve:client:add']" @click="openEdit(item)">编辑</button>
         </div>
@@ -174,13 +178,13 @@ function statusLabel(status: string) {
       <template #footer><button type="button" class="btn btn-default" @click="followVisible = false">取消</button><button type="button" class="btn btn-primary" :aria-busy="actionLoading" :disabled="actionLoading" @click="submitFollow">保存跟进</button></template>
     </el-dialog>
 
-    <el-dialog v-model="convertVisible" title="转签约" width="500px">
-      <el-alert title="确认已完成线下签约后，系统将创建正式客户并关闭该储备客源。" type="warning" :closable="false" style="margin-bottom: 16px;" />
+    <el-dialog v-model="convertVisible" title="转正式客户" width="500px">
+      <el-alert title="将创建正式客户，并标记该储备客源为已转正式客户；不会自动生成合同。" type="info" :closable="false" style="margin-bottom: 16px;" />
       <el-form :model="convertForm" label-width="100px">
-        <el-form-item label="合同编号" required><el-input v-model="convertForm.contractCode" /></el-form-item>
-        <el-form-item label="合同到期日"><el-date-picker v-model="convertForm.contractEndDate" type="date" value-format="YYYY-MM-DD" style="width: 100%;" /></el-form-item>
+        <el-form-item label="合同编号"><el-input v-model="convertForm.contractCode" placeholder="选填，已有线下合同时填写" /></el-form-item>
+        <el-form-item v-if="convertForm.contractCode.trim()" label="合同到期日"><el-date-picker v-model="convertForm.contractEndDate" type="date" value-format="YYYY-MM-DD" style="width: 100%;" /></el-form-item>
       </el-form>
-      <template #footer><button type="button" class="btn btn-default" @click="convertVisible = false">取消</button><button type="button" class="btn btn-primary" :aria-busy="actionLoading" :disabled="actionLoading" @click="submitConvert">确认转签约</button></template>
+      <template #footer><button type="button" class="btn btn-default" @click="convertVisible = false">取消</button><button type="button" class="btn btn-primary" :aria-busy="actionLoading" :disabled="actionLoading" @click="submitConvert">确认转为正式客户</button></template>
     </el-dialog>
   </div>
 </template>

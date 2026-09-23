@@ -1,4 +1,4 @@
-import { get, post, put } from '@/utils/request';
+import { del, get, post, put } from '@/utils/request';
 
 export interface RentalSet {
   id: number;
@@ -14,11 +14,12 @@ export interface RentalSet {
   buildingArea?: number;
   decoration?: string;
   landlordRent?: number;   // 承租价（公司给房东）
+  landlordDeposit?: number; // 房东押金（公司给房东）
   leaseStart?: string;     // 承租期开始
   leaseEnd?: string;       // 承租期结束
   rentFreePeriod?: string;
   rent?: number;           // 客租价（对房客，整租时使用）
-  deposit?: number;
+  deposit?: number;        // 租客押金（整租时使用）
   status: string;
   storeId: number;
   groupId?: number;
@@ -77,6 +78,10 @@ export function getRentalSet(id: number | string) {
 
 export function updateRentalSet(id: number | string, data: Partial<RentalSet>) {
   return put<RentalSet>(`/house/rental-sets/${id}`, data);
+}
+
+export function deleteRentalSet(id: number | string) {
+  return del<{ id: number }>(`/house/rental-sets/${id}`);
 }
 
 // PRD 11 章统一房源接口（transType=1 租房）

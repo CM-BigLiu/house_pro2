@@ -17,6 +17,11 @@ describe('RentalController permissions', () => {
     const required = Reflect.getMetadata(PERMISSION_KEY, RentalController.prototype.update);
     expect(required).toEqual(['renting:edit']);
   });
+
+  it('requires renting:delete for rental deletion', () => {
+    const required = Reflect.getMetadata(PERMISSION_KEY, RentalController.prototype.remove);
+    expect(required).toEqual(['renting:delete']);
+  });
 });
 
 describe('Rental form validation', () => {
@@ -25,7 +30,7 @@ describe('Rental form validation', () => {
     code: 'QA-DTO', bizType: 'shared', communityId: 1, address: 'QA测试地址',
     building: '1', unit: '1', roomNo: '101', layout: '1室', storeId: 1,
     landlordName: 'QA房东', landlordPhone: '13000000000', tenantName: 'QA租客',
-    tenantPhone: '13000000001', tenantPaymentMethod: 'monthly', deposit: '1200',
+    tenantPhone: '13000000001', tenantPaymentMethod: 'monthly', landlordDeposit: '5000', deposit: '1200',
     rooms: [{ roomNo: 'A', leaseStart: '2026-09-09', tenantName: 'QA合租客', tenantPhone: '13000000002', rentPrice: '900' }],
   };
 
@@ -34,7 +39,7 @@ describe('Rental form validation', () => {
     expect(result).toMatchObject({
       landlordName: input.landlordName, landlordPhone: input.landlordPhone,
       tenantName: input.tenantName, tenantPhone: input.tenantPhone,
-      tenantPaymentMethod: 'monthly', deposit: 1200,
+      tenantPaymentMethod: 'monthly', landlordDeposit: 5000, deposit: 1200,
       rooms: [{ leaseStart: '2026-09-09', tenantName: 'QA合租客', tenantPhone: '13000000002', rentPrice: 900 }],
     });
   });

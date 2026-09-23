@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, type FormInstance } from 'element-plus';
 import { createSaleProperty, updateSaleProperty, getSalePropertyForEdit, type SaleProperty } from '@/api/sale';
 import { getCommunities, type Community } from '@/api/community';
 import { generateHouseCode } from '@/utils/code';
 import { useDictStore } from '@/stores/dict';
-import { saleFormRules } from '@/utils/sale-form';
+import { calculateUnitPrice, saleFormRules } from '@/utils/sale-form';
 
 const router = useRouter();
 const route = useRoute();
@@ -30,6 +30,10 @@ const form = reactive<Partial<SaleProperty>>({
   verified: false, isCitywideSale: false, images: [],
 });
 const tagInput = ref('');
+
+watch([() => form.totalPrice, () => form.buildingArea], ([price, area]) => {
+  form.unitPrice = calculateUnitPrice(price, area);
+}, { immediate: true });
 
 async function initialize() {
   loading.value = true;
@@ -86,6 +90,7 @@ async function submit() {
   }
   submitting.value = true;
   try {
+    form.unitPrice = calculateUnitPrice(form.totalPrice, form.buildingArea);
     if (!await formRef.value?.validate().catch(() => false)) return;
     if (editId.value) await updateSaleProperty(editId.value, form);
     else await createSaleProperty(form);
@@ -175,27 +180,27 @@ async function submit() {
           </el-col>
           <el-col :span="6">
             <el-form-item label="室" prop="layoutRooms">
-              <el-input-number v-model="form.layoutRooms" :min="0" :precision="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.layoutRooms" :min="0" :precision="0" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item label="厅" prop="layoutHalls">
-              <el-input-number v-model="form.layoutHalls" :min="0" :precision="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.layoutHalls" :min="0" :precision="0" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item label="卫" prop="layoutBathrooms">
-              <el-input-number v-model="form.layoutBathrooms" :min="0" :precision="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.layoutBathrooms" :min="0" :precision="0" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item label="阳台" prop="layoutBalconies">
-              <el-input-number v-model="form.layoutBalconies" :min="0" :precision="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.layoutBalconies" :min="0" :precision="0" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="面积(㎡)" prop="buildingArea">
-              <el-input-number v-model="form.buildingArea" :min="0" :precision="2" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.buildingArea" :min="0" :precision="2" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
@@ -214,12 +219,19 @@ async function submit() {
           </el-col>
           <el-col :span="8">
             <el-form-item label="售价(元)" prop="totalPrice">
-              <el-input-number v-model="form.totalPrice" :min="0" :precision="2" controls-position="right" style="width: 100%;" />
+              <div class="price-field">
+                <PlainNumberInput v-model="form.totalPrice" :min="0" :precision="2" style="width: 100%;" />
+                <MoneyUppercase :value="form.totalPrice" />
+              </div>
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="单价(元/㎡)" prop="unitPrice">
-              <el-input-number v-model="form.unitPrice" :min="0" :precision="2" controls-position="right" style="width: 100%;" />
+              <div class="price-field">
+                <PlainNumberInput v-model="form.unitPrice" :min="0" :precision="2" disabled style="width: 100%;" />
+                <MoneyUppercase :value="form.unitPrice" />
+                <div class="price-note">根据售价 ÷ 面积自动计算</div>
+              </div>
             </el-form-item>
           </el-col>
           <el-col :span="8">
@@ -293,6 +305,8 @@ async function submit() {
 .form-page { min-height: 100%; }
 .form-tip { margin: 0 0 20px; color: #909399; font-size: 13px; }
 .form-tip span, .load-error { color: #f56c6c; }
+.price-field { width: 100%; }
+.price-note { margin-top: 4px; color: var(--ink-400); font-size: 12px; line-height: 1.5; }
 @media (max-width: 1100px) {
   .form-page :deep(.el-col) { flex: 0 0 100%; max-width: 100%; }
 }

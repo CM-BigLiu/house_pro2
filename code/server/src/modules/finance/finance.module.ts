@@ -7,8 +7,6 @@ import { PayoutController } from './controllers/payout.controller';
 import { PlanController } from './controllers/plan.controller';
 import { ArrearController } from './controllers/arrear.controller';
 import { RentIncreaseController } from './controllers/rent-increase.controller';
-import { ProfitController } from './controllers/profit.controller';
-import { PartnerController } from './controllers/partner.controller';
 import { IncomeCostController } from './controllers/income-cost.controller';
 import { PerformanceController } from './controllers/performance.controller';
 import { AccountingController } from './controllers/accounting.controller';
@@ -19,8 +17,6 @@ import { PayoutService } from './services/payout.service';
 import { PlanService } from './services/plan.service';
 import { ArrearService } from './services/arrear.service';
 import { RentIncreaseService } from './services/rent-increase.service';
-import { ProfitService } from './services/profit.service';
-import { PartnerService } from './services/partner.service';
 import { IncomeCostService } from './services/income-cost.service';
 import { PerformanceService } from './services/performance.service';
 import { AccountingService } from './services/accounting.service';
@@ -31,8 +27,6 @@ import { Payout } from './entities/payout.entity';
 import { PaymentPlan } from './entities/payment-plan.entity';
 import { Arrear } from './entities/arrear.entity';
 import { RentIncrease } from './entities/rent-increase.entity';
-import { Profit } from './entities/profit.entity';
-import { Partner } from './entities/partner.entity';
 import { IncomeCost } from './entities/income-cost.entity';
 import { Performance } from './entities/performance.entity';
 import { Accounting } from './entities/accounting.entity';
@@ -40,19 +34,19 @@ import { Accounting } from './entities/accounting.entity';
 @Module({
   imports: [TypeOrmModule.forFeature([
     Bill, FinanceFlow, Invoice, Payout, PaymentPlan, Arrear,
-    RentIncrease, Profit, Partner, IncomeCost, Performance, Accounting,
+    RentIncrease, IncomeCost, Performance, Accounting,
   ])],
   controllers: [
     BillController, FlowController, InvoiceController, PayoutController, PlanController, ArrearController,
-    RentIncreaseController, ProfitController, PartnerController, IncomeCostController, PerformanceController, AccountingController,
+    RentIncreaseController, IncomeCostController, PerformanceController, AccountingController,
   ],
   providers: [
     BillService, FlowService, InvoiceService, PayoutService, PlanService, ArrearService,
-    RentIncreaseService, ProfitService, PartnerService, IncomeCostService, PerformanceService, AccountingService,
+    RentIncreaseService, IncomeCostService, PerformanceService, AccountingService,
   ],
   exports: [
     BillService, FlowService, InvoiceService, PayoutService, PlanService, ArrearService,
-    RentIncreaseService, ProfitService, PartnerService, IncomeCostService, PerformanceService, AccountingService,
+    RentIncreaseService, IncomeCostService, PerformanceService, AccountingService,
   ],
 })
 export class FinanceModule {}

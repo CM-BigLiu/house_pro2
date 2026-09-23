@@ -12,6 +12,16 @@ function localDate(value: string): Date {
   return new Date(`${value}T00:00:00`);
 }
 
+export function buildLeasePeriod(startStr: string | undefined, years: number, today = new Date()) {
+  const start = startStr ? localDate(startStr) : new Date(today);
+  if (!Number.isInteger(years) || years <= 0 || Number.isNaN(start.getTime())) return null;
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setFullYear(end.getFullYear() + years);
+  end.setDate(end.getDate() - 1);
+  return { start: formatDate(start), end: formatDate(end) };
+}
+
 export function buildPaymentSchedule(startStr?: string, endStr?: string, method?: string) {
   const list: { period: number; date: string }[] = [];
   if (!startStr || !method || (!PAYMENT_MONTHS[method] && method !== 'full')) return list;

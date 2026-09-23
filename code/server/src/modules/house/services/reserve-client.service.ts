@@ -33,10 +33,11 @@ export class ReserveClientService {
   }
 
   async findAll(query: any, user: CurrentUserPayload) {
-    const qb = this.clientRepo.createQueryBuilder('c');
-    if (query.demandType) qb.where('c.demandType = :demandType', { demandType: query.demandType });
+    const qb = this.clientRepo.createQueryBuilder('c')
+      .where('c.status <> :convertedStatus', { convertedStatus: 'converted' });
+    if (query.demandType) qb.andWhere('c.demandType = :demandType', { demandType: query.demandType });
     if (query.status) qb.andWhere('c.status = :status', { status: query.status });
-    if (query.keyword) qb.andWhere('c.clientName LIKE :kw OR c.clientMobile LIKE :kw', { kw: `%${query.keyword}%` });
+    if (query.keyword) qb.andWhere('(c.clientName LIKE :kw OR c.clientMobile LIKE :kw)', { kw: `%${query.keyword}%` });
     applyDataScope(qb, user, 'c', { ownerField: 'creatorId' });
     const [list, total] = await qb
       .skip(((query.page || 1) - 1) * (query.pageSize || 20))
@@ -97,16 +98,16 @@ export class ReserveClientService {
     });
   }
 
-  async convert(id: number, data: { contractCode: string; contractEndDate?: string }, user: CurrentUserPayload) {
+  async convert(id: number, data: { contractCode?: string; contractEndDate?: string }, user: CurrentUserPayload) {
     const existing = await this.findScoped(id, user);
     if (existing.status !== 'not_rented' && existing.status !== 'deposit') {
-      throw new BadRequestException('仅未租或已定客源可转签约');
+      throw new BadRequestException('仅未租或已定客源可转为正式客户');
     }
-    if (!existing.clientMobile) throw new BadRequestException('请先完善客户电话再转签约');
-    const contractCode = data.contractCode.trim();
+    if (!existing.clientMobile) throw new BadRequestException('请先完善客户电话再转为正式客户');
+    const contractCode = data.contractCode?.trim() || undefined;
     return this.clientRepo.manager.transaction(async (manager) => {
       const customerRepo = manager.getRepository(Customer);
-      if (await customerRepo.exist({ where: { relatedPropertyCode: contractCode } })) {
+      if (contractCode && await customerRepo.exist({ where: { relatedPropertyCode: contractCode } })) {
         throw new BadRequestException('合同编号已存在');
       }
       const customer = await customerRepo.save(customerRepo.create({
@@ -115,7 +116,7 @@ export class ReserveClientService {
         customerType: existing.demandType === 'sale' ? 'buyer' : 'tenant',
         sourceChannel: existing.sourceChannel,
         relatedPropertyCode: contractCode,
-        contractEndDate: data.contractEndDate,
+        contractEndDate: contractCode ? data.contractEndDate : undefined,
         status: 'active',
         salesmanId: existing.salesmanId,
         storeId: existing.storeId,
@@ -124,7 +125,7 @@ export class ReserveClientService {
         budgetMin: existing.priceMin,
         budgetMax: existing.priceMax,
       }));
-      const status = existing.demandType === 'sale' ? 'sold' : 'rented';
+      const status = 'converted';
       await manager.getRepository(ReserveClient).update(existing.id, { status });
       return { reserveClientId: existing.id, customerId: customer.id, contractCode, status };
     });

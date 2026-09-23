@@ -51,6 +51,13 @@ test('homepage API returns the dashboard contract and readable unfinished todos'
   assert.ok((await ok('/auth/menus')).some(menu => menu.path === '/home'));
 });
 
+test('removed apartment profit and partner modules stay unavailable', async () => {
+  const menus = JSON.stringify(await ok('/auth/menus'));
+  assert.doesNotMatch(menus, /finance\/(?:profit|partner)/);
+  assert.equal((await request('/finance/profits')).code, 404);
+  assert.equal((await request('/finance/partners')).code, 404);
+});
+
 test('employee page receives a paginated list and normalized employment status', async () => {
   const first = await ok('/system/employees?pageSize=2');
   const second = await ok('/system/employees?pageSize=2&page=2');
@@ -230,7 +237,6 @@ test('system forms reject blank base data and roles reflect runtime permissions'
 
 test('financial forms validate data and preserve submitted DTO fields', async () => {
   assert.equal((await request('/finance/rent-increases', 'POST', { roomCode: '', lastRent: 0, currentRent: 0 })).code, 400);
-  assert.equal((await request('/finance/profits', 'POST', { period: '', income: 0, cost: 0 })).code, 400);
   assert.equal((await request('/finance/plans', 'POST', { planType: 'income', totalPeriods: 1, totalAmount: 0 })).code, 400);
   const plan = await ok('/finance/plans', 'POST', { planType: 'income', billingCategory: '其他收入', reason: '计划搜索回归', totalPeriods: 2, totalAmount: 200 });
   assert.equal(plan.title, '计划搜索回归');
@@ -241,8 +247,6 @@ test('financial forms validate data and preserve submitted DTO fields', async ()
   assert.equal((await ok(`/finance/flows/${flow.id}/edit`)).direction, 'income');
   const filtered = await ok('/finance/flows?keyword=回归流水&type=income');
   assert.equal(filtered.total, 1);
-  const summary = await ok('/finance/profits/summary');
-  assert.equal(typeof summary.margin, 'number');
   const legacy = await ok('/house/checkouts/3/confirm', 'POST', {});
   assert.equal(legacy.manualHouseStateRequired, true);
 });

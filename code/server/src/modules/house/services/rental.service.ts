@@ -1,8 +1,9 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, In, Repository } from 'typeorm';
 import { RentalSet } from '../entities/rental-set.entity';
 import { RentalRoom } from '../entities/rental-room.entity';
+import { Checkout } from '../entities/checkout.entity';
 import { applyDataScope } from '../../../common/data-scope/data-scope.util';
 import { CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 
@@ -30,6 +31,7 @@ export class RentalService {
     return {
       ...rs,
       communityName: rs.community?.name || '',
+      landlordDeposit: Number(rs.landlordDeposit || 0),
       rent,
       deposit,
       roomCount: rooms.length,
@@ -53,8 +55,24 @@ export class RentalService {
       .leftJoinAndSelect('rs.rooms', 'rooms')
       .leftJoinAndSelect('rs.community', 'community');
     if (query.bizType) qb.where('rs.bizType = :bizType', { bizType: query.bizType });
-    if (query.status === 'vacant') qb.andWhere('rs.status IN (:...statuses)', { statuses: ['active', 'vacant'] });
-    else if (query.status) qb.andWhere('rs.status = :status', { status: query.status });
+    if (query.status === 'vacant' || query.status === 'rented') {
+      const entireCondition = query.status === 'vacant'
+        ? 'rs.bizType = :entireType AND rs.status IN (:...entireStatuses)'
+        : 'rs.bizType = :entireType AND rs.status = :entireStatus';
+      const entireParams = query.status === 'vacant'
+        ? { entireType: 'entire', entireStatuses: ['active', 'vacant'] }
+        : { entireType: 'entire', entireStatus: 'rented' };
+      qb.andWhere(new Brackets((statusQb) => {
+        statusQb.where(entireCondition, entireParams)
+          .orWhere(
+            `rs.bizType = :sharedType AND EXISTS (
+              SELECT 1 FROM house_rental_room status_room
+              WHERE status_room.set_id = rs.id AND status_room.status = :roomStatus
+            )`,
+            { sharedType: 'shared', roomStatus: query.status },
+          );
+      }));
+    } else if (query.status) qb.andWhere('rs.status = :status', { status: query.status });
     const keyword = typeof query.keyword === 'string' ? query.keyword.trim() : '';
     if (keyword) {
       qb.andWhere(new Brackets((sub) => {
@@ -97,7 +115,7 @@ export class RentalService {
     const allowedSetFields: (keyof RentalSet)[] = [
       'code', 'bizType', 'communityId', 'address', 'building', 'unit', 'roomNo',
       'layout', 'buildingArea', 'interiorArea', 'businessCircle', 'decoration',
-      'landlordRent', 'rent', 'leaseStart', 'leaseEnd', 'rentFreePeriod', 'status',
+      'landlordRent', 'landlordDeposit', 'rent', 'leaseStart', 'leaseEnd', 'rentFreePeriod', 'status',
       'storeId', 'groupId', 'landlordId', 'salesmanId', 'housekeeperId',
       'tenantLeaseStart', 'tenantLeaseEnd',
       'landlordName', 'landlordPhone', 'tenantName', 'tenantPhone',
@@ -211,5 +229,25 @@ export class RentalService {
       }
       return saved;
     });
+  }
+
+  async removeSet(id: number, user: CurrentUserPayload) {
+    const existing = await this.findScopedSet(id, user);
+    const rooms = existing.rooms || [];
+    const hasActiveBusiness = !['active', 'vacant', 'pause', 'maintenance'].includes(existing.status)
+      || Boolean(existing.tenantName || existing.tenantPhone)
+      || rooms.some((room) => !['vacant', 'maintenance'].includes(room.status)
+        || Boolean(room.tenantName || room.tenantPhone));
+    const hasCheckout = await this.setRepo.manager.getRepository(Checkout).exist({
+      where: { rentalSetId: id },
+    });
+    if (hasActiveBusiness || hasCheckout) {
+      throw new BadRequestException('房源已有出租、租客或退租业务记录，不能删除');
+    }
+    await this.setRepo.manager.transaction(async (manager) => {
+      await manager.getRepository(RentalRoom).delete({ setId: id });
+      await manager.getRepository(RentalSet).delete(id);
+    });
+    return { id };
   }
 }

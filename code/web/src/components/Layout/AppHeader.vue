@@ -3,55 +3,14 @@ import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Bell, ChevronDown, ListTodo, LogOut, Menu } from 'lucide-vue-next';
 import { useUserStore } from '../../stores/user';
+import { getBreadcrumbs } from '@/router/breadcrumb';
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 const emit = defineEmits<{ 'toggle-sidebar': [] }>();
 
-// Breadcrumb map: route path → Chinese label
-const breadcrumbMap: Record<string, string> = {
-  '/': '看板',
-  '/dashboard': '看板',
-  '/house/rent': '租房管理',
-  '/house/sale': '售房管理',
-  '/house/customer': '客源管理',
-  '/house/community': '小区管理',
-  '/house/blacklist': '黑名单',
-  '/house/reserve-house': '储备房源',
-  '/house/reserve-client': '储备客源',
-  '/house/house-wizard': '房源录入',
-  '/house/checkout': '退租管理',
-  '/house/deposit': '押金管理',
-  '/finance/bill': '账单管理',
-  '/finance/daily-account': '流水管理',
-  '/finance/arrears': '催收管理',
-  '/finance/plan': '回款计划',
-  '/finance/payout': '支出管理',
-  '/finance/invoice': '发票管理',
-  '/finance/profit': '利润分析',
-  '/finance/income-cost': '收支管理',
-  '/finance/performance': '绩效考核',
-  '/finance/accounting': '财务核算',
-  '/system/role': '角色管理',
-  '/system/permission': '权限管理',
-  '/system/employee': '员工管理',
-  '/system/dict': '字典管理',
-  '/system/store': '门店管理',
-  '/system/config': '系统配置',
-  '/system/log': '操作日志',
-};
-
-const breadcrumbs = computed(() => {
-  const name = breadcrumbMap[route.path] || route.meta?.title as string || '';
-  const segments: { label: string; path?: string }[] = [
-    { label: '首页', path: route.path === '/home' ? undefined : '/home' },
-  ];
-  if (name && name !== '首页') {
-    segments.push({ label: name });
-  }
-  return segments;
-});
+const breadcrumbs = computed(() => getBreadcrumbs(route.path, route.meta?.title));
 
 const user = computed(() => userStore.userInfo ?? { name: '用户' });
 const initials = computed(() => {

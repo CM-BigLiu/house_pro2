@@ -59,6 +59,9 @@ export class RentalSet {
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   landlordRent: number;
 
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true, default: 0 })
+  landlordDeposit: number;
+
   @Column({ length: 100, nullable: true })
   landlordName: string;
 

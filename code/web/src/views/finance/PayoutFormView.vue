@@ -63,7 +63,7 @@ async function submit() {
           <el-input v-model="form.bankCardNo" />
         </el-form-item>
         <el-form-item label="支出金额" required>
-          <el-input-number v-model="form.payoutAmount" :min="0" controls-position="right" style="width: 100%;" />
+          <PlainNumberInput v-model="form.payoutAmount" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.payoutAmount" />
         </el-form-item>
         <el-form-item label="计划付款日" required>
           <el-date-picker v-model="form.operateDate" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />

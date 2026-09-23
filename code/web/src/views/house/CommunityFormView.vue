@@ -89,10 +89,10 @@ async function submit() {
           <el-input v-model="form.address" placeholder="请输入地址" />
         </el-form-item>
         <el-form-item label="经度">
-          <el-input-number v-model="form.longitude" :precision="6" :step="0.01" controls-position="right" style="width: 100%;" />
+          <PlainNumberInput v-model="form.longitude" :precision="6" :step="0.01" style="width: 100%;" />
         </el-form-item>
         <el-form-item label="纬度">
-          <el-input-number v-model="form.latitude" :precision="6" :step="0.01" controls-position="right" style="width: 100%;" />
+          <PlainNumberInput v-model="form.latitude" :precision="6" :step="0.01" style="width: 100%;" />
         </el-form-item>
       </el-form>
     </div>

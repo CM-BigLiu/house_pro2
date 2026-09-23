@@ -27,13 +27,19 @@ export class ReserveProperty {
   @Column({ name: 'community_id', nullable: true })
   communityId: number;
 
-  @Column({ length: 255 })
+  @Column({ length: 10, default: 'rent' })
+  reserveType: 'rent' | 'sale';
+
+  @Column({ type: 'jsonb', nullable: true })
+  details: Record<string, unknown>;
+
+  @Column({ length: 255, nullable: true })
   address: string;
 
-  @Column({ length: 100 })
+  @Column({ length: 100, nullable: true })
   roomNo: string;
 
-  @Column({ length: 50 })
+  @Column({ length: 50, nullable: true })
   layout: string;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
@@ -42,16 +48,16 @@ export class ReserveProperty {
   @Column({ length: 20, nullable: true })
   decoration: string;
 
-  @Column({ length: 50 })
+  @Column({ length: 50, nullable: true })
   ownerName: string;
 
   @Column({ length: 20, nullable: true })
   ownerPhone: string;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  @Column({ type: 'decimal', precision: 14, scale: 2, nullable: true })
   ownerQuote: number;
 
-  @Column({ length: 50 })
+  @Column({ length: 50, nullable: true })
   sourceChannel: string;
 
   @Column({ length: 20, nullable: true })

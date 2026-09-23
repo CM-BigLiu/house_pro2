@@ -110,32 +110,32 @@ function showDetails(row: Performance) {
         <el-row :gutter="12">
           <el-col :span="8">
             <el-form-item label="收房数">
-              <el-input-number v-model="form.newHouseCount" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.newHouseCount" :min="0" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="收客数">
-              <el-input-number v-model="form.newCustomerCount" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.newCustomerCount" :min="0" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="带看数">
-              <el-input-number v-model="form.showingCount" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.showingCount" :min="0" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="成交数">
-              <el-input-number v-model="form.dealCount" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.dealCount" :min="0" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="业绩金额">
-              <el-input-number v-model="form.totalPerformance" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.totalPerformance" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.totalPerformance" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="提成">
-              <el-input-number v-model="form.commission" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.commission" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.commission" />
             </el-form-item>
           </el-col>
         </el-row>

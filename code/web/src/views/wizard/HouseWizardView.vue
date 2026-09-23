@@ -10,6 +10,7 @@ import { generateHouseCode } from '@/utils/code';
 import { useDictStore } from '@/stores/dict';
 import { useUserStore } from '@/stores/user';
 import { formatHouseAddress } from '@/utils/address';
+import { calculateUnitPrice } from '@/utils/sale-form';
 
 const router = useRouter();
 const dictStore = useDictStore();
@@ -26,6 +27,7 @@ const roomOptions = ref<{ id: number; name: string }[]>([]);
 
 const form = reactive({
   type: 'rent',
+  reserveType: 'rent' as 'rent' | 'sale',
   communityId: undefined as number | undefined,
   buildingId: undefined as number | undefined,
   unitId: undefined as number | undefined,
@@ -206,6 +208,13 @@ function prev() {
 }
 
 function validateStep(step: number): boolean {
+  if (form.type === 'reserve') {
+    if (step === 3 && !form.communityId && !form.roomNo.trim() && !form.ownerName.trim() && !form.ownerPhone.trim() && !form.title.trim()) {
+      ElMessage.warning('请至少填写小区、房号、业主或标题中的一项');
+      return false;
+    }
+    return true;
+  }
   if (step === 1) {
     if (!form.communityId) { ElMessage.warning('请选择小区'); return false; }
     if (!form.buildingId) { ElMessage.warning('请选择楼栋'); return false; }
@@ -216,7 +225,6 @@ function validateStep(step: number): boolean {
     if (!form.decoration) { ElMessage.warning('请选择装修'); return false; }
     if (form.type === 'rent' && (!form.rentPrice || form.rentPrice <= 0)) { ElMessage.warning('请填写月租'); return false; }
     if (form.type === 'sale' && (!form.totalPrice || form.totalPrice <= 0)) { ElMessage.warning('请填写售价'); return false; }
-    if (form.type === 'reserve' && (!form.expectedPrice || form.expectedPrice <= 0)) { ElMessage.warning('请填写期望价'); return false; }
   }
   if (step === 3) {
     if (!form.ownerName.trim()) { ElMessage.warning('请填写业主姓名'); return false; }
@@ -316,6 +324,7 @@ async function submit() {
       });
     } else {
       await createReserveProperty({
+        reserveType: form.reserveType,
         storeId,
         communityId: form.communityId,
         address: currentAddress.value,
@@ -328,6 +337,17 @@ async function submit() {
         ownerQuote: form.expectedPrice,
         sourceChannel: form.sourceChannel,
         diskType: form.diskType,
+        details: form.reserveType === 'sale' ? {
+          title: form.title, propertyType: form.propertyType, building: form.building,
+          unit: form.unit, floor: form.floor, layoutRooms: form.layoutRooms,
+          layoutHalls: form.layoutHalls, layoutBathrooms: form.layoutBathrooms,
+          layoutBalconies: form.layoutBalconies, interiorArea: form.interiorArea,
+          orientation: form.orientation, elevator: form.elevator, tags: form.tags,
+          description: form.remark, unitPrice: calculateUnitPrice(form.expectedPrice, form.buildingArea),
+        } : {
+          bizType: form.bizType, building: form.building, unit: form.unit,
+          landlordRent: form.expectedPrice,
+        },
       });
     }
     ElMessage.success('房源录入成功');
@@ -381,12 +401,20 @@ function generateCode(prefix: string) {
               <Check v-if="form.type === type.value" class="type-check" :size="18" />
             </div>
           </div>
+          <el-form v-if="form.type === 'reserve'" :model="form" label-width="110px" style="margin-top: 20px;">
+            <el-form-item label="储备用途" required>
+              <el-radio-group v-model="form.reserveType">
+                <el-radio value="rent">租房储备</el-radio>
+                <el-radio value="sale">售房储备</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-form>
         </div>
 
         <!-- 步骤 2 -->
         <div v-if="activeStep === 1" class="step-form">
           <el-form :model="form" label-width="110px">
-            <el-form-item label="小区" required>
+            <el-form-item label="小区" :required="form.type !== 'reserve'">
               <el-select
                 v-model="form.communityId"
                 filterable
@@ -402,7 +430,7 @@ function generateCode(prefix: string) {
             </el-form-item>
             <el-row :gutter="16">
               <el-col :span="6">
-                <el-form-item label="楼栋" required>
+                <el-form-item label="楼栋" :required="form.type !== 'reserve'">
                   <el-select v-model="form.buildingId" placeholder="选择楼栋" style="width: 100%;" @change="onBuildingChange">
                     <el-option v-for="item in buildingOptions" :key="item.id" :label="item.name" :value="item.id" />
                   </el-select>
@@ -423,7 +451,7 @@ function generateCode(prefix: string) {
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="房号" required>
+                <el-form-item label="房号" :required="form.type !== 'reserve'">
                   <el-select v-model="form.roomId" placeholder="选择房号" style="width: 100%;" @change="onRoomChange">
                     <el-option v-for="item in roomOptions" :key="item.id" :label="item.name" :value="item.id" />
                   </el-select>
@@ -441,13 +469,13 @@ function generateCode(prefix: string) {
           <el-form :model="form" label-width="110px">
             <el-row :gutter="16">
               <el-col :span="12">
-                <el-form-item label="建筑面积" required>
-                  <el-input-number v-model="form.buildingArea" :min="0" :precision="2" style="width: 100%;" />
+                <el-form-item label="建筑面积" :required="form.type !== 'reserve'">
+                  <PlainNumberInput v-model="form.buildingArea" :min="0" :precision="2" style="width: 100%;" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="套内面积">
-                  <el-input-number v-model="form.interiorArea" :min="0" :precision="2" style="width: 100%;" />
+                  <PlainNumberInput v-model="form.interiorArea" :min="0" :precision="2" style="width: 100%;" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -455,11 +483,11 @@ function generateCode(prefix: string) {
             <el-row :gutter="16">
               <el-col :span="12">
                 <el-form-item label="总楼层">
-                  <el-input-number v-model="form.totalFloor" :min="0" :precision="0" style="width: 100%;" />
+                  <PlainNumberInput v-model="form.totalFloor" :min="0" :precision="0" style="width: 100%;" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="装修" required>
+                <el-form-item label="装修" :required="form.type !== 'reserve'">
                   <el-select v-model="form.decoration" placeholder="装修" style="width: 100%;">
                     <el-option v-for="item in dictStore.getItems('decoration_level')" :key="item.value" :label="item.label" :value="item.value" />
                   </el-select>
@@ -470,22 +498,22 @@ function generateCode(prefix: string) {
             <el-row :gutter="16">
               <el-col :span="6">
                 <el-form-item label="室">
-                  <el-input-number v-model="form.layoutRooms" :min="0" style="width: 100%;" />
+                  <PlainNumberInput v-model="form.layoutRooms" :min="0" style="width: 100%;" />
                 </el-form-item>
               </el-col>
               <el-col :span="6">
                 <el-form-item label="厅">
-                  <el-input-number v-model="form.layoutHalls" :min="0" style="width: 100%;" />
+                  <PlainNumberInput v-model="form.layoutHalls" :min="0" style="width: 100%;" />
                 </el-form-item>
               </el-col>
               <el-col :span="6">
                 <el-form-item label="卫">
-                  <el-input-number v-model="form.layoutBathrooms" :min="0" style="width: 100%;" />
+                  <PlainNumberInput v-model="form.layoutBathrooms" :min="0" style="width: 100%;" />
                 </el-form-item>
               </el-col>
               <el-col :span="6">
                 <el-form-item label="阳台">
-                  <el-input-number v-model="form.layoutBalconies" :min="0" style="width: 100%;" />
+                  <PlainNumberInput v-model="form.layoutBalconies" :min="0" style="width: 100%;" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -494,12 +522,12 @@ function generateCode(prefix: string) {
               <el-row :gutter="16">
                 <el-col :span="12">
                   <el-form-item label="月租" required>
-                    <el-input-number v-model="form.rentPrice" :min="0" :precision="2" style="width: 100%;" />
+                    <PlainNumberInput v-model="form.rentPrice" :min="0" :precision="2" style="width: 100%;" /><MoneyUppercase :value="form.rentPrice" />
                   </el-form-item>
                 </el-col>
                 <el-col :span="12">
                   <el-form-item label="押金">
-                    <el-input-number v-model="form.depositAmount" :min="0" :precision="2" style="width: 100%;" />
+                    <PlainNumberInput v-model="form.depositAmount" :min="0" :precision="2" style="width: 100%;" /><MoneyUppercase :value="form.depositAmount" />
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -515,12 +543,12 @@ function generateCode(prefix: string) {
               <el-row :gutter="16">
                 <el-col :span="12">
                   <el-form-item label="售价" required>
-                    <el-input-number v-model="form.totalPrice" :min="0" :precision="2" style="width: 100%;" />
+                    <PlainNumberInput v-model="form.totalPrice" :min="0" :precision="2" style="width: 100%;" /><MoneyUppercase :value="form.totalPrice" />
                   </el-form-item>
                 </el-col>
                 <el-col :span="12">
                   <el-form-item label="单价">
-                    <el-input-number v-model="form.unitPrice" :min="0" :precision="2" style="width: 100%;" />
+                    <PlainNumberInput v-model="form.unitPrice" :min="0" :precision="2" style="width: 100%;" /><MoneyUppercase :value="form.unitPrice" />
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -558,8 +586,8 @@ function generateCode(prefix: string) {
             <template v-if="form.type === 'reserve'">
               <el-row :gutter="16">
                 <el-col :span="12">
-                  <el-form-item label="期望价" required>
-                    <el-input-number v-model="form.expectedPrice" :min="0" :precision="2" style="width: 100%;" />
+                  <el-form-item :label="form.reserveType === 'sale' ? '售价' : '房东报价'">
+                    <PlainNumberInput v-model="form.expectedPrice" :min="0" :precision="2" style="width: 100%;" /><MoneyUppercase :value="form.expectedPrice" />
                   </el-form-item>
                 </el-col>
                 <el-col :span="12">
@@ -580,7 +608,7 @@ function generateCode(prefix: string) {
           <el-form :model="form" label-width="110px">
             <el-row :gutter="16">
               <el-col :span="12">
-                <el-form-item label="业主姓名" required>
+                <el-form-item label="业主姓名" :required="form.type !== 'reserve'">
                   <el-input v-model="form.ownerName" />
                 </el-form-item>
               </el-col>
@@ -592,7 +620,7 @@ function generateCode(prefix: string) {
             </el-row>
             <el-row :gutter="16">
               <el-col :span="12">
-                <el-form-item label="业主电话" required>
+                <el-form-item label="业主电话" :required="form.type !== 'reserve'">
                   <el-input v-model="form.ownerPhone" @blur="checkOwnerBlacklist" />
                 </el-form-item>
               </el-col>
@@ -602,12 +630,12 @@ function generateCode(prefix: string) {
                 </el-form-item>
               </el-col>
             </el-row>
-            <el-form-item label="来源渠道" required>
+            <el-form-item label="来源渠道" :required="form.type !== 'reserve'">
               <el-select v-model="form.sourceChannel" placeholder="来源渠道" style="width: 100%;">
                 <el-option v-for="item in dictStore.getItems('source_channel')" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
-            <el-form-item v-if="form.type === 'sale'" label="房源标题">
+            <el-form-item v-if="form.type === 'sale' || (form.type === 'reserve' && form.reserveType === 'sale')" label="房源标题">
               <el-input v-model="form.title" :placeholder="currentAddress" />
             </el-form-item>
             <el-row :gutter="16" v-if="form.type === 'sale'">

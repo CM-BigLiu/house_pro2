@@ -159,8 +159,8 @@ class CreateReserveFollowUpDto {
 
 class ConvertReserveClientDto {
   @IsString()
-  @IsNotEmpty()
-  contractCode: string;
+  @IsOptional()
+  contractCode?: string;
 
   @IsDateString()
   @IsOptional()

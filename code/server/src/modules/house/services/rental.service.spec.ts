@@ -11,6 +11,28 @@ function queryBuilderMock() {
 }
 
 describe('RentalService.findSets', () => {
+  it.each([
+    ['vacant', 'rs.bizType = :entireType AND rs.status IN (:...entireStatuses)', { entireType: 'entire', entireStatuses: ['active', 'vacant'] }],
+    ['rented', 'rs.bizType = :entireType AND rs.status = :entireStatus', { entireType: 'entire', entireStatus: 'rented' }],
+  ])('filters %s sets by entire-house status or any matching shared room', async (status, entireCondition, entireParams) => {
+    const qb = queryBuilderMock();
+    const service = new RentalService({ createQueryBuilder: jest.fn().mockReturnValue(qb) } as any, {} as any);
+    await service.findSets({ status, bizType: 'shared' }, { employeeId: 1, dataScope: 'company' } as any);
+
+    const statusCall = qb.andWhere.mock.calls.find(([condition]: [unknown]) => condition instanceof Brackets);
+    expect(statusCall).toBeDefined();
+    const sub = { where: jest.fn(), orWhere: jest.fn() } as any;
+    sub.where.mockReturnValue(sub);
+    (statusCall![0] as Brackets).whereFactory(sub);
+
+    expect(sub.where).toHaveBeenCalledWith(entireCondition, entireParams);
+    expect(sub.orWhere).toHaveBeenCalledWith(
+      expect.stringContaining('status_room.set_id = rs.id AND status_room.status = :roomStatus'),
+      { sharedType: 'shared', roomStatus: status },
+    );
+    expect(qb.leftJoinAndSelect).toHaveBeenCalledWith('rs.rooms', 'rooms');
+  });
+
   it('applies a parameterized keyword filter to rental and community fields', async () => {
     const qb = queryBuilderMock();
     const setRepo = { createQueryBuilder: jest.fn().mockReturnValue(qb) } as any;
@@ -75,14 +97,14 @@ describe('RentalService.updateSet', () => {
     await service.updateSet(1, {
       tenantLeaseStart: '',
       tenantLeaseEnd: '',
-      landlordName: 'QA房东', tenantPhone: '13000000000', deposit: 1000,
+      landlordName: 'QA房东', landlordDeposit: 5000, tenantPhone: '13000000000', deposit: 1000,
       rooms: [{ id: 10, roomNo: 'A', leaseStart: '2026-09-09', leaseEnd: '', tenantName: 'QA租客' }],
     }, { employeeId: 1, dataScope: 'company', permissions: ['*'] } as any);
 
     expect(setTransactionRepo.create).toHaveBeenCalledWith(expect.objectContaining({
       tenantLeaseStart: null,
       tenantLeaseEnd: null,
-      landlordName: 'QA房东', tenantPhone: '13000000000', deposit: 1000,
+      landlordName: 'QA房东', landlordDeposit: 5000, tenantPhone: '13000000000', deposit: 1000,
     }));
     expect(roomTransactionRepo.create).toHaveBeenCalledWith(expect.objectContaining({
       id: 10,
@@ -109,5 +131,33 @@ describe('RentalService.createSet', () => {
     expect(roomRepo.save.mock.calls[0][0][0].id).toBeUndefined();
     await expect(service.createSet({ storeId: 2 }, { employeeId: 7, dataScope: 'store', storeIds: [1] } as any))
       .rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe('RentalService.removeSet', () => {
+  it('deletes only an unoccupied rental and removes its rooms first', async () => {
+    const existing = { id: 3, status: 'vacant', rooms: [{ id: 30, status: 'vacant' }] } as any;
+    const qb = queryBuilderMock();
+    qb.getOne = jest.fn().mockResolvedValue(existing);
+    const checkoutRepo = { exist: jest.fn().mockResolvedValue(false) };
+    const roomRepo = { delete: jest.fn().mockResolvedValue({ affected: 1 }) };
+    const rentalRepo = { delete: jest.fn().mockResolvedValue({ affected: 1 }) };
+    const manager: any = {
+      getRepository: jest.fn(entity => entity.name === 'Checkout' ? checkoutRepo : entity.name === 'RentalRoom' ? roomRepo : rentalRepo),
+    };
+    manager.transaction = jest.fn(async callback => callback(manager));
+    const service = new RentalService({ createQueryBuilder: jest.fn().mockReturnValue(qb), manager } as any, {} as any);
+
+    await expect(service.removeSet(3, { employeeId: 1, dataScope: 'company' } as any)).resolves.toEqual({ id: 3 });
+    expect(roomRepo.delete).toHaveBeenCalledWith({ setId: 3 });
+    expect(rentalRepo.delete).toHaveBeenCalledWith(3);
+  });
+
+  it('rejects deletion when the rental has tenant business', async () => {
+    const qb = queryBuilderMock();
+    qb.getOne = jest.fn().mockResolvedValue({ id: 4, status: 'rented', rooms: [] });
+    const manager = { getRepository: jest.fn(() => ({ exist: jest.fn().mockResolvedValue(false) })) };
+    const service = new RentalService({ createQueryBuilder: jest.fn().mockReturnValue(qb), manager } as any, {} as any);
+    await expect(service.removeSet(4, { employeeId: 1, dataScope: 'company' } as any)).rejects.toThrow('不能删除');
   });
 });

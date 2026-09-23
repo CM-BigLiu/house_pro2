@@ -12,29 +12,6 @@ export interface RentIncrease {
   status: string;
 }
 
-export interface Profit {
-  id: number;
-  period: string;
-  income: number;
-  cost: number;
-  profit: number;
-  margin: number;
-  growth?: number;
-}
-
-export interface Partner {
-  id: number;
-  name: string;
-  mobile?: string;
-  share: number;
-  invest: number;
-  profit: number;
-  dividend: number;
-  status: string;
-  remark?: string;
-  description?: string;
-}
-
 export interface IncomeCost {
   id: number;
   period: string;
@@ -85,30 +62,6 @@ export function getRentIncreases(params?: { year?: number; month?: number; keywo
 
 export function createRentIncrease(data: Partial<RentIncrease>) {
   return post<RentIncrease>('/finance/rent-increases', data);
-}
-
-export function getProfits(params?: { period?: string; [key: string]: unknown }) {
-  return get<{ list: Profit[]; total: number }>('/finance/profits', { params });
-}
-
-export function getProfitSummary() {
-  return get<{ income: number; cost: number; profit: number; margin: number }>('/finance/profits/summary');
-}
-
-export function createProfit(data: Partial<Profit>) {
-  return post<Profit>('/finance/profits', data);
-}
-
-export function getPartners(params?: { keyword?: string }) {
-  return get<{ list: Partner[]; total: number }>('/finance/partners', { params });
-}
-
-export function createPartner(data: Partial<Partner>) {
-  return post<Partner>('/finance/partners', data);
-}
-
-export function updatePartner(id: number, data: Partial<Partner>) {
-  return put<Partner>(`/finance/partners/${id}`, data);
 }
 
 export function getIncomeCosts(params?: { period?: string; [key: string]: unknown }) {

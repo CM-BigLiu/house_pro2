@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
-import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsIn, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ReservePropertyService } from '../services/reserve-property.service';
 import { ReserveClientService } from '../services/reserve-client.service';
@@ -8,6 +8,8 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 class CreateReservePropertyDto {
+  @IsIn(['rent', 'sale']) @IsOptional() reserveType?: 'rent' | 'sale';
+  @IsObject() @IsOptional() details?: Record<string, unknown>;
   @IsNumber()
   @IsNotEmpty()
   @Type(() => Number)
@@ -24,15 +26,15 @@ class CreateReservePropertyDto {
   communityId?: number;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   address: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   roomNo: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   layout: string;
 
   @IsNumber()
@@ -45,7 +47,7 @@ class CreateReservePropertyDto {
   decoration?: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   ownerName: string;
 
   @IsString()
@@ -58,7 +60,7 @@ class CreateReservePropertyDto {
   ownerQuote?: number;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   sourceChannel: string;
 
   @IsString()

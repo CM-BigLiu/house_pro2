@@ -114,8 +114,6 @@ async function main() {
     ['账单', '/finance/bills'],
     ['流水账', '/finance/flows'],
     ['涨价统计', '/finance/rent-increases'],
-    ['公寓利润', '/finance/profits'],
-    ['合伙人', '/finance/partners'],
     ['收入成本', '/finance/income-costs'],
     ['业绩核算', '/finance/performances'],
     ['财务核算', '/finance/accountings'],

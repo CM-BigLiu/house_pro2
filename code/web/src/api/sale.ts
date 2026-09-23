@@ -1,4 +1,4 @@
-import { get, post, put } from '@/utils/request';
+import { del, get, post, put } from '@/utils/request';
 
 export interface SaleProperty {
   id: number;
@@ -55,6 +55,10 @@ export function createSaleProperty(data: Partial<SaleProperty>) {
 
 export function updateSaleProperty(id: number, data: Partial<SaleProperty>) {
   return put<SaleProperty>(`/house/sale-properties/${id}`, salePayload(data, true));
+}
+
+export function deleteSaleProperty(id: number) {
+  return del<{ id: number }>(`/house/sale-properties/${id}`);
 }
 
 // PRD 11 章统一房源接口（/api/property/*）

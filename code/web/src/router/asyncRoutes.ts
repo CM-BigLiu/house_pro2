@@ -201,18 +201,6 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '涨价统计', permission: 'finance:rent_increase' },
   },
   {
-    path: '/finance/profit',
-    name: 'FinanceProfit',
-    component: () => import('@/views/finance/ProfitView.vue'),
-    meta: { title: '公寓利润', permission: 'finance:profit' },
-  },
-  {
-    path: '/finance/partner',
-    name: 'FinancePartner',
-    component: () => import('@/views/finance/PartnerView.vue'),
-    meta: { title: '合伙人', permission: 'finance:partner' },
-  },
-  {
     path: '/finance/income-cost',
     name: 'FinanceIncomeCost',
     component: () => import('@/views/finance/IncomeCostView.vue'),

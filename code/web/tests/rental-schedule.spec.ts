@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPaymentSchedule, formatDate, getPayReminder } from '../src/utils/rental-schedule';
+import { buildLeasePeriod, buildPaymentSchedule, formatDate, getPayReminder } from '../src/utils/rental-schedule';
 
 describe('rental payment schedule', () => {
   it.each([
@@ -19,6 +19,14 @@ describe('rental payment schedule', () => {
 
   it('formats local calendar dates without conversion to the previous UTC day', () => {
     expect(formatDate(new Date(2026, 8, 10, 0, 0, 0))).toBe('2026-09-10');
+  });
+
+  it.each([
+    [1, '2027-09-22'],
+    [3, '2029-09-22'],
+    [5, '2031-09-22'],
+  ])('builds a %s-year lease ending one day before the anniversary', (years, end) => {
+    expect(buildLeasePeriod('2026-09-23', years)).toEqual({ start: '2026-09-23', end });
   });
 
   it('asks to verify payment rather than claiming arrears without billing evidence', () => {

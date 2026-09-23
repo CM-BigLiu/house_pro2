@@ -61,7 +61,7 @@ async function login(mobile) {
     check((await req('finance/flows?keyword=' + code, admin)).data.total === 0, '流水不存在摘要返回空');
     const income = await req('finance/flows?type=income', admin);
     check(income.status === 200 && income.data.total > 0 && income.data.list.every((x) => x.type === 'income'), '收入流水方向和筛选一致');
-    for (const path of ['finance/rent-increases', 'finance/profits', 'finance/partners', 'finance/income-costs', 'finance/performances', 'finance/accountings', 'finance/arrears', 'finance/plans', 'finance/payouts', 'finance/invoices', 'system/roles', 'system/permissions/tree', 'system/dicts', 'system/employees', 'system/stores', 'system/logs', 'system/configs']) {
+    for (const path of ['finance/rent-increases', 'finance/income-costs', 'finance/performances', 'finance/accountings', 'finance/arrears', 'finance/plans', 'finance/payouts', 'finance/invoices', 'system/roles', 'system/permissions/tree', 'system/dicts', 'system/employees', 'system/stores', 'system/logs', 'system/configs']) {
       check((await req(path, admin)).status === 200, path + ' 管理员读取 200（仅连通性）');
     }
     await db.query('DELETE FROM house_sale WHERE id = $1 AND code = $2', [createdId, code]);

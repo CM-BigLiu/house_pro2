@@ -110,6 +110,16 @@ export class SaleService {
     return this.findOne(id, user);
   }
 
+  async remove(id: number, user: CurrentUserPayload) {
+    this.require(user, 'sale:delete');
+    const existing = await this.findOne(id, user);
+    if (this.normalizeStatus(existing.status) === SaleStatus.SOLD) {
+      throw new BadRequestException('已售房源不能删除');
+    }
+    await this.saleRepo.delete(id);
+    return { id };
+  }
+
   async changeStatus(id: number, status: SaleStatus, user: CurrentUserPayload) {
     this.require(user, 'sale:changeStatus');
     const existing = await this.findOne(id, user);

@@ -62,6 +62,16 @@
 .btn-sm { padding: 5px 11px; font-size: 12px; border-radius: 6px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
 .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.el-dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.el-dialog__footer .el-button + .el-button { margin-left: 0; }
+.el-message-box__btns { gap: 8px; }
+.el-message-box__btns .el-button + .el-button { margin-left: 0; }
 .form-page .section-title { font-weight: 700; color: var(--ink-900); margin: 20px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--ink-200); }
 .form-page .el-form-item { scroll-margin-top: 90px; }
 @media (max-width: 1100px) {

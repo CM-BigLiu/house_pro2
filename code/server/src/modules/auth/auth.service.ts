@@ -256,8 +256,6 @@ export class AuthService {
           { id: 'bill', label: '账单', path: '/finance/bill', permission: 'finance:bill' },
           { id: 'flow', label: '流水账', path: '/finance/daily-account', permission: 'finance:flow' },
           { id: 'rent-increase', label: '涨价统计', path: '/finance/rent-increase', permission: 'finance:rent_increase' },
-          { id: 'profit', label: '公寓利润', path: '/finance/profit', permission: 'finance:profit' },
-          { id: 'partner', label: '合伙人', path: '/finance/partner', permission: 'finance:partner' },
           { id: 'income-cost', label: '收入成本', path: '/finance/income-cost', permission: 'finance:income_cost' },
           { id: 'performance', label: '业绩核算', path: '/finance/performance', permission: 'finance:performance' },
           { id: 'accounting', label: '财务核算', path: '/finance/accounting', permission: 'finance:accounting' },

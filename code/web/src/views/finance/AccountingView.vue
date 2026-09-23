@@ -179,27 +179,27 @@ function exportCurrent() {
         <el-row :gutter="12">
           <el-col :span="12">
             <el-form-item label="营业收入">
-              <el-input-number v-model="form.revenue" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.revenue" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.revenue" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="应收账款">
-              <el-input-number v-model="form.receivable" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.receivable" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.receivable" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="应付账款">
-              <el-input-number v-model="form.payable" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.payable" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.payable" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="实际收款">
-              <el-input-number v-model="form.actualIncome" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.actualIncome" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.actualIncome" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="实际付款">
-              <el-input-number v-model="form.actualExpense" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.actualExpense" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.actualExpense" />
             </el-form-item>
           </el-col>
         </el-row>

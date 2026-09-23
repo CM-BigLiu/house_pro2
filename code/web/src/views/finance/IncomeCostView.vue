@@ -200,22 +200,22 @@ function exportCurrent() {
         <el-row :gutter="12">
           <el-col :span="12">
             <el-form-item label="租金收入">
-              <el-input-number v-model="form.rentIncome" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.rentIncome" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.rentIncome" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="押金收入">
-              <el-input-number v-model="form.depositIncome" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.depositIncome" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.depositIncome" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="能源收入">
-              <el-input-number v-model="form.energyIncome" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.energyIncome" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.energyIncome" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="其他收入">
-              <el-input-number v-model="form.otherIncome" :min="0" controls-position="right" style="width: 100%;" />
+              <PlainNumberInput v-model="form.otherIncome" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.otherIncome" />
             </el-form-item>
           </el-col>
         </el-row>

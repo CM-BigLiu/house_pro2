@@ -5,11 +5,15 @@ import zhCn from 'element-plus/dist/locale/zh-cn.mjs';
 import 'element-plus/dist/index.css';
 import * as ElementPlusIconsVue from '@element-plus/icons-vue';
 import App from './App.vue';
+import MoneyUppercase from './components/MoneyUppercase.vue';
+import PlainNumberInput from './components/PlainNumberInput.vue';
 import router from './router';
 import { permissionDirective } from './directives/permission';
 import './styles/index.scss';
 
 const app = createApp(App);
+app.component('MoneyUppercase', MoneyUppercase);
+app.component('PlainNumberInput', PlainNumberInput);
 
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component);

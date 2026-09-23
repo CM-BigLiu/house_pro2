@@ -3,18 +3,20 @@ import { formatDate, getPayReminder, type PayReminder } from '@/utils/rental-sch
 import { ref, onMounted, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { getRentalSets, type RentalSet, type RentalRoom } from '@/api/rental';
+import { deleteRentalSet, getRentalSets, type RentalSet, type RentalRoom } from '@/api/rental';
 import { createCheckout } from '@/api/checkout';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
 import { formatBuilding, formatHouseAddress, formatUnit } from '@/utils/address';
 import { downloadCsv } from '@/utils/csv';
+import { hasRentalOccupancy } from '@/utils/rental-status';
 
 const router = useRouter();
 const dictStore = useDictStore();
 const list = ref<RentalSet[]>([]);
 const total = ref(0);
 const loading = ref(false);
+const deletingId = ref<number>();
 const query = reactive({ keyword: '', status: '', bizType: '', page: 1, pageSize: 20 });
 
 const statusOptions = [
@@ -27,15 +29,15 @@ const statusOptions = [
 
 const summary = computed(() => {
   const totalSets = list.value.length;
-  const rented = list.value.filter(s => s.status === 'rented').length;
-  const vacant = list.value.filter(s => ['active', 'vacant'].includes(s.status)).length;
+  const rented = list.value.filter(s => hasRentalOccupancy(s, 'rented')).length;
+  const vacant = list.value.filter(s => hasRentalOccupancy(s, 'vacant')).length;
   const entire = list.value.filter(s => s.bizType === 'entire').length;
   const shared = list.value.filter(s => s.bizType === 'shared').length;
   return { totalSets, rented, vacant, entire, shared };
 });
 
 onMounted(async () => {
-  await dictStore.ensureLoaded(['house_status', 'room_status', 'decoration', 'payment_method', 'lease_term', 'room_type']);
+  await dictStore.ensureLoaded(['house_status', 'room_status', 'decoration_level', 'payment_method', 'lease_term', 'room_type']);
   await load();
 });
 
@@ -70,6 +72,30 @@ function openCreate() {
 
 function editSet(item: RentalSet) {
   router.push(`/house/rent/edit/${item.id}`);
+}
+
+function canDelete(item: RentalSet) {
+  return ['active', 'vacant', 'pause', 'maintenance'].includes(item.status)
+    && !item.tenantName && !item.tenantPhone
+    && (item.rooms || []).every((room) => ['vacant', 'maintenance'].includes(room.status) && !room.tenantName && !room.tenantPhone);
+}
+
+async function removeSet(item: RentalSet) {
+  if (!canDelete(item) || deletingId.value) return;
+  try {
+    await ElMessageBox.confirm(`确认删除出租房源“${item.code}”？删除后无法恢复。`, '删除确认', {
+      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
+    });
+    deletingId.value = item.id;
+    await deleteRentalSet(item.id);
+    if (list.value.length === 1 && query.page > 1) query.page--;
+    await load();
+    ElMessage.success('出租房源已删除');
+  } catch {
+    // 用户取消时保持原列表；接口错误由请求拦截器提示。
+  } finally {
+    deletingId.value = undefined;
+  }
 }
 
 const checkoutSubmitting = ref(new Set<string>());
@@ -274,7 +300,7 @@ function roomReminder(rm: any): PayReminder | null {
             </div>
             <div class="field-item">
               <span class="field-label">装修</span>
-              <span class="field-value">{{ dictStore.getLabel('decoration', item.decoration) || item.decoration || '-' }}</span>
+              <span class="field-value">{{ dictStore.getLabel('decoration_level', item.decoration) || item.decoration || '-' }}</span>
             </div>
             <div class="field-item">
               <span class="field-label">状态</span>
@@ -305,7 +331,11 @@ function roomReminder(rm: any): PayReminder | null {
               </span>
             </div>
             <div class="field-item">
-              <span class="field-label">押金</span>
+              <span class="field-label">房东押金</span>
+              <span class="field-value">{{ formatMoney(item.landlordDeposit) }}<span style="font-size:11px;color:var(--ink-400);font-weight:400;">元</span></span>
+            </div>
+            <div class="field-item">
+              <span class="field-label">租客押金</span>
               <span class="field-value">{{ formatMoney(item.deposit) }}<span style="font-size:11px;color:var(--ink-400);font-weight:400;">元</span></span>
             </div>
             <div class="field-item">
@@ -353,7 +383,7 @@ function roomReminder(rm: any): PayReminder | null {
                 </span>
               </div>
               <div class="room-field">
-                <span class="field-label">押金</span>
+                <span class="field-label">租客押金</span>
                 <span class="field-value">{{ formatMoney(rm.depositAmount) }}<span style="font-size:11px;color:var(--ink-400);font-weight:400;">元</span></span>
               </div>
               <div class="room-field">
@@ -379,6 +409,13 @@ function roomReminder(rm: any): PayReminder | null {
         <div class="detail-card-actions">
           <button class="btn btn-default btn-sm" @click="router.push(`/house/rent/detail/${item.id}`)">详情 / 流程</button>
           <button v-permission="['renting:edit']" class="btn btn-ghost btn-sm" @click="editSet(item)">编辑</button>
+          <button
+            v-permission="['renting:delete']"
+            class="btn btn-ghost btn-sm btn-danger-text"
+            :disabled="!canDelete(item) || deletingId === item.id"
+            :title="canDelete(item) ? '删除房源' : '已有租客或业务记录的房源不能删除'"
+            @click="removeSet(item)"
+          >删除</button>
           <button
             v-if="item.bizType === 'entire'"
             v-permission="['renting:checkout']"

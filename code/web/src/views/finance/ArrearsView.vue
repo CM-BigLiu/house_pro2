@@ -146,7 +146,7 @@ function statusClass(status: string) {
           <el-input v-model="form.phone" />
         </el-form-item>
         <el-form-item label="欠款金额">
-          <el-input-number v-model="form.amount" :min="0" controls-position="right" style="width: 100%;" />
+          <PlainNumberInput v-model="form.amount" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.amount" />
         </el-form-item>
       </el-form>
       <template #footer>

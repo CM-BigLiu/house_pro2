@@ -1,13 +1,22 @@
-import { Controller, Get, Post, Body, Put, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsIn, IsDateString, Min } from 'class-validator';
+import { Controller, Delete, Get, Post, Body, Put, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsIn, IsDateString, IsObject, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ReservePropertyService } from '../services/reserve-property.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 import { SkipMasking } from '../../../common/decorators/skip-masking.decorator';
+import { Audit } from '../../../common/decorators/audit.decorator';
 
 class CreateReservePropertyDto {
+  @IsIn(['rent', 'sale'])
+  @IsOptional()
+  reserveType?: 'rent' | 'sale';
+
+  @IsObject()
+  @IsOptional()
+  details?: Record<string, unknown>;
+
   @IsNumber()
   @IsNotEmpty()
   @Type(() => Number)
@@ -24,15 +33,15 @@ class CreateReservePropertyDto {
   communityId?: number;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   address: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   roomNo: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   layout: string;
 
   @IsNumber()
@@ -45,7 +54,7 @@ class CreateReservePropertyDto {
   decoration?: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   ownerName: string;
 
   @IsString()
@@ -58,7 +67,7 @@ class CreateReservePropertyDto {
   ownerQuote?: number;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   sourceChannel: string;
 
   @IsString()
@@ -85,6 +94,14 @@ class CreateReservePropertyDto {
 }
 
 class UpdateReservePropertyDto {
+  @IsIn(['rent', 'sale'])
+  @IsOptional()
+  reserveType?: 'rent' | 'sale';
+
+  @IsObject()
+  @IsOptional()
+  details?: Record<string, unknown>;
+
   @IsNumber()
   @IsOptional()
   @Type(() => Number)
@@ -168,7 +185,29 @@ class SignReservePropertyDto {
   @IsOptional()
   @Min(0)
   @Type(() => Number)
-  deposit?: number;
+  landlordDeposit?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  @Type(() => Number)
+  communityId?: number;
+
+  @IsString()
+  @IsOptional()
+  address?: string;
+
+  @IsString()
+  @IsOptional()
+  roomNo?: string;
+
+  @IsString()
+  @IsOptional()
+  layout?: string;
+
+  @IsString()
+  @IsOptional()
+  ownerName?: string;
 }
 
 @Controller('house/reserve-properties')
@@ -198,6 +237,13 @@ export class ReservePropertyController {
   @RequirePermission('reserve:house:add')
   async update(@Param('id', ParseIntPipe) id: number, @Body() data: UpdateReservePropertyDto, @CurrentUser() user: any) {
     return this.service.update(id, data, user);
+  }
+
+  @Delete(':id')
+  @RequirePermission('reserve:house:delete')
+  @Audit('house', 'reserve-property:delete', { objectType: 'reserve_property' })
+  async remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.service.remove(id, user);
   }
 
   @Post(':id/transfer')

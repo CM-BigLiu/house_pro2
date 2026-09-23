@@ -103,6 +103,7 @@ export const dictSeedData: Record<string, { value: string; label: string; group?
   ],
   customer_status: [
     { value: 'not_rented', label: '未租' },
+    { value: 'converted', label: '已转正式客户' },
     { value: 'rented', label: '已租' },
     { value: 'pause', label: '暂不租' },
     { value: 'no_answer', label: '电话未接听' },
