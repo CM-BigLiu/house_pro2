@@ -9,6 +9,7 @@ import { getCommunities, type Community } from '@/api/community';
 import { generateHouseCode } from '@/utils/code';
 import { useDictStore } from '@/stores/dict';
 import { useUserStore } from '@/stores/user';
+import LayoutSelect from '@/components/LayoutSelect.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -435,7 +436,7 @@ async function submit() {
           </el-col>
           <el-col :span="12">
             <el-form-item label="户型" prop="layout">
-              <el-input v-model="form.layout" placeholder="如：2室1厅1卫" />
+              <LayoutSelect v-model="form.layout" storage-key="house_rent_custom_layouts" />
             </el-form-item>
           </el-col>
           <el-col :span="12">

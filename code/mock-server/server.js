@@ -6,6 +6,9 @@ const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
+// 本地全量功能测试可启用空业务数据模式；账号、权限、组织、字典和系统配置仍保留。
+const EMPTY_BUSINESS_DATA = process.env.HOUSE_MOCK_EMPTY === '1';
+
 function nextId(items) {
   return Math.max(0, ...items.map(item => Number(item.id) || 0)) + 1;
 }
@@ -207,6 +210,32 @@ app.get('/api/auth/menus', authMiddleware, (req, res) => {
 
 // GET /api/dashboard/overview
 app.get('/api/dashboard/overview', authMiddleware, (req, res) => {
+  if (EMPTY_BUSINESS_DATA) {
+    const emptyKpi = (label, unit = '万') => ({ label, value: '0', unit, trend: 0, trendLabel: '较上月' });
+    return res.json({
+      code: 0,
+      data: {
+        totalRent: emptyKpi('租金收入'),
+        totalSale: emptyKpi('售房收入'),
+        occupancyRate: emptyKpi('出租率', '%'),
+        renewalRate: emptyKpi('续约率', '%'),
+        totalRevenue: emptyKpi('总收入'),
+        kpis: [
+          emptyKpi('租金收入'),
+          emptyKpi('售房收入'),
+          emptyKpi('出租率', '%'),
+          emptyKpi('续约率', '%'),
+          emptyKpi('总收入'),
+        ],
+        charts: { monthly: [] },
+        smallCards: [],
+        bigCards: [
+          { title: '出租率', value: '0%', label: '占比' },
+          { title: '续约率', value: '0%', label: '占比' },
+        ],
+      },
+    });
+  }
   res.json({
     code: 0,
     data: {
@@ -234,6 +263,7 @@ app.get('/api/dashboard/overview', authMiddleware, (req, res) => {
 
 // GET /api/dashboard/expiry-warnings
 app.get('/api/dashboard/expiry-warnings', authMiddleware, (req, res) => {
+  if (EMPTY_BUSINESS_DATA) return res.json({ code: 0, data: [] });
   res.json({
     code: 0,
     data: [
@@ -255,6 +285,9 @@ app.get('/api/dashboard/expiry-warnings', authMiddleware, (req, res) => {
 
 // GET /api/dashboard/house-status
 app.get('/api/dashboard/house-status', authMiddleware, (req, res) => {
+  if (EMPTY_BUSINESS_DATA) {
+    return res.json({ code: 0, data: { pieData: [], validCount: 0, frozenCount: 0, totalCount: 0 } });
+  }
   res.json({
     code: 0,
     data: {
@@ -273,6 +306,7 @@ app.get('/api/dashboard/house-status', authMiddleware, (req, res) => {
 
 // GET /api/dashboard/large-cards
 app.get('/api/dashboard/large-cards', authMiddleware, (req, res) => {
+  if (EMPTY_BUSINESS_DATA) return res.json({ code: 0, data: [] });
   res.json({
     code: 0,
     data: [
@@ -492,6 +526,7 @@ app.get('/api/dashboard/announcements', authMiddleware, (req, res) => {
 
 // GET /api/dashboard/ranking
 app.get('/api/dashboard/ranking', authMiddleware, (req, res) => {
+  if (EMPTY_BUSINESS_DATA) return res.json({ code: 0, data: [] });
   res.json({
     code: 0,
     data: [
@@ -560,6 +595,7 @@ app.delete('/api/dashboard/todos/:id', authMiddleware, (req, res) => {
 
 // API path aliases (for frontend dashboard.ts calls)
 app.get('/api/dashboard/warnings', authMiddleware, (req, res) => {
+  if (EMPTY_BUSINESS_DATA) return res.json({ code: 0, data: [] });
   res.json({ code: 0, data: [
     { title: '即将到期', value: 23, label: '7天内到期', color: 'red' },
     { title: '逾期未缴费', value: 8, label: '超期3天以上', color: 'red' },
@@ -576,6 +612,9 @@ app.get('/api/dashboard/warnings', authMiddleware, (req, res) => {
   ]});
 });
 app.get('/api/dashboard/rankings', authMiddleware, (req, res) => {
+  if (EMPTY_BUSINESS_DATA) {
+    return res.json({ code: 0, data: { performance: [], house: [], customer: [] } });
+  }
   res.json({ code: 0, data: {
     performance: [
       { name: '张伟', value: 98500, unit: '元' },
@@ -1601,8 +1640,58 @@ app.get('/api/house/rental-sets', (req, res) => {
   if (bizType) data = data.filter(s => s.bizType === bizType);
   res.json({ code: 0, data: paginate(req.query, data) });
 });
+function nextRentalSetId() {
+  return Math.max(0, ...RENTAL_SETS.map(item => Number(item.id) || 0)) + 1;
+}
+function normalizeRentalRooms(rooms, setId, existingRooms = []) {
+  const existingById = new Map(existingRooms.map(room => [room.id, room]));
+  const usedIds = new Set();
+  let nextRoomId = Math.max(0, ...RENTAL_SETS.flatMap(item => item.rooms || []).map(room => Number(room.id) || 0)) + 1;
+  const createdAt = new Date().toISOString();
+  return rooms.map(room => {
+    const requestedId = Number(room?.id);
+    const existing = Number.isInteger(requestedId) && existingById.has(requestedId) && !usedIds.has(requestedId)
+      ? existingById.get(requestedId)
+      : null;
+    const id = existing ? requestedId : nextRoomId++;
+    usedIds.add(id);
+    return {
+      ...(room || {}),
+      id,
+      setId,
+      roomNo: String(room?.roomNo || '').trim(),
+      status: room?.status || 'vacant',
+      createdAt: existing?.createdAt || room?.createdAt || createdAt,
+    };
+  });
+}
+function rentalRoomError(bizType, rooms) {
+  if (bizType !== 'shared') return '';
+  if (!rooms.length) return '合租房源至少需要一个房间';
+  if (rooms.some(room => !room.roomNo)) return '请填写房间房号';
+  const roomNos = rooms.map(room => room.roomNo);
+  return new Set(roomNos).size === roomNos.length ? '' : '房间房号不能重复';
+}
+function syncRentalRoomStats(set) {
+  set.roomCount = set.rooms.length;
+  set.vacantCount = set.rooms.filter(room => room.status === 'vacant').length;
+  return set;
+}
 app.post('/api/house/rental-sets', authMiddleware, (req, res) => {
-  const set = { id: RENTAL_SETS.length + 1, code: 'ZJ' + String(RENTAL_SETS.length + 1).padStart(3, '0'), ...req.body, rooms: [], createdAt: new Date().toISOString() };
+  const setId = nextRentalSetId();
+  const { rooms: submittedRooms, id: _ignoredId, createdAt: _ignoredCreatedAt, ...input } = req.body || {};
+  const rooms = input.bizType === 'shared'
+    ? normalizeRentalRooms(Array.isArray(submittedRooms) ? submittedRooms : [], setId)
+    : [];
+  const roomError = rentalRoomError(input.bizType, rooms);
+  if (roomError) return res.status(400).json({ code: 400, message: roomError });
+  const set = syncRentalRoomStats({
+    ...input,
+    id: setId,
+    code: input.code || 'ZJ' + String(setId).padStart(3, '0'),
+    rooms,
+    createdAt: new Date().toISOString(),
+  });
   RENTAL_SETS.push(set);
   recordHouseOperation(req, 'rental_set', set.id, 'rental:create');
   res.json({ code: 0, data: set });
@@ -1615,10 +1704,14 @@ app.get('/api/house/rental-sets/:id', (req, res) => {
 app.put('/api/house/rental-sets/:id', authMiddleware, (req, res) => {
   const idx = RENTAL_SETS.findIndex(s => s.id === parseInt(req.params.id));
   if (idx < 0) return res.json({ code: 404, message: '房源不存在' });
-  const { rooms, ...rest } = req.body || {};
-  const next = { ...RENTAL_SETS[idx], ...rest };
-  if (Array.isArray(rooms)) next.rooms = rooms;
-  RENTAL_SETS[idx] = next;
+  const current = RENTAL_SETS[idx];
+  const { rooms: submittedRooms, id: _ignoredId, createdAt: _ignoredCreatedAt, ...rest } = req.body || {};
+  const next = { ...current, ...rest };
+  const roomInput = Array.isArray(submittedRooms) ? submittedRooms : current.rooms || [];
+  next.rooms = next.bizType === 'shared' ? normalizeRentalRooms(roomInput, next.id, current.rooms || []) : [];
+  const roomError = rentalRoomError(next.bizType, next.rooms);
+  if (roomError) return res.status(400).json({ code: 400, message: roomError });
+  RENTAL_SETS[idx] = syncRentalRoomStats(next);
   recordHouseOperation(req, 'rental_set', next.id, 'rental:update');
   res.json({ code: 0, data: next });
 });
@@ -1825,7 +1918,19 @@ app.get(['/api/house/sale-properties/:id/edit', '/api/house/sale-properties/:id'
   if (!item) return res.json({ code: 404, message: '售房房源不存在' });
   res.json({ code: 0, data: saleResponse(item) });
 });
+function saleTaxFeeError(taxFees) {
+  if (taxFees == null) return '';
+  const types = ['vat', 'vat_surcharge', 'personal', 'deed', 'land_transfer', 'land_price', 'other'];
+  if (!Array.isArray(taxFees) || taxFees.length > types.length) return '税费明细格式无效';
+  if (taxFees.some(fee => !fee || !types.includes(fee.type))) return '请选择有效税种';
+  if (new Set(taxFees.map(fee => fee.type)).size !== taxFees.length) return '税种不能重复';
+  if (taxFees.some(fee => fee.amount != null && (typeof fee.amount !== 'number' || !Number.isFinite(fee.amount)
+    || fee.amount < 0 || !/^\d+(\.\d{1,2})?$/.test(String(fee.amount))))) return '税费金额须为非负数字，最多两位小数';
+  return '';
+}
 app.post('/api/house/sale-properties', authMiddleware, (req, res) => {
+  const taxError = saleTaxFeeError(req.body?.taxFees);
+  if (taxError) return res.status(400).json({ code: 400, message: taxError });
   const item = { ...req.body, id: Math.max(0, ...SALE_PROPERTIES.map(item => item.id)) + 1, status: 'pre_publish', createdAt: new Date().toISOString() };
   SALE_PROPERTIES.push(item);
   recordHouseOperation(req, 'sale_property', item.id, 'sale:create');
@@ -1835,6 +1940,8 @@ app.put('/api/house/sale-properties/:id', authMiddleware, (req, res) => {
   const item = SALE_PROPERTIES.find(item => item.id === Number(req.params.id));
   if (!item) return res.json({ code: 404, message: '售房房源不存在' });
   const data = req.body || {};
+  const taxError = saleTaxFeeError(data.taxFees);
+  if (taxError) return res.status(400).json({ code: 400, message: taxError });
   if (['status', 'creatorId', 'storeId', 'code', 'id', 'createdAt', 'updatedAt'].some(key => Object.prototype.hasOwnProperty.call(data, key))) {
     return res.json({ code: 400, message: '不可通过编辑接口修改状态、归属或系统字段' });
   }
@@ -2572,6 +2679,37 @@ if (require.main === module && process.env.HOUSE_MOCK_STATE) {
   }
   for (const [key, target] of Object.entries(targets)) target.splice(0, target.length, ...state[key]);
   console.log('Restored local house workflow snapshot');
+}
+if (require.main === module && EMPTY_BUSINESS_DATA) {
+  const businessCollections = [
+    todos,
+    COMMUNITIES,
+    RENTAL_SETS,
+    CHECKOUTS,
+    DEPOSITS,
+    SALE_PROPERTIES,
+    CUSTOMERS,
+    RESERVE_PROPERTIES,
+    RESERVE_CLIENTS,
+    BLACKLIST,
+    BILLS,
+    FLOWS,
+    PAYMENT_PLANS,
+    ARREARS,
+    PAYOUTS,
+    INVOICES,
+    APPROVALS,
+    HOUSE_OPERATIONS,
+    INCOME_COSTS,
+    PERFORMANCES,
+    ACCOUNTINGS,
+    RENT_INCREASES,
+    LOGS,
+    EXTRA_RESERVE_CLIENTS,
+  ];
+  for (const collection of businessCollections) collection.splice(0, collection.length);
+  todoIdCounter = 1;
+  console.log('Started with empty business data');
 }
 // 绑定 '::' 实现双栈：Windows 上 IPv6 通配符默认同时接受 IPv4-mapped 连接，
 // 保证 localhost(可能解析为 ::1) 与 127.0.0.1 都可达

@@ -18,6 +18,27 @@ function setup() {
 const admin: any = { employeeId: 1, permissions: ['*'], dataScope: 'company', storeIds: [1] };
 
 describe('sale functional regressions', () => {
+  it('accepts and persists multiple tax fees, including pending amounts and clearing', async () => {
+    const taxFees = [{ type: 'vat', amount: 1234.56 }, { type: 'deed', amount: 0 }, { type: 'other', amount: null }];
+    const dto = plainToInstance(UpdateSalePropertyDto, { taxFees });
+    expect(await validate(dto, { whitelist: true })).toHaveLength(0);
+    expect(dto.taxFees).toEqual(taxFees);
+    const { service, repo } = setup();
+    await service.create({ code: 'TAX-TEST', taxFees }, admin);
+    expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ taxFees }));
+    await service.update(1, dto, admin);
+    expect(repo.update).toHaveBeenCalledWith(1, expect.objectContaining({ taxFees }));
+    await service.update(1, { taxFees: [] }, admin);
+    expect(repo.update).toHaveBeenLastCalledWith(1, { taxFees: [] });
+  });
+  it.each([
+    { taxFees: [{ type: 'vat', amount: -1 }] }, { taxFees: [{ type: 'vat', amount: 1.234 }] },
+    { taxFees: [{ type: 'vat', amount: 'abc' }] }, { taxFees: [{ type: 'invalid', amount: 1 }] },
+    { taxFees: [{ type: 'deed', amount: 1 }, { type: 'deed', amount: 2 }] },
+  ])('rejects invalid or duplicate tax fees: %j', async data => {
+    const dto = plainToInstance(UpdateSalePropertyDto, data);
+    expect((await validate(dto)).some(error => error.property === 'taxFees')).toBe(true);
+  });
   it('brackets keyword OR clauses before the self scope and supports the advertised fields', async () => {
     const { service, qb } = setup();
     const result = await service.findAll({ keyword: ' QA ' }, { ...admin, dataScope: 'self' });

@@ -1,4 +1,5 @@
 import { del, get, post, put } from '@/utils/request';
+import type { SaleTaxFee } from '@/utils/sale-tax';
 
 export interface SaleProperty {
   id: number;
@@ -26,6 +27,7 @@ export interface SaleProperty {
   unitPrice?: number;
   floorPrice?: number;
   taxType?: string;
+  taxFees?: SaleTaxFee[] | null;
   debt?: number;
   certificateType?: string;
   sourceChannel: string;

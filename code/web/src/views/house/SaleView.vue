@@ -75,6 +75,12 @@ function statusLabel(status: string) {
   return saleStatuses.find((item) => item.value === normalized)?.label || status;
 }
 
+function formatHouseNumber(item: SaleProperty) {
+  const building = item.building?.trim().replace(/(号楼|栋|座)$/u, '');
+  const unit = item.unit?.trim().replace(/单元$/u, '');
+  return `${building ? `${building}号楼` : ''}${unit ? `${unit}单元` : ''}${item.roomNo?.trim() || ''}`;
+}
+
 function openStatus(item: SaleProperty) { statusItem.value = item; nextStatus.value = ''; }
 
 async function saveStatus() {
@@ -143,7 +149,7 @@ async function exportPage() {
         <div class="detail-card-header">
           <div>
             <div class="detail-card-title">{{ item.title }}</div>
-            <div class="cell-sub" style="margin-top: 2px;">{{ item.communityName }} · {{ item.building }}{{ item.unit }}{{ item.roomNo }}</div>
+            <div class="cell-sub" style="margin-top: 2px;">{{ item.communityName }} · {{ formatHouseNumber(item) }}</div>
           </div>
           <span :class="['pill', statusClass(item.status)]">{{ statusLabel(item.status) }}</span>
         </div>

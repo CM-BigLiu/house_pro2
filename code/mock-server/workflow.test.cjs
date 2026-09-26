@@ -92,6 +92,49 @@ test('sale form dropdowns contain enabled labeled options from backend dictionar
   assert.ok((await ok('/system/dicts/certificate_type/items')).some(item => item.value === 'property'));
 });
 
+test('shared rental create and edit preserve all room details', async () => {
+  const created = await ok('/house/rental-sets', 'POST', {
+    code: 'ZJ-SHARED-REGRESSION',
+    bizType: 'shared',
+    communityId: 1,
+    communityName: '张江汤臣豪园',
+    address: '浦东新区张江路688号',
+    building: '6',
+    unit: '2',
+    roomNo: '901',
+    layout: '三室一厅',
+    buildingArea: 96,
+    landlordRent: 4800,
+    status: 'vacant',
+    storeId: 1,
+    rooms: [
+      { roomNo: 'A', roomType: '主卧', rentPrice: 2300, listedPrice: 2500, status: 'vacant', depositAmount: 2300 },
+      { roomNo: 'B', roomType: '次卧', rentPrice: 1800, listedPrice: 2000, status: 'vacant', depositAmount: 1800 },
+      { roomNo: 'C', roomType: '书房', rentPrice: 1500, listedPrice: 1700, status: 'vacant', depositAmount: 1500 },
+    ],
+  });
+  assert.equal(created.rooms.length, 3);
+  assert.equal(created.roomCount, 3);
+  assert.equal(created.vacantCount, 3);
+  assert.ok(created.rooms.every(room => Number.isInteger(room.id) && room.setId === created.id));
+
+  const editDetail = await ok(`/house/rental-sets/${created.id}`);
+  assert.deepEqual(editDetail.rooms.map(room => room.roomNo), ['A', 'B', 'C']);
+  const originalIds = editDetail.rooms.map(room => room.id);
+  editDetail.rooms[1].roomType = '次卧带飘窗';
+  editDetail.rooms.push({ roomNo: 'D', roomType: '小卧', status: 'vacant' });
+  await ok(`/house/rental-sets/${created.id}`, 'PUT', { rooms: editDetail.rooms });
+
+  const saved = await ok(`/house/rental-sets/${created.id}`);
+  assert.equal(saved.rooms.length, 4);
+  assert.deepEqual(saved.rooms.slice(0, 3).map(room => room.id), originalIds);
+  assert.equal(saved.rooms[1].roomType, '次卧带飘窗');
+  assert.ok(Number.isInteger(saved.rooms[3].id));
+  assert.equal(saved.rooms[3].setId, created.id);
+  assert.equal(saved.roomCount, 4);
+  assert.equal(saved.vacantCount, 4);
+});
+
 test('room checkout: submit locks room, approval releases it, old settlement leaves new tenant untouched', async () => {
   const set = await ok('/house/rental-sets/2');
   set.rooms.find(room => room.id === 101).depositAmount = 0;
@@ -186,6 +229,23 @@ test('sale: editable detail, saved price/title, allowed transitions and approval
   assert.equal((await request('/house/sale-properties/1/change-status', 'POST', { status: 'invalid' })).code, 400);
   assert.equal((await request('/house/sale-properties/1', 'PUT', { status: 'sold' })).code, 400);
   assert.equal((await request('/house/sale-properties/9999/edit')).code, 404);
+});
+
+test('sale taxes survive create, edit, removal and clearing without losing amounts', async () => {
+  const taxFees = [{ type: 'vat', amount: 1234.56 }, { type: 'deed', amount: 0 }, { type: 'other', amount: null }];
+  const created = await ok('/house/sale-properties', 'POST', { code: 'SALE-TAX-TEST', title: '税费回归房源', taxFees });
+  const path = `/house/sale-properties/${created.id}`;
+  assert.deepEqual((await ok(`${path}/edit`)).taxFees, taxFees);
+  const editedFees = [{ type: 'vat', amount: 2500 }, { type: 'other', amount: null }];
+  await ok(path, 'PUT', { taxFees: editedFees });
+  assert.deepEqual((await ok(`${path}/edit`)).taxFees, editedFees);
+  assert.deepEqual((await ok(`/house/details/sale/${created.id}`)).property.taxFees, editedFees);
+  for (const invalid of [[{ type: 'vat', amount: -1 }], [{ type: 'vat', amount: 1.234 }], [{ type: 'invalid', amount: 1 }], [{ type: 'deed' }, { type: 'deed' }]]) {
+    assert.equal((await request(path, 'PUT', { taxFees: invalid })).code, 400);
+  }
+  assert.deepEqual((await ok(`${path}/edit`)).taxFees, editedFees);
+  await ok(path, 'PUT', { taxFees: [] });
+  assert.deepEqual((await ok(`${path}/edit`)).taxFees, []);
 });
 
 test('reported list pages return distinct slices and normalized customer fields', async () => {

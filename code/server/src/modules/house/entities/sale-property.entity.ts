@@ -140,6 +140,9 @@ export class SaleProperty {
   @Column({ length: 20, nullable: true })
   taxType: string;
 
+  @Column('simple-json', { nullable: true })
+  taxFees: { type: string; amount?: number | null }[];
+
   @Column({ type: 'decimal', precision: 14, scale: 2, nullable: true })
   debt: number;
 

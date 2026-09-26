@@ -11,10 +11,11 @@ const submitting = ref(false);
 const loading = ref(false);
 const cities = ref<{ id: number; name: string }[]>([]);
 const isEdit = computed(() => Boolean(route.params.id));
+type CommunityForm = Pick<Community, 'name' | 'alias' | 'cityId' | 'district' | 'businessCircle' | 'address'>;
 
-const form = reactive<Partial<Community>>({
+const form = reactive<CommunityForm>({
   name: '', alias: '', cityId: undefined, district: '',
-  businessCircle: '', address: '', longitude: undefined, latitude: undefined,
+  businessCircle: '', address: '',
 });
 
 onMounted(async () => {
@@ -23,9 +24,13 @@ onMounted(async () => {
   loading.value = true;
   try {
     const detail = await getCommunity(Number(route.params.id));
-    Object.assign(form, detail, {
-      longitude: detail.longitude == null ? undefined : Number(detail.longitude),
-      latitude: detail.latitude == null ? undefined : Number(detail.latitude),
+    Object.assign(form, {
+      name: detail.name || '',
+      alias: detail.alias || '',
+      cityId: detail.cityId,
+      district: detail.district || '',
+      businessCircle: detail.businessCircle || '',
+      address: detail.address || '',
     });
   } catch {
     ElMessage.error('加载小区数据失败');
@@ -37,13 +42,14 @@ onMounted(async () => {
 
 async function submit() {
   if (!form.name?.trim()) return ElMessage.warning('请填写小区名称');
+  const payload: CommunityForm = { ...form, name: form.name.trim() };
   submitting.value = true;
   try {
     if (isEdit.value) {
-      await updateCommunity(Number(route.params.id), form);
+      await updateCommunity(Number(route.params.id), payload);
       ElMessage.success('修改成功');
     } else {
-      await createCommunity(form);
+      await createCommunity(payload);
       ElMessage.success('创建成功');
     }
     router.push('/house/community');
@@ -87,12 +93,6 @@ async function submit() {
         </el-form-item>
         <el-form-item label="地址">
           <el-input v-model="form.address" placeholder="请输入地址" />
-        </el-form-item>
-        <el-form-item label="经度">
-          <PlainNumberInput v-model="form.longitude" :precision="6" :step="0.01" style="width: 100%;" />
-        </el-form-item>
-        <el-form-item label="纬度">
-          <PlainNumberInput v-model="form.latitude" :precision="6" :step="0.01" style="width: 100%;" />
         </el-form-item>
       </el-form>
     </div>

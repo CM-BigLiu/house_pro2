@@ -5,6 +5,7 @@ import { getHouseDetail, type PropertyDetail } from '@/api/property-detail';
 import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
 import { formatHouseAddress } from '@/utils/address';
+import { readSaleTaxFees, saleTaxLabel, SALE_TAX_OPTIONS } from '@/utils/sale-tax';
 
 const route = useRoute(), router = useRouter(), dict = useDictStore();
 const kind = computed(() => route.name === 'SaleDetail' ? 'sale' : 'rent');
@@ -41,7 +42,10 @@ const groups = computed<{ title: string; fields: Field[] }[]>(() => {
   const basics: Field[] = [['房源编号', p.code], ['当前状态', status(p.status)], ['小区', p.communityName], ['详细地址', p.address], ['楼栋 / 单元 / 房号', `${value(p.building)} / ${value(p.unit)} / ${value(p.roomNo)}`], ['建筑面积（㎡）', p.buildingArea], ['套内面积（㎡）', p.interiorArea], ['装修', dict.getLabel('decoration_level', p.decoration)], ['登记时间', date(p.createdAt)]];
   if (kind.value === 'sale') return [
     { title: '房源信息', fields: [...basics, ['标题', p.title], ['物业类型', dict.getLabel('property_type', p.propertyType)], ['户型', `${value(p.layoutRooms)}室 ${value(p.layoutHalls)}厅 ${value(p.layoutBathrooms)}卫 ${value(p.layoutBalconies)}阳台`], ['楼层 / 总楼层', `${value(p.floor)} / ${value(p.totalFloor)}`], ['朝向', dict.getLabel('orientation', p.orientation)], ['电梯', ({ yes: '有', no: '无' } as Record<string, string>)[p.elevator] || value(p.elevator)], ['建成年份', p.buildYear]] },
-    { title: '价格与产权', fields: [['售价（元）', money(p.salePrice ?? p.totalPrice)], ['单价（元/㎡）', money(p.unitPrice)], ['底价（元）', money(p.floorPrice)], ['税费类型', dict.getLabel('tax_type', p.taxType)], ['证件类型', dict.getLabel('certificate_type', p.certificateType)], ['负债（元）', money(p.debt)]] },
+    { title: '价格与产权', fields: [['售价（元）', money(p.salePrice ?? p.totalPrice)], ['单价（元/㎡）', money(p.unitPrice)], ['底价（元）', money(p.floorPrice)],
+      ['税费明细', readSaleTaxFees(p).map(fee => `${saleTaxLabel(fee.type)}：${fee.amount == null ? '未填写金额' : `${money(fee.amount)} 元`}`).join('\n')],
+      ...(p.taxType && !SALE_TAX_OPTIONS.some(option => option.value === p.taxType) ? [['原税费记录', dict.getLabel('tax_type', p.taxType)] as Field] : []),
+      ['证件类型', dict.getLabel('certificate_type', p.certificateType)], ['负债（元）', money(p.debt)]] },
     { title: '业主与来源', fields: [['业主姓名', p.ownerName], ['业主电话', p.ownerPhone], ['备用电话', p.ownerPhoneBackup], ['来源渠道', dict.getLabel('source_channel', p.sourceChannel)], ['门店编号', p.storeId], ['维护人编号', p.maintainerId], ['标签', (p.tags || []).join('、')], ['房源描述', p.description]] },
   ];
   return [

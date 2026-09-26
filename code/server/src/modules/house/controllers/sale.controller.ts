@@ -1,5 +1,5 @@
 import { Controller, Delete, Get, Post, Body, Put, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray, IsEnum, Min, IsInt, Matches, IsEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsArray, IsEnum, Min, IsInt, Matches, IsEmpty, IsIn, ValidateNested, ArrayUnique, ArrayMaxSize } from 'class-validator';
 import { PartialType, OmitType } from '@nestjs/swagger';
 import { SkipMasking } from '../../../common/decorators/skip-masking.decorator';
 import { SaleStatus } from '../../../common/enums/status.enum';
@@ -10,6 +10,16 @@ import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 import { Audit } from '../../../common/decorators/audit.decorator';
+
+export class SaleTaxFeeDto {
+  @IsIn(['vat', 'vat_surcharge', 'personal', 'deed', 'land_transfer', 'land_price', 'other'])
+  type: string;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false })
+  @Min(0)
+  amount?: number | null;
+}
 
 export class CreateSalePropertyDto {
   @IsString()
@@ -194,6 +204,14 @@ export class CreateSalePropertyDto {
   @IsString()
   @IsOptional()
   taxType?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(7)
+  @ArrayUnique((fee: SaleTaxFeeDto) => fee?.type)
+  @ValidateNested({ each: true })
+  @Type(() => SaleTaxFeeDto)
+  taxFees?: SaleTaxFeeDto[];
 
   @IsNumber()
   @IsOptional()

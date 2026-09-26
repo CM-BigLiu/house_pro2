@@ -44,4 +44,12 @@ describe('read-only property details', () => {
     expect(root.querySelector('[role="alert"]')?.textContent).toContain('详情加载失败');
     expect([...root.querySelectorAll('button')].some(button => button.textContent === '重试')).toBe(true);
   });
+  it('shows each sale tax and distinguishes zero from an unspecified amount', async () => {
+    route.name = 'SaleDetail';
+    vi.mocked(getHouseDetail).mockResolvedValue({ ...fixture(), property: { id: 2, taxFees: [{ type: 'vat', amount: 1200.5 }, { type: 'deed', amount: 0 }, { type: 'other', amount: null }] } });
+    const root = await mount();
+    expect(root.textContent).toContain('增值税：¥1,200.50 元');
+    expect(root.textContent).toContain('契税：¥0.00 元');
+    expect(root.textContent).toContain('其他：未填写金额');
+  });
 });
