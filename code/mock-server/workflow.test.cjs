@@ -92,6 +92,19 @@ test('sale form dropdowns contain enabled labeled options from backend dictionar
   assert.ok((await ok('/system/dicts/certificate_type/items')).some(item => item.value === 'property'));
 });
 
+test('house image upload accepts image files and returns a previewable URL', async () => {
+  const form = new FormData();
+  form.append('file', new Blob([Buffer.from('89504e470d0a1a0a', 'hex')], { type: 'image/png' }), 'cover.png');
+  const response = await fetch(`${base}/upload/image`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const payload = await response.json();
+  assert.equal(payload.code, 0, payload.message);
+  assert.match(payload.data.url, /^data:image\/png;base64,/);
+});
+
 test('shared rental create and edit preserve all room details', async () => {
   const created = await ok('/house/rental-sets', 'POST', {
     code: 'ZJ-SHARED-REGRESSION',
@@ -101,14 +114,25 @@ test('shared rental create and edit preserve all room details', async () => {
     address: '浦东新区张江路688号',
     building: '6',
     unit: '2',
+    floor: '9',
+    totalFloor: 18,
     roomNo: '901',
     layout: '三室一厅',
     buildingArea: 96,
+    propertyType: 'residential',
+    orientation: 'south',
+    elevator: 'yes',
+    sourceChannel: 'store',
+    tags: ['subway'],
+    description: '回归测试房源',
+    landlordIdCard: '310101197801011234',
+    landlordBankName: '回归测试银行',
+    landlordBankCard: '6227001234567890123',
     landlordRent: 4800,
     status: 'vacant',
     storeId: 1,
     rooms: [
-      { roomNo: 'A', roomType: '主卧', rentPrice: 2300, listedPrice: 2500, status: 'vacant', depositAmount: 2300 },
+      { roomNo: 'A', roomType: '主卧', rentPrice: 2300, listedPrice: 2500, status: 'vacant', depositAmount: 2300, tenantIdCard: '310101199201011234' },
       { roomNo: 'B', roomType: '次卧', rentPrice: 1800, listedPrice: 2000, status: 'vacant', depositAmount: 1800 },
       { roomNo: 'C', roomType: '书房', rentPrice: 1500, listedPrice: 1700, status: 'vacant', depositAmount: 1500 },
     ],
@@ -116,6 +140,10 @@ test('shared rental create and edit preserve all room details', async () => {
   assert.equal(created.rooms.length, 3);
   assert.equal(created.roomCount, 3);
   assert.equal(created.vacantCount, 3);
+  assert.equal(created.orientation, 'south');
+  assert.deepEqual(created.tags, ['subway']);
+  assert.equal(created.landlordBankName, '回归测试银行');
+  assert.equal(created.rooms[0].tenantIdCard, '310101199201011234');
   assert.ok(created.rooms.every(room => Number.isInteger(room.id) && room.setId === created.id));
 
   const editDetail = await ok(`/house/rental-sets/${created.id}`);
@@ -129,6 +157,8 @@ test('shared rental create and edit preserve all room details', async () => {
   assert.equal(saved.rooms.length, 4);
   assert.deepEqual(saved.rooms.slice(0, 3).map(room => room.id), originalIds);
   assert.equal(saved.rooms[1].roomType, '次卧带飘窗');
+  assert.equal(saved.floor, '9');
+  assert.equal(saved.description, '回归测试房源');
   assert.ok(Number.isInteger(saved.rooms[3].id));
   assert.equal(saved.rooms[3].setId, created.id);
   assert.equal(saved.roomCount, 4);
@@ -177,6 +207,23 @@ test('entire property follows rented → checkout → vacant and remains in the 
   const detail = await ok('/house/details/rent/1');
   assert.ok(detail.checkouts.some(record => record.id === created.id && record.confirmedAt));
   assert.ok(detail.property.landlordPhone.includes('****'));
+});
+
+test('shared property appears in both occupancy filters when rooms have mixed states', async () => {
+  const vacant = await ok('/house/rental-sets?status=vacant');
+  const rented = await ok('/house/rental-sets?status=rented');
+
+  assert.ok(vacant.list.some(item => item.id === 2));
+  assert.ok(rented.list.some(item => item.id === 2));
+});
+
+test('rental list supports ERP-style compound filters and new operational fields', async () => {
+  const result = await ok('/house/rental-sets?storeId=1&salesmanId=4&paymentMethod=quarterly&district=%E6%B5%A6%E4%B8%9C%E6%96%B0%E5%8C%BA&operationStatus=normal&roomNo=8');
+
+  assert.ok(result.list.length > 0);
+  assert.ok(result.list.every(item => item.storeId === 1 && item.salesmanId === 4));
+  assert.ok(result.list.every(item => item.district === '浦东新区' && item.operationStatus === 'normal'));
+  assert.ok(result.list.some(item => item.landlordPaymentMethod && item.leaseTerm));
 });
 
 test('pending deposits disable checkout settlement until disposition', async () => {
@@ -249,7 +296,7 @@ test('sale taxes survive create, edit, removal and clearing without losing amoun
 });
 
 test('reported list pages return distinct slices and normalized customer fields', async () => {
-  for (const path of ['/house/rental-sets', '/house/customers', '/finance/bills', '/finance/flows']) {
+  for (const path of ['/house/rental-sets', '/house/customers']) {
     const first = await ok(`${path}?page=1&pageSize=2`);
     const second = await ok(`${path}?page=2&pageSize=2`);
     assert.equal(first.list.length, 2, path);
@@ -263,25 +310,13 @@ test('reported list pages return distinct slices and normalized customer fields'
   assert.equal(editable.mobile, customers.list[0].mobile);
 });
 
-test('reserve property and client workflows expose one contract for list, edit and actions', async () => {
-  const properties = await ok('/house/reserve-properties?status=not_rented&pageSize=3');
-  assert.ok(properties.list.length > 0);
-  assert.ok(properties.list.every(item => item.ownerQuote >= 0 && item.sourceChannel && item.status === 'not_rented'));
-  const property = properties.list[0];
-  assert.equal((await ok(`/house/reserve-properties/${property.id}/edit`)).id, property.id);
-  assert.equal((await ok(`/house/reserve-properties/${property.id}/transfer`, 'POST', { salesmanId: 4 })).salesmanName, '李娜');
-
-  for (const code of ['demand_type', 'urgency', 'blacklist_status', 'payment_type', 'ticket_status', 'identity']) {
-    assert.ok((await ok(`/system/dicts/${code}/items`)).length > 0, code);
+test('retired reserve modules have no menus, permissions or routes', async () => {
+  assert.doesNotMatch(JSON.stringify(await ok('/auth/menus')), /reserve[-_:]/);
+  assert.doesNotMatch(JSON.stringify(await ok('/system/permissions/tree')), /reserve[-_:]/);
+  for (const path of ['/house/reserve-properties', '/house/reserve-clients']) {
+    assert.equal((await request(path)).code, 404);
+    assert.equal((await request(path, 'POST', {})).code, 404);
   }
-  const clients = await ok('/house/reserve-clients?status=not_rented&pageSize=2');
-  assert.equal(clients.list.length, 2);
-  assert.ok(clients.list.every(item => item.clientName && item.clientMobile && item.demandType));
-  const client = clients.list[0];
-  assert.equal((await ok(`/house/reserve-clients/${client.id}/edit`)).clientName, client.clientName);
-  assert.ok((await ok(`/house/reserve-clients/${client.id}/follow-ups`, 'POST', { followType: 'phone', content: '回归跟进' })).id);
-  const converted = await ok(`/house/reserve-clients/${client.id}/convert`, 'POST', { contractCode: 'HT-REGRESSION-001' });
-  assert.ok(converted.customerId > 0);
 });
 
 test('system forms reject blank base data and roles reflect runtime permissions', async () => {
@@ -296,23 +331,15 @@ test('system forms reject blank base data and roles reflect runtime permissions'
 });
 
 test('financial forms validate data and preserve submitted DTO fields', async () => {
-  assert.equal((await request('/finance/rent-increases', 'POST', { roomCode: '', lastRent: 0, currentRent: 0 })).code, 400);
   assert.equal((await request('/finance/plans', 'POST', { planType: 'income', totalPeriods: 1, totalAmount: 0 })).code, 400);
   const plan = await ok('/finance/plans', 'POST', { planType: 'income', billingCategory: '其他收入', reason: '计划搜索回归', totalPeriods: 2, totalAmount: 200 });
   assert.equal(plan.title, '计划搜索回归');
   assert.equal((await ok('/finance/plans?keyword=计划搜索回归')).total, 1);
-  const flow = await ok('/finance/flows', 'POST', { remark: '回归流水', direction: 'income', amount: 123, paymentType: 'bank' });
-  assert.equal(flow.title, '回归流水');
-  assert.equal(flow.type, 'income');
-  assert.equal((await ok(`/finance/flows/${flow.id}/edit`)).direction, 'income');
-  const filtered = await ok('/finance/flows?keyword=回归流水&type=income');
-  assert.equal(filtered.total, 1);
   const legacy = await ok('/house/checkouts/3/confirm', 'POST', {});
   assert.equal(legacy.manualHouseStateRequired, true);
 });
 
 test('high-impact lifecycle: destructive cleanup, account, permissions, approval and finance actions', async () => {
-  assert.equal((await requestAs('', '/finance/payouts/batch-pay', 'POST', { ids: [5] })).code, 401);
   const blacklist = await ok('/house/blacklist', 'POST', {
     name: '高影响测试黑名单', mobile: '13900009996', type: 'other', reason: '隔离回归数据', status: 'active',
   });
@@ -372,14 +399,6 @@ test('high-impact lifecycle: destructive cleanup, account, permissions, approval
   await ok(`/system/approvals/${approval.id}/approve`, 'POST', { remark: '回归通过' });
   assert.equal((await ok(`/house/sale-properties/${sale.id}/edit`)).status, targetStatus);
 
-  const pendingPayouts = await ok('/finance/payouts?status=pending&pageSize=20');
-  const payoutIds = pendingPayouts.list.map(item => item.id);
-  assert.equal(payoutIds.length, 2);
-  assert.equal((await ok('/finance/payouts/batch-pay', 'POST', { ids: payoutIds })).count, 2);
-  const paidPayouts = await ok('/finance/payouts?status=paid&pageSize=50');
-  assert.ok(payoutIds.every(id => paidPayouts.list.some(item => item.id === id && item.actualAmount === item.payoutAmount)));
-  assert.equal((await request('/finance/payouts/batch-pay', 'POST', { ids: payoutIds })).code, 400);
-
   const invoice = await ok('/finance/invoices', 'POST', {
     applySource: 'manual', buyerName: '高影响测试开票', buyerTaxNo: '91310000TEST000001',
     amountWithoutTax: 943.4, taxAmount: 56.6, amountWithTax: 1000, invoiceType: 'special', remark: '隔离回归数据',
@@ -394,4 +413,13 @@ test('high-impact lifecycle: destructive cleanup, account, permissions, approval
   });
   assert.equal(plan.amount, 1000);
   assert.ok((await ok('/finance/plans?keyword=高影响计划回归')).list.some(item => item.id === plan.id));
+});
+
+test('retired finance modules have no routes, permissions or menus', async () => {
+  assert.doesNotMatch(JSON.stringify(await ok('/auth/menus')), /finance:(bill|flow|rent_increase|payout)(["':]|$)/);
+  for (const path of ['/finance/bills', '/finance/flows', '/finance/rent-increases', '/finance/payouts']) {
+    assert.equal((await request(path)).code, 404);
+    assert.equal((await request(path, 'POST', {})).code, 404);
+  }
+  assert.equal((await ok('/finance/deals')).total, 0);
 });

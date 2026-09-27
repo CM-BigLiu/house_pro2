@@ -52,7 +52,7 @@ export class ApprovalController {
   }
 
   @Post()
-  @RequirePermission('sale:changeStatus', 'renting:checkout', 'finance:bill:modify', 'system:employee:edit')
+  @RequirePermission('sale:changeStatus', 'renting:checkout', 'system:employee:edit')
   async submit(@Body() dto: SubmitApprovalDto, @CurrentUser() user: CurrentUserPayload) {
     return this.approvalService.submit({
       entityType: dto.entityType,

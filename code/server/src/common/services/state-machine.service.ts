@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { SaleStatus, RoomStatus, BillStatus, InvoiceStatus } from '../enums/status.enum';
+import { SaleStatus, RoomStatus, InvoiceStatus } from '../enums/status.enum';
 
 type StatusValue = string;
 type TransitionMap = Record<string, StatusValue[]>;
@@ -23,15 +23,6 @@ const ROOM_TRANSITIONS: TransitionMap = {
   [RoomStatus.REPAIR]: [RoomStatus.CONFIGURING, RoomStatus.VACANT],
 };
 
-const BILL_TRANSITIONS: TransitionMap = {
-  [BillStatus.PENDING_RECEIVE]: [BillStatus.DUE, BillStatus.OVERDUE],
-  [BillStatus.DUE]: [BillStatus.RECEIVED, BillStatus.OVERDUE],
-  [BillStatus.RECEIVED]: [BillStatus.FINAL_REVIEW],
-  [BillStatus.FINAL_REVIEW]: [BillStatus.CASHIERED, BillStatus.REFUNDED],
-  [BillStatus.OVERDUE]: [BillStatus.RECEIVED, BillStatus.REFUNDED],
-  [BillStatus.PENDING_PAY]: [BillStatus.PAID],
-};
-
 const INVOICE_TRANSITIONS: TransitionMap = {
   [InvoiceStatus.PENDING]: [InvoiceStatus.PROCESSING, InvoiceStatus.VOIDED],
   [InvoiceStatus.PROCESSING]: [InvoiceStatus.ISSUED, InvoiceStatus.VOIDED],
@@ -41,7 +32,6 @@ const INVOICE_TRANSITIONS: TransitionMap = {
 const TRANSITIONS: Record<string, TransitionMap> = {
   sale_property: SALE_TRANSITIONS,
   rental_room: ROOM_TRANSITIONS,
-  bill: BILL_TRANSITIONS,
   invoice: INVOICE_TRANSITIONS,
 };
 
@@ -49,6 +39,7 @@ const TRANSITIONS: Record<string, TransitionMap> = {
 export class StateMachineService {
   canTransition(entityType: string, from: StatusValue, to: StatusValue): boolean {
     const map = TRANSITIONS[entityType];
+    if (entityType === 'bill') return false; // 已退休业务禁止再发起状态变更。
     if (!map) return true; // unknown entity: permissive
     const allowed = map[from] || [];
     return allowed.includes(to);

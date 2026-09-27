@@ -26,10 +26,10 @@ const TOP_MODULE_LABEL = {
 };
 
 // 无直接前缀菜单的操作权限，按语义归属到对应菜单
-const ACTION_FALLBACK = {
+  const ACTION_FALLBACK = {
+    'finance:export': 'finance',
   'finance:ticket:apply': 'finance:billing',
   'finance:ticket:approve': 'finance:billing',
-  'finance:export': 'finance:bill',
   'renting:add': 'house:rent',
   'renting:edit': 'house:rent',
   'renting:checkout': 'house:rent',
@@ -38,11 +38,6 @@ const ACTION_FALLBACK = {
   'sale:edit': 'house:sale',
   'sale:changeStatus': 'house:sale',
   'sale:export': 'house:sale',
-  'reserve:house:add': 'house:reserve_house',
-  'reserve:house:take': 'house:reserve_house',
-  'reserve:house:transfer': 'house:reserve_house',
-  'reserve:client:add': 'house:reserve_client',
-  'reserve:client:transfer': 'house:reserve_client',
 };
 
 async function main() {

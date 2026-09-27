@@ -1,48 +1,5 @@
 import { get, post, put } from '@/utils/request';
 
-export interface Bill {
-  id: number;
-  title: string;
-  category: string;
-  amount: number;
-  paidAmount: number;
-  status: string;
-  tenantName?: string;
-  houseTitle?: string;
-  billDate: string;
-  dueDate: string;
-  createdAt: string;
-  bizType: string;
-  bizId?: string;
-  billSource: string;
-  payer?: string;
-  payee?: string;
-  actualAmount?: number;
-  paymentCount?: string;
-  billPeriod?: string;
-  overdueFee?: number;
-  roomCode?: string;
-}
-
-export interface Flow {
-  id: number;
-  title: string;
-  type: 'income' | 'expense';
-  amount: number;
-  paymentType: string;
-  houseTitle?: string;
-  customerName?: string;
-  flowDate: string;
-  createdAt: string;
-  direction: 'income' | 'expense';
-  bizType?: string;
-  remark?: string;
-  occurredOn?: string;
-  status?: string;
-  audited?: boolean;
-  isRed?: boolean;
-}
-
 export interface PaymentPlan {
   id: number;
   title: string;
@@ -72,23 +29,6 @@ export interface Arrear {
   createdAt: string;
 }
 
-export interface Payout {
-  id: number;
-  batchNo?: string;
-  storeId?: number;
-  accountName: string;
-  bankCardNo?: string;
-  bankName: string;
-  cardType: string;
-  payoutAmount: number;
-  payableAmount: number;
-  actualAmount: number;
-  operateDate: string;
-  status: string;
-  type?: string;
-  createdAt: string;
-}
-
 export interface Invoice {
   id: number;
   applySource: string;
@@ -103,29 +43,6 @@ export interface Invoice {
   status: string;
   createdAt: string;
 }
-
-export function getBills(params?: { keyword?: string; status?: string; category?: string; dateStart?: string; dateEnd?: string; page?: number; pageSize?: number }) {
-  return get<{ list: Bill[]; total: number }>('/finance/bills', { params });
-}
-
-export function createBill(data: Partial<Bill>) {
-  return post<Bill>('/finance/bills', data);
-}
-
-export function getBillForEdit(id: number) { return get<Bill>(`/finance/bills/${id}/edit`); }
-export function updateBill(id: number, data: Partial<Bill>) { return put<Bill>(`/finance/bills/${id}`, data); }
-export function voidBill(id: number) { return post<Bill>(`/finance/bills/${id}/void`); }
-
-export function getFlows(params?: { keyword?: string; type?: string; page?: number; pageSize?: number }) {
-  return get<{ list: Flow[]; total: number }>('/finance/flows', { params });
-}
-
-export function createFlow(data: Partial<Flow>) {
-  return post<Flow>('/finance/flows', data);
-}
-
-export function getFlowForEdit(id: number) { return get<Flow>(`/finance/flows/${id}/edit`); }
-export function updateFlow(id: number, data: Partial<Flow>) { return put<Flow>(`/finance/flows/${id}`, data); }
 
 export function getPaymentPlans(params?: { keyword?: string; planType?: string; status?: string; page?: number; pageSize?: number }) {
   return get<{ list: PaymentPlan[]; total: number }>('/finance/plans', { params });
@@ -145,15 +62,6 @@ export function createArrear(data: Partial<Arrear>) {
   return post<Arrear>('/finance/arrears', data);
 }
 export function collectArrear(id: number, amount: number) { return post<Arrear>(`/finance/arrears/${id}/collect`, { amount }); }
-
-export function getPayouts(params?: { keyword?: string; status?: string; type?: string; dateStart?: string; dateEnd?: string; page?: number; pageSize?: number }) {
-  return get<{ list: Payout[]; total: number }>('/finance/payouts', { params });
-}
-
-export function createPayout(data: Partial<Payout>) {
-  return post<Payout>('/finance/payouts', data);
-}
-export function batchPayPayouts(ids: number[]) { return post<{ count: number }>('/finance/payouts/batch-pay', { ids }); }
 
 export function getInvoices(params?: { keyword?: string; status?: string; page?: number; pageSize?: number }) {
   return get<{ list: Invoice[]; total: number }>('/finance/invoices', { params });

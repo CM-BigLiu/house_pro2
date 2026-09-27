@@ -2,6 +2,11 @@ import type { RouteRecordRaw } from 'vue-router';
 
 export const asyncRoutes: RouteRecordRaw[] = [
   {
+    path: '/house/property-management', name: 'PropertyManagement',
+    component: () => import('@/views/house/PropertyManagementView.vue'),
+    meta: { title: '房管房管理', permission: 'house:property_management' },
+  },
+  {
     path: '/house/rent/detail/:id', name: 'RentDetail',
     component: () => import('@/views/house/PropertyDetailView.vue'),
     meta: { title: '租房详情', permission: 'house:rent', hidden: true },
@@ -62,42 +67,6 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '编辑售房', permission: 'house:sale', actionPermission: 'sale:edit', hidden: true },
   },
   {
-    path: '/house/reserve-house',
-    name: 'ReserveHouse',
-    component: () => import('@/views/house/ReserveHouseView.vue'),
-    meta: { title: '储备房源', permission: 'house:reserve_house' },
-  },
-  {
-    path: '/house/reserve-house/create',
-    name: 'ReserveHouseCreate',
-    component: () => import('@/views/house/ReserveHouseFormView.vue'),
-    meta: { title: '新增储备房源', permission: 'house:reserve_house', actionPermission: 'reserve:house:add', hidden: true },
-  },
-  {
-    path: '/house/reserve-house/edit/:id',
-    name: 'ReserveHouseEdit',
-    component: () => import('@/views/house/ReserveHouseFormView.vue'),
-    meta: { title: '编辑储备房源', permission: 'house:reserve_house', actionPermission: 'reserve:house:add', hidden: true },
-  },
-  {
-    path: '/house/reserve-client',
-    name: 'ReserveClient',
-    component: () => import('@/views/house/ReserveClientView.vue'),
-    meta: { title: '储备客源', permission: 'house:reserve_client' },
-  },
-  {
-    path: '/house/reserve-client/create',
-    name: 'ReserveClientCreate',
-    component: () => import('@/views/house/ReserveClientFormView.vue'),
-    meta: { title: '新增储备客源', permission: 'house:reserve_client', actionPermission: 'reserve:client:add', hidden: true },
-  },
-  {
-    path: '/house/reserve-client/edit/:id',
-    name: 'ReserveClientEdit',
-    component: () => import('@/views/house/ReserveClientFormView.vue'),
-    meta: { title: '编辑储备客源', permission: 'house:reserve_client', actionPermission: 'reserve:client:add', hidden: true },
-  },
-  {
     path: '/house/customer',
     name: 'Customer',
     component: () => import('@/views/house/CustomerView.vue'),
@@ -155,50 +124,13 @@ export const asyncRoutes: RouteRecordRaw[] = [
     path: '/house/wizard',
     name: 'HouseWizard',
     component: () => import('@/views/wizard/HouseWizardView.vue'),
-    meta: { title: '房源录入', permission: ['house:rent', 'house:sale', 'house:reserve_house'], actionPermission: ['renting:add', 'sale:add', 'reserve:house:add'], hidden: true },
+    meta: { title: '房源录入', permission: ['house:rent', 'house:sale'], actionPermission: ['renting:add', 'sale:add'], hidden: true },
   },
   // ---- Finance ----
   {
-    path: '/finance/bill',
-    name: 'FinanceBill',
-    component: () => import('@/views/finance/BillView.vue'),
-    meta: { title: '账单', permission: 'finance:bill' },
-  },
-  {
-    path: '/finance/bill/create',
-    name: 'FinanceBillCreate',
-    component: () => import('@/views/finance/BillFormView.vue'),
-    meta: { title: '新增账单', permission: 'finance:bill', actionPermission: 'finance:bill:modify', hidden: true },
-  },
-  {
-    path: '/finance/bill/edit/:id',
-    name: 'FinanceBillEdit',
-    component: () => import('@/views/finance/BillFormView.vue'),
-    meta: { title: '编辑账单', permission: 'finance:bill', actionPermission: 'finance:bill:modify', hidden: true },
-  },
-  {
-    path: '/finance/daily-account',
-    name: 'FinanceFlow',
-    component: () => import('@/views/finance/FlowView.vue'),
-    meta: { title: '流水账', permission: 'finance:flow' },
-  },
-  {
-    path: '/finance/daily-account/create',
-    name: 'FinanceFlowCreate',
-    component: () => import('@/views/finance/FlowFormView.vue'),
-    meta: { title: '新增流水', permission: 'finance:flow', actionPermission: 'finance:flow:modify', hidden: true },
-  },
-  {
-    path: '/finance/daily-account/edit/:id',
-    name: 'FinanceFlowEdit',
-    component: () => import('@/views/finance/FlowFormView.vue'),
-    meta: { title: '编辑流水', permission: 'finance:flow', actionPermission: 'finance:flow:modify', hidden: true },
-  },
-  {
-    path: '/finance/rent-increase',
-    name: 'FinanceRentIncrease',
-    component: () => import('@/views/finance/RentIncreaseView.vue'),
-    meta: { title: '涨价统计', permission: 'finance:rent_increase' },
+    path: '/finance/deal', name: 'FinanceDeal',
+    component: () => import('@/views/finance/DealView.vue'),
+    meta: { title: '成交管理', permission: 'finance:deal' },
   },
   {
     path: '/finance/income-cost',
@@ -234,19 +166,7 @@ export const asyncRoutes: RouteRecordRaw[] = [
     path: '/finance/plan/create',
     name: 'FinancePlanCreate',
     component: () => import('@/views/finance/PlanFormView.vue'),
-    meta: { title: '新增计划', permission: 'finance:plan', actionPermission: 'finance:bill:modify', hidden: true },
-  },
-  {
-    path: '/finance/payout',
-    name: 'FinancePayout',
-    component: () => import('@/views/finance/PayoutView.vue'),
-    meta: { title: '代付管理', permission: 'finance:payout' },
-  },
-  {
-    path: '/finance/payout/create',
-    name: 'FinancePayoutCreate',
-    component: () => import('@/views/finance/PayoutFormView.vue'),
-    meta: { title: '新增代付', permission: 'finance:payout', actionPermission: 'finance:payout:create', hidden: true },
+    meta: { title: '新增计划', permission: 'finance:plan', actionPermission: 'finance:plan:modify', hidden: true },
   },
   {
     path: '/finance/billing',
@@ -271,7 +191,7 @@ export const asyncRoutes: RouteRecordRaw[] = [
     path: '/finance/plan/edit/:id',
     name: 'FinancePlanEdit',
     component: () => import('@/views/finance/PlanFormView.vue'),
-    meta: { title: '编辑计划', permission: 'finance:plan', actionPermission: 'finance:bill:modify', hidden: true },
+    meta: { title: '编辑计划', permission: 'finance:plan', actionPermission: 'finance:plan:modify', hidden: true },
   },
   {
     path: '/system/role',

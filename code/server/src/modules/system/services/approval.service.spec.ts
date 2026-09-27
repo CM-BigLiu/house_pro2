@@ -64,7 +64,6 @@ function setup() {
     employeeRepo,
     unusedRepo,
     unusedRepo,
-    unusedRepo,
     invoiceRepo as any,
     new StateMachineService(),
     events,

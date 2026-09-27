@@ -62,7 +62,7 @@ export class AccountingController {
   }
 
   @Post()
-  @RequirePermission('finance:bill:modify')
+  @RequirePermission('finance:accounting:modify')
   async create(@Body() data: CreateAccountingDto) {
     return this.service.create(data);
   }

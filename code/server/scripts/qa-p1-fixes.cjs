@@ -70,36 +70,15 @@ async function login(mobile) {
     await req(`house/customers/${customer.data.id}`, admin, 'PUT', { ...customerPayload, status: 'invalid', budgetMax: 220 });
     check((await req(`house/customers?keyword=${tag}&status=invalid`, admin)).data.total === 1, '客户编辑及已失效筛选持久化');
 
-    const community = (await req('community', admin)).data.list[0];
-    const reserveHouse = await req('house/reserve-properties', admin, 'POST', { storeId: store.id, communityId: community.id, address: `${tag} 地址`, roomNo: 'QA101', layout: '2室1厅1卫', buildingArea: 80, decoration: 'fine', ownerName: tag, ownerPhone: '19900001111', ownerQuote: 3200, sourceChannel: 'online', diskType: 'public' });
-    check(reserveHouse.status === 201, '储备房源隔离创建');
-    created.reserveHouseId = reserveHouse.data.id;
-    check((await req(`house/reserve-properties/${created.reserveHouseId}/edit`, admin)).data.ownerPhone === '19900001111', '储备房源编辑详情可读取');
-    await req(`house/reserve-properties/${created.reserveHouseId}`, admin, 'PUT', { ownerQuote: 3300, layout: '2室2厅1卫' });
-    check((await req(`house/reserve-properties/${created.reserveHouseId}/edit`, admin)).data.ownerQuote === '3300.00' || Number((await req(`house/reserve-properties/${created.reserveHouseId}/edit`, admin)).data.ownerQuote) === 3300, '储备房源编辑持久化');
-    check((await req(`house/reserve-properties/${created.reserveHouseId}/transfer`, admin, 'POST', { salesmanId: targetEmployee.id })).status === 201, '储备房源转业务员受控接口成功');
-    const contractCode = `${tag}-RENT`;
-    const signed = await req(`house/reserve-properties/${created.reserveHouseId}/sign-contract`, admin, 'POST', { contractCode, bizType: 'entire', leaseStart: '2026-09-01', leaseEnd: '2027-09-01', landlordRent: 3300, deposit: 3300 });
-    check(signed.status === 201 && signed.data.rentalSetId, '拿房签约原子创建租房档案');
-    created.rentalSetId = signed.data.rentalSetId;
-    check((await req(`house/rental-sets?keyword=${encodeURIComponent(contractCode)}`, admin)).data.total === 1, '签约流转结果可在租房管理查询');
-    check((await req(`house/reserve-properties/${created.reserveHouseId}/sign-contract`, admin, 'POST', { contractCode: contractCode + '-2', bizType: 'entire', leaseStart: '2026-09-01', leaseEnd: '2027-09-01', landlordRent: 3300 })).status === 400, '已拿房储备记录不能重复签约');
-
-    const reserveClient = await req('house/reserve-clients', admin, 'POST', { storeId: store.id, clientName: tag, clientMobile: '19900002222', desiredLocation: 'QA区域', demandType: 'rent', desiredLayout: '一室', priceMin: 2000, priceMax: 3000, sourceChannel: 'online', ownership: 'public' });
-    check(reserveClient.status === 201, '储备客源隔离创建');
-    created.reserveClientId = reserveClient.data.id;
-    await req(`house/reserve-clients/${created.reserveClientId}`, admin, 'PUT', { desiredLocation: 'QA新区', priceMax: 3500 });
-    check((await req(`house/reserve-clients/${created.reserveClientId}/edit`, admin)).data.desiredLocation === 'QA新区', '储备客源编辑持久化');
-    const follow = await req(`house/reserve-clients/${created.reserveClientId}/follow-ups`, admin, 'POST', { followType: 'phone', content: `${tag} 跟进`, status: 'completed' });
-    check(follow.status === 201, '储备客源跟进记录已保存');
-    created.followUpId = follow.data.id;
-    const converted = await req(`house/reserve-clients/${created.reserveClientId}/convert`, admin, 'POST', { contractCode: `${tag}-CLIENT`, contractEndDate: '2027-09-01' });
-    check(converted.status === 201 && converted.data.customerId, '储备客源转签约原子创建正式客户');
-    created.customerIds.push(converted.data.customerId);
+    for (const path of ['house/reserve-properties', 'house/reserve-clients']) {
+      check((await req(path, admin)).status === 404, `已退休接口不可访问：${path}`);
+    }
+    const managed = await req('house/property-management/properties', admin);
+    const tenants = await req('house/property-management/tenants', admin);
+    check(managed.status === 200 && Array.isArray(managed.data.list), '房管管理分页接口可用');
+    check(tenants.status === 200 && Array.isArray(tenants.data.list), '实际租客分页接口可用');
     const overview = (await req('dashboard/overview', admin)).data;
-    const reserveKpi = overview.kpis.find((item) => item.label === '储备客源').value;
-    const reserveTotal = (await req('house/reserve-clients?page=1&pageSize=1', admin)).data.total;
-    check(Number(reserveKpi) === Number(reserveTotal), '首页与储备客源列表使用相同数据范围口径');
+    check(overview.kpis.some(item => item.label === '客户总数'), '首页不再展示废弃储备统计');
 
     const bill = await req('finance/bills', admin, 'POST', { bizType: 'rent', bizId: tag, billSource: 'rent_deposit', payer: tag, payee: 'QA公司', dueDate: '2026-09-30', amount: 123.45, roomCode: tag, billPeriod: '2026-09' });
     check(bill.status === 201 && bill.data.status === 'pending', '账单表单字段与 DTO 一致');
@@ -130,11 +109,7 @@ async function login(mobile) {
       if (created.checkoutId) await db.query('DELETE FROM house_checkout WHERE id = $1 AND "contractCode" = $2', [created.checkoutId, `${tag}-CO`]);
       if (created.flowId) await db.query('DELETE FROM fin_flow WHERE id = $1', [created.flowId]);
       if (created.billId) await db.query('DELETE FROM fin_bill WHERE id = $1 AND "bizId" = $2', [created.billId, tag]);
-      if (created.followUpId) await db.query('DELETE FROM house_follow_up WHERE id = $1 AND biz_id = $2', [created.followUpId, created.reserveClientId]);
       for (const id of created.customerIds) await db.query('DELETE FROM house_customer WHERE id = $1', [id]);
-      if (created.reserveClientId) await db.query('DELETE FROM house_reserve_client WHERE id = $1 AND "clientName" = $2', [created.reserveClientId, tag]);
-      if (created.rentalSetId) { await db.query('DELETE FROM house_rental_room WHERE "set_id" = $1', [created.rentalSetId]); await db.query('DELETE FROM house_rental_set WHERE id = $1', [created.rentalSetId]); }
-      if (created.reserveHouseId) await db.query('DELETE FROM house_reserve WHERE id = $1 AND "ownerName" = $2', [created.reserveHouseId, tag]);
       if (created.roleId) { await db.query('DELETE FROM sys_role_permission WHERE "sysRoleId" = $1', [created.roleId]); await db.query('DELETE FROM sys_role WHERE id = $1 AND code = $2', [created.roleId, tag.toLowerCase()]); }
       await db.query('COMMIT');
     } catch (error) { await db.query('ROLLBACK'); throw error; }

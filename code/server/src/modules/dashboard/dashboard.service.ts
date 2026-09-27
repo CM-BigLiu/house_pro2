@@ -4,11 +4,9 @@ import { In, Repository } from 'typeorm';
 import { SaleProperty } from '../house/entities/sale-property.entity';
 import { RentalSet } from '../house/entities/rental-set.entity';
 import { RentalRoom } from '../house/entities/rental-room.entity';
-import { ReserveClient } from '../house/entities/reserve-client.entity';
-import { ReserveProperty } from '../house/entities/reserve-property.entity';
 import { Customer } from '../house/entities/customer.entity';
-import { Bill } from '../finance/entities/bill.entity';
-import { FinanceFlow } from '../finance/entities/finance-flow.entity';
+import { Bill } from '../finance/archive/bill.entity';
+import { FinanceFlow } from '../finance/archive/finance-flow.entity';
 import { ApprovalRecord } from '../system/entities/approval-record.entity';
 import { applyDataScope } from '../../common/data-scope/data-scope.util';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
@@ -20,8 +18,6 @@ export class DashboardService {
     @InjectRepository(SaleProperty) private saleRepo: Repository<SaleProperty>,
     @InjectRepository(RentalSet) private rentalSetRepo: Repository<RentalSet>,
     @InjectRepository(RentalRoom) private rentalRoomRepo: Repository<RentalRoom>,
-    @InjectRepository(ReserveClient) private clientRepo: Repository<ReserveClient>,
-    @InjectRepository(ReserveProperty) private reservePropertyRepo: Repository<ReserveProperty>,
     @InjectRepository(Customer) private customerRepo: Repository<Customer>,
     @InjectRepository(Bill) private billRepo: Repository<Bill>,
     @InjectRepository(FinanceFlow) private flowRepo: Repository<FinanceFlow>,
@@ -49,7 +45,7 @@ export class DashboardService {
     applyDataScope(vacantQb, user, 'set', { ownerField: 'creatorId', groupField: 'groupId' });
     const vacantCount = await vacantQb.getCount();
 
-    const clientQb = this.clientRepo.createQueryBuilder('c');
+    const clientQb = this.customerRepo.createQueryBuilder('c');
     applyDataScope(clientQb, user, 'c', { ownerField: 'creatorId' });
     const clientCount = await clientQb.getCount();
 
@@ -79,7 +75,7 @@ export class DashboardService {
       { label: '在管房源', value: rentalCount + saleCount, unit: '套', color: 'blue' },
       { label: '在租房间', value: roomCount, unit: '间', color: 'green' },
       { label: '空房间', value: vacantCount, unit: '间', color: 'orange' },
-      { label: '储备客源', value: clientCount, unit: '人', color: 'purple' },
+      { label: '客户总数', value: clientCount, unit: '人', color: 'purple' },
     ];
     if (canViewFinance) {
       kpis.push(
@@ -116,7 +112,6 @@ export class DashboardService {
       color: 'red' | 'orange' | 'blue' | 'green';
     }> = [
       { title: '30天内到期租客', value: dueSoonCount, label: '需续租/退房', color: 'orange' as const },
-      { title: '储备房源待跟进', value: await this.countReserveByStatus(user, 'not_rented'), label: '待签约', color: 'blue' as const },
       { title: '黑名单人员', value: await this.countBlacklist(user), label: '生效中', color: 'red' as const },
     ];
     if (this.canViewFinance(user)) {
@@ -269,13 +264,6 @@ export class DashboardService {
       })
       .sort((a, b) => b.performance - a.performance)
       .slice(0, 5);
-  }
-
-  private async countReserveByStatus(user: CurrentUserPayload, status: string) {
-    const qb = this.reservePropertyRepo.createQueryBuilder('r')
-      .where('r.status = :status', { status });
-    applyDataScope(qb, user, 'r', { ownerField: 'creatorId', groupField: 'groupId' });
-    return qb.getCount();
   }
 
   private async countBlacklist(user: CurrentUserPayload) {

@@ -15,9 +15,21 @@ export class CustomerService {
     private employeeRepo: Repository<Employee>,
   ) {}
 
+  private scoped(user: CurrentUserPayload) {
+    const qb = this.customerRepo.createQueryBuilder('c');
+    // 客户没有 group_id，分组权限通过创建员工所属分组限定。
+    if (user.dataScope === 'group' && user.groupIds?.length) {
+      qb.leftJoin(Employee, 'customerOwner', 'customerOwner.id = c.creatorId')
+        .leftJoin('customerOwner.groups', 'customerGroup')
+        .andWhere('customerGroup.id IN (:...customerGroupIds)', { customerGroupIds: user.groupIds });
+    } else {
+      applyDataScope(qb, user, 'c', { ownerField: 'creatorId' });
+    }
+    return qb;
+  }
+
   private async findScoped(id: number, user: CurrentUserPayload) {
-    const qb = this.customerRepo.createQueryBuilder('c').where('c.id = :id', { id });
-    applyDataScope(qb, user, 'c', { ownerField: 'creatorId' });
+    const qb = this.scoped(user).andWhere('c.id = :id', { id });
     const item = await qb.getOne();
     if (!item) throw new NotFoundException('客户不存在或无权访问');
     return item;
@@ -36,7 +48,7 @@ export class CustomerService {
   }
 
   async findAll(query: any, user: CurrentUserPayload) {
-    const qb = this.customerRepo.createQueryBuilder('c');
+    const qb = this.scoped(user);
     if (query.customerType) qb.andWhere('c.customerType = :customerType', { customerType: query.customerType });
     if (query.status) qb.andWhere('c.status = :status', { status: query.status });
     if (query.desiredDistrict?.trim()) qb.andWhere('c.desiredDistrict ILIKE :district', { district: `%${query.desiredDistrict.trim()}%` });
@@ -52,8 +64,8 @@ export class CustomerService {
         .orWhere('c.mobile ILIKE :kw', { kw: `%${query.keyword.trim()}%` })
         .orWhere('c.relatedPropertyCode ILIKE :kw', { kw: `%${query.keyword.trim()}%` });
     }));
-    applyDataScope(qb, user, 'c', { ownerField: 'creatorId' });
     const [list, total] = await qb
+      .orderBy('c.id', 'DESC')
       .skip(((query.page || 1) - 1) * (query.pageSize || 20))
       .take(query.pageSize || 20)
       .getManyAndCount();

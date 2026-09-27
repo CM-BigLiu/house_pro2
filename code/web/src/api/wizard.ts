@@ -84,36 +84,10 @@ export interface WizardSaleProperty {
   storeId: number;
 }
 
-export interface WizardReserveProperty {
-  reserveType?: 'rent' | 'sale';
-  details?: Record<string, unknown>;
-  storeId: number;
-  groupId?: number;
-  communityId?: number;
-  address: string;
-  roomNo: string;
-  layout: string;
-  buildingArea?: number;
-  decoration?: string;
-  ownerName: string;
-  ownerPhone?: string;
-  ownerQuote?: number;
-  sourceChannel: string;
-  keyStatus?: string;
-  diskType?: string;
-  salesmanId?: number;
-  followerId?: number;
-  followDate?: string;
-}
-
 export function createRentalSet(data: Partial<WizardRentalSet>) {
   return post<WizardRentalSet>('/house/rental-sets', data);
 }
 
 export function createSaleProperty(data: Partial<WizardSaleProperty>) {
   return post<WizardSaleProperty>('/house/sale-properties', data);
-}
-
-export function createReserveProperty(data: Partial<WizardReserveProperty>) {
-  return post<WizardReserveProperty>('/house/reserve-properties', data);
 }

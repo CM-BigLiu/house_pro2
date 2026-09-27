@@ -17,6 +17,27 @@ export interface SaleProperty {
   layoutBathrooms: number;
   layoutBalconies: number;
   buildingArea: number;
+  interiorArea?: number;
+  totalFloor?: number;
+  propertyStatus?: string;
+  isRentSaleCoexist?: boolean;
+  isFusion?: boolean;
+  isPublic?: boolean;
+  isOnlyProperty?: boolean;
+  govVerifyCode?: string;
+  govVerifyStatus?: string;
+  quickSaleStart?: string;
+  quickSaleEnd?: string;
+  publishedAt?: string;
+  offShelfAt?: string;
+  bargainAt?: string;
+  verifiedAt?: string;
+  lastFollowAt?: string;
+  daysWithoutFollow?: number;
+  viewingTime?: string;
+  viewingTimeAlt?: string;
+  vrUrl?: string;
+  videoUrl?: string;
   orientation: string;
   decoration: string;
   elevator: string;
@@ -26,17 +47,34 @@ export interface SaleProperty {
   allowedStatuses?: string[];
   unitPrice?: number;
   floorPrice?: number;
+  downPayment?: number;
+  monthlyPayment?: number;
+  loanAmount?: number;
   taxType?: string;
   taxFees?: SaleTaxFee[] | null;
   debt?: number;
   certificateType?: string;
+  propertyRights?: string;
+  propertyTerm?: string;
+  certificateTerm?: string;
+  acceptedPaymentMethods?: string;
   sourceChannel: string;
   tags?: string[];
   description?: string;
+  ownerMentality?: string;
+  communityIntro?: string;
+  nearbySchool?: string;
+  taxDescription?: string;
+  advantages?: string;
   ownerName: string;
+  ownerIdCard?: string;
   ownerPhone: string;
   ownerPhoneBackup?: string;
+  ownerRemark?: string;
+  emergencyContacts?: { name: string; phone: string; relation?: string }[];
+  followUpContent?: string;
   maintainerId?: number;
+  creatorId?: number;
   storeId: number;
   status: string;
   qualityScore?: number;
@@ -45,9 +83,46 @@ export interface SaleProperty {
   isCitywideSale: boolean;
   images?: string[];
   createdAt: string;
+  updatedAt?: string;
 }
 
-export function getSaleProperties(params?: { keyword?: string; status?: string; page?: number; pageSize?: number }) {
+type QueryNumber = number | string;
+
+export interface SalePropertyQuery {
+  keyword?: string;
+  status?: string;
+  scope?: 'all' | 'sold' | 'mine';
+  code?: string;
+  community?: string;
+  building?: string;
+  unit?: string;
+  roomNo?: string;
+  propertyType?: string;
+  maintainerId?: QueryNumber;
+  storeId?: QueryNumber;
+  isPublic?: boolean | string;
+  verified?: boolean | string;
+  minSalePrice?: QueryNumber;
+  maxSalePrice?: QueryNumber;
+  minArea?: QueryNumber;
+  maxArea?: QueryNumber;
+  layoutRooms?: QueryNumber;
+  minFloor?: QueryNumber;
+  maxFloor?: QueryNumber;
+  decoration?: string;
+  orientation?: string;
+  sourceChannel?: string;
+  tag?: string;
+  minQualityScore?: QueryNumber;
+  maxQualityScore?: QueryNumber;
+  buildYearFrom?: QueryNumber;
+  buildYearTo?: QueryNumber;
+  sortBy?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export function getSaleProperties(params?: SalePropertyQuery) {
   return get<{ list: SaleProperty[]; total: number }>('/house/sale-properties', { params });
 }
 
@@ -96,6 +171,6 @@ export function changeSaleStatus(id: number, status: string) {
   return post<{ id: number; result: string }>(`/house/sale-properties/${id}/change-status`, { status });
 }
 
-export function exportSalePage(params: { keyword?: string; status?: string; page?: number; pageSize?: number }) {
+export function exportSalePage(params: SalePropertyQuery) {
   return get<{ list: SaleProperty[]; total: number }>('/house/sale-properties/export', { params });
 }

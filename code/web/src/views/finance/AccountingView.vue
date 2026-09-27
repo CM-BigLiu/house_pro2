@@ -85,7 +85,7 @@ function exportCurrent() {
         <div class="page-desc">权责发生制下的财务核算与差异分析</div>
       </div>
       <div class="page-actions">
-        <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="openCreate"><i data-lucide="plus"></i> 新增核算</button>
+        <button v-permission="['finance:accounting:modify']" class="btn btn-primary" @click="openCreate"><i data-lucide="plus"></i> 新增核算</button>
         <button v-permission="['finance:export']" class="btn btn-default" @click="exportCurrent"><i data-lucide="download"></i> 导出报表</button>
         <button class="btn btn-default" @click="ElMessage.info('差异按实际收款减实际付款计算；筛选结果会同步更新汇总指标。')"><i data-lucide="circle-help"></i> 使用帮助</button>
       </div>

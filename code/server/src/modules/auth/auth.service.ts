@@ -228,6 +228,7 @@ export class AuthService {
       dataScope: scopePriority[dataScopeIndex],
       customScope,
       permissions: Array.from(permissionCodes),
+      roleCodes: (employee.roles || []).map(role => role.code),
     };
   }
 
@@ -241,10 +242,9 @@ export class AuthService {
         children: [
           { id: 'rent', label: '租房管理', path: '/house/rent', permission: 'house:rent' },
           { id: 'sale', label: '售房管理', path: '/house/sale', permission: 'house:sale' },
-          { id: 'reserve-house', label: '储备房源', path: '/house/reserve-house', permission: 'house:reserve_house' },
-          { id: 'reserve-client', label: '储备客源', path: '/house/reserve-client', permission: 'house:reserve_client' },
           { id: 'customer', label: '客户管理', path: '/house/customer', permission: 'house:customer' },
           { id: 'blacklist', label: '黑名单', path: '/house/blacklist', permission: 'house:blacklist' },
+          { id: 'property-management', label: '房管房管理', path: '/house/property-management', permission: 'house:property_management' },
           { id: 'community', label: '小区管理', path: '/house/community', permission: 'house:community' },
         ],
       },
@@ -253,15 +253,12 @@ export class AuthService {
         label: '财务管理',
         icon: 'banknote',
         children: [
-          { id: 'bill', label: '账单', path: '/finance/bill', permission: 'finance:bill' },
-          { id: 'flow', label: '流水账', path: '/finance/daily-account', permission: 'finance:flow' },
-          { id: 'rent-increase', label: '涨价统计', path: '/finance/rent-increase', permission: 'finance:rent_increase' },
+          { id: 'deal', label: '成交管理', path: '/finance/deal', permission: 'finance:deal' },
           { id: 'income-cost', label: '收入成本', path: '/finance/income-cost', permission: 'finance:income_cost' },
           { id: 'performance', label: '业绩核算', path: '/finance/performance', permission: 'finance:performance' },
           { id: 'accounting', label: '财务核算', path: '/finance/accounting', permission: 'finance:accounting' },
           { id: 'arrears', label: '欠款统计', path: '/finance/arrears', permission: 'finance:arrears' },
           { id: 'plan', label: '收支计划', path: '/finance/plan', permission: 'finance:plan' },
-          { id: 'payout', label: '代付管理', path: '/finance/payout', permission: 'finance:payout' },
           { id: 'billing', label: '开票管理', path: '/finance/billing', permission: 'finance:billing' },
         ],
       },

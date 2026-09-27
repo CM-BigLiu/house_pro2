@@ -121,7 +121,7 @@ function statusClass(status: string) {
       </el-table-column>
       <el-table-column label="操作" width="150">
         <template #default="{ row }">
-          <button type="button" class="btn btn-ghost btn-sm" v-permission="['finance:bill:modify']" :disabled="Number(row.remainAmount) <= 0" @click="collect(row)">收款</button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['finance:arrears:modify']" :disabled="Number(row.remainAmount) <= 0" @click="collect(row)">收款</button>
           <button type="button" class="btn btn-ghost btn-sm" @click="showDetails(row)">明细</button>
         </template>
       </el-table-column>

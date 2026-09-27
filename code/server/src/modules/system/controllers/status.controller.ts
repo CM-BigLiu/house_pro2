@@ -63,23 +63,6 @@ export class StatusController {
     );
   }
 
-  @Post('finance/bills/:id/change-status')
-  @RequirePermission('finance:bill:modify')
-  @Audit('finance', 'bill:changeStatus', { objectType: 'bill' })
-  async changeBillStatus(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ChangeStatusDto,
-    @CurrentUser() user: CurrentUserPayload,
-  ) {
-    return this.requestTransition(
-      'bill',
-      id,
-      dto.status,
-      dto.remark,
-      user,
-    );
-  }
-
   @Post('finance/invoices/:id/change-status')
   @RequirePermission('finance:ticket:approve')
   @Audit('finance', 'invoice:changeStatus', { objectType: 'invoice' })

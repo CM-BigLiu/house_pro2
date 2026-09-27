@@ -1,8 +1,9 @@
 import { Controller, Delete, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { PartialType } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, IsIn, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsBoolean, IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, IsIn, IsInt, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { RentalService } from '../services/rental.service';
+import { BEIJING_DISTRICTS } from '../../../common/constants/beijing-districts';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Audit } from '../../../common/decorators/audit.decorator';
@@ -53,6 +54,10 @@ export class CreateRentalRoomDto {
 
   @IsString()
   @IsOptional()
+  tenantIdCard?: string;
+
+  @IsString()
+  @IsOptional()
   leaseEnd?: string;
 
   @IsString()
@@ -87,9 +92,36 @@ export class CreateRentalRoomDto {
   @IsOptional()
   @Type(() => Number)
   depositAmount?: number;
+
+  @IsString()
+  @IsOptional()
+  paymentStatus?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  tenantId?: number;
+}
+
+export class RentalEmergencyContactDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  phone: string;
+
+  @IsString()
+  @IsOptional()
+  relation?: string;
 }
 
 export class CreateRentalSetDto {
+  @IsOptional()
+  @IsBoolean()
+  isManaged?: boolean;
+
   @IsString()
   @IsNotEmpty()
   code: string;
@@ -117,6 +149,17 @@ export class CreateRentalSetDto {
   unit: string;
 
   @IsString()
+  @IsOptional()
+  floor?: string;
+
+  @IsNumber()
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  @Type(() => Number)
+  totalFloor?: number;
+
+  @IsString()
   @IsNotEmpty()
   roomNo: string;
 
@@ -140,7 +183,61 @@ export class CreateRentalSetDto {
 
   @IsString()
   @IsOptional()
+  district?: string;
+
+  @IsString()
+  @IsOptional()
+  propertyType?: string;
+
+  @IsString()
+  @IsOptional()
+  orientation?: string;
+
+  @IsString()
+  @IsOptional()
+  elevator?: string;
+
+  @IsString()
+  @IsOptional()
   decoration?: string;
+
+  @IsString()
+  @IsOptional()
+  sourceChannel?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  tags?: string[];
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsString()
+  @IsOptional()
+  title?: string;
+
+  @IsString()
+  @IsOptional()
+  communityIntro?: string;
+
+  @IsString()
+  @IsOptional()
+  nearbySchool?: string;
+
+  @IsString()
+  @IsOptional()
+  taxDescription?: string;
+
+  @IsString()
+  @IsOptional()
+  advantages?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  facilities?: string[];
 
   @IsNumber()
   @Min(0)
@@ -164,11 +261,60 @@ export class CreateRentalSetDto {
 
   @IsString()
   @IsOptional()
+  landlordPhoneBackup?: string;
+
+  @IsString()
+  @IsOptional()
+  landlordRemark?: string;
+
+  @IsArray()
+  @ArrayMaxSize(5)
+  @ValidateNested({ each: true })
+  @Type(() => RentalEmergencyContactDto)
+  @IsOptional()
+  emergencyContacts?: RentalEmergencyContactDto[];
+
+  @IsString()
+  @IsOptional()
+  viewingTime?: string;
+
+  @IsString()
+  @IsOptional()
+  viewingTimeAlt?: string;
+
+  @IsString()
+  @IsOptional()
+  followUpContent?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(20)
+  @IsOptional()
+  images?: string[];
+
+  @IsString()
+  @IsOptional()
+  landlordIdCard?: string;
+
+  @IsString()
+  @IsOptional()
+  landlordBankCard?: string;
+
+  @IsString()
+  @IsOptional()
+  landlordBankName?: string;
+
+  @IsString()
+  @IsOptional()
   tenantName?: string;
 
   @IsString()
   @IsOptional()
   tenantPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  tenantIdCard?: string;
 
   @IsString()
   @IsOptional()
@@ -191,6 +337,10 @@ export class CreateRentalSetDto {
   @IsString()
   @IsOptional()
   leaseEnd?: string;
+
+  @IsString()
+  @IsOptional()
+  landlordPaymentMethod?: string;
 
   @IsString()
   @IsOptional()
@@ -253,6 +403,12 @@ export class RentalController {
   @RequirePermission('house:rent')
   async findAll(@Query() query: any, @CurrentUser() user: any) {
     return this.rentalService.findSets(query, user);
+  }
+
+  @Get('district-options')
+  @RequirePermission('house:rent')
+  districtOptions() {
+    return BEIJING_DISTRICTS;
   }
 
   @Get(':id')

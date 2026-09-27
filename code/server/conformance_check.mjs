@@ -145,11 +145,11 @@ async function main() {
   }
   record('系统管理接口可达', sysOk === 4, `${sysOk}/4`);
 
-  // 13. 储备房源/客源
-  const reserveProp = await api(superAdmin.token, 'GET', '/house/reserves/properties?page=1&pageSize=50');
-  const reserveClient = await api(superAdmin.token, 'GET', '/house/reserves/clients?page=1&pageSize=50');
-  record('储备房源', reserveProp.status === 200, `total=${reserveProp.data?.total}`);
-  record('储备客源', reserveClient.status === 200, `total=${reserveClient.data?.total}`);
+  // 13. 房管房管理
+  const managedProperties = await api(superAdmin.token, 'GET', '/house/property-management/properties?page=1&pageSize=50');
+  const managedTenants = await api(superAdmin.token, 'GET', '/house/property-management/tenants?page=1&pageSize=50');
+  record('房管管理', managedProperties.status === 200, `total=${managedProperties.data?.total}`);
+  record('租客管理', managedTenants.status === 200, `total=${managedTenants.data?.total}`);
 
   // 14. 客户
   const customers = await api(superAdmin.token, 'GET', '/house/customers?page=1&pageSize=50');

@@ -8,12 +8,8 @@ import { RentalSet } from '../../modules/house/entities/rental-set.entity';
 import { RentalRoom } from '../../modules/house/entities/rental-room.entity';
 import { Checkout } from '../../modules/house/entities/checkout.entity';
 import { Deposit } from '../../modules/house/entities/deposit.entity';
-import { ReserveProperty } from '../../modules/house/entities/reserve-property.entity';
-import { ReserveClient } from '../../modules/house/entities/reserve-client.entity';
 import { Customer } from '../../modules/house/entities/customer.entity';
 import { Blacklist } from '../../modules/house/entities/blacklist.entity';
-import { Bill } from '../../modules/finance/entities/bill.entity';
-import { FinanceFlow } from '../../modules/finance/entities/finance-flow.entity';
 import { Employee } from '../../modules/system/entities/employee.entity';
 import { Store } from '../../modules/system/entities/store.entity';
 import { OperationLog } from '../../modules/system/entities/operation-log.entity';
@@ -34,12 +30,8 @@ export class BizSeedService {
     @InjectRepository(Deposit) private depositRepo: Repository<Deposit>,
     @InjectRepository(OperationLog) private operationLogRepo: Repository<OperationLog>,
     @InjectRepository(Config) private configRepo: Repository<Config>,
-    @InjectRepository(ReserveProperty) private reservePropertyRepo: Repository<ReserveProperty>,
-    @InjectRepository(ReserveClient) private reserveClientRepo: Repository<ReserveClient>,
     @InjectRepository(Customer) private customerRepo: Repository<Customer>,
     @InjectRepository(Blacklist) private blacklistRepo: Repository<Blacklist>,
-    @InjectRepository(Bill) private billRepo: Repository<Bill>,
-    @InjectRepository(FinanceFlow) private flowRepo: Repository<FinanceFlow>,
     @InjectRepository(Employee) private employeeRepo: Repository<Employee>,
     @InjectRepository(Store) private storeRepo: Repository<Store>,
   ) {}
@@ -174,55 +166,10 @@ export class BizSeedService {
       { contractCode: 'RENT2026080001-C', tenantName: '赵租客', houseInfo: '张江汤臣豪园 1 号楼 2 单元 802 C室', depositAmount: 2200, status: 'deducted', depositDate: '2026-02-01', deductReason: '墙面损坏赔偿 500 元', storeId: storeZhangjiang.id, creatorId: keeper.id },
     ]);
 
-    const reserveBase = {
-      communityId: community.id,
-      address: community.address,
-      roomNo: '401',
-      layout: '2室1厅1卫',
-      buildingArea: 78,
-      decoration: 'simple',
-      ownerQuote: 8500,
-      sourceChannel: 'peer',
-      keyStatus: 'has_key',
-      diskType: 'public',
-      status: 'not_rented',
-      followerId: keeper.id,
-      creatorId: salesman.id,
-    };
-
-    await this.reservePropertyRepo.save([
-      { ...reserveBase, storeId: storeZhangjiang.id, ownerName: '孙房东', ownerPhone: '13600136001', salesmanId: salesman.id },
-      { ...reserveBase, storeId: storePudong.id, roomNo: '502', ownerName: '周房东', ownerPhone: '13600136002', ownerQuote: 9200, salesmanId: agent1.id },
-      { ...reserveBase, storeId: storeZhangjiang.id, roomNo: '601', ownerName: '吴房东', ownerPhone: '13600136003', ownerQuote: 7800, salesmanId: agent2.id },
-    ]);
-
-    await this.reserveClientRepo.save([
-      { storeId: storeZhangjiang.id, clientName: '陈租客', clientMobile: '13500135001', desiredLocation: '张江', demandType: 'rent', desiredLayout: '2室1厅', areaMin: 60, areaMax: 90, priceMin: 2500, priceMax: 3500, sourceChannel: 'online', usage: '自住', urgency: 'urgent', ownership: 'public', status: 'not_rented', salesmanId: salesman.id, creatorId: salesman.id },
-      { storeId: storePudong.id, clientName: '刘租客', clientMobile: '13500135002', desiredLocation: '浦东', demandType: 'sale', desiredLayout: '3室2厅', areaMin: 100, areaMax: 130, priceMin: 5000000, priceMax: 8000000, sourceChannel: 'friend', usage: '自住', urgency: 'normal', ownership: 'public', status: 'not_rented', salesmanId: agent1.id, creatorId: agent1.id },
-    ]);
-
     await this.customerRepo.save([
       { name: '陈租客', mobile: '13500135001', customerType: 'tenant', sourceChannel: 'online', relatedPropertyCode: 'RENT2026080001-A', contractEndDate: '2026-12-31', status: 'active', salesmanId: salesman.id, storeId: storeZhangjiang.id, creatorId: salesman.id },
       { name: '张业主', mobile: '13700137001', customerType: 'landlord', sourceChannel: 'walk_in', status: 'active', salesmanId: salesman.id, storeId: storeZhangjiang.id, creatorId: salesman.id },
       { name: '李违约', mobile: '13900139002', customerType: 'landlord', sourceChannel: 'peer', status: 'blacklist', isBlacklist: true, salesmanId: agent1.id, storeId: storePudong.id, creatorId: agent1.id },
-    ]);
-
-    const now = new Date();
-    const dueSoon = new Date(now);
-    dueSoon.setDate(dueSoon.getDate() + 10);
-    const overdue = new Date(now);
-    overdue.setDate(overdue.getDate() - 5);
-
-    await this.billRepo.save([
-      { storeId: storeZhangjiang.id, bizType: 'rent', bizId: 'RENT2026080001-A', billSource: 'rent', payer: '陈租客', payee: '优居科技', dueDate: dueSoon.toISOString().slice(0, 10), billPeriod: '2026-08', amount: 3200, actualAmount: 0, status: 'pending_receive', salesmanId: salesman.id, housekeeperId: keeper.id, roomCode: 'RENT2026080001-A', creatorId: keeper.id },
-      { storeId: storeZhangjiang.id, bizType: 'rent', bizId: 'RENT2026080001-C', billSource: 'rent', payer: '未知租客', payee: '优居科技', dueDate: overdue.toISOString().slice(0, 10), billPeriod: '2026-08', amount: 2200, actualAmount: 0, status: 'pending_receive', overdueFee: 50, salesmanId: salesman.id, housekeeperId: keeper.id, roomCode: 'RENT2026080001-C', creatorId: keeper.id },
-      { storeId: storePudong.id, bizType: 'sale', bizId: 'SALE2026080001', billSource: 'commission', payer: '张业主', payee: '优居科技', dueDate: now.toISOString().slice(0, 10), billPeriod: '2026-08', amount: 68000, actualAmount: 68000, status: 'received', salesmanId: salesman.id, creatorId: admin.id },
-    ]);
-
-    await this.flowRepo.save([
-      { storeId: storeZhangjiang.id, amount: 3200, direction: 'income', status: 'completed', audited: true, bizType: 'rent', remark: '陈租客租金', creatorId: keeper.id },
-      { storeId: storeZhangjiang.id, amount: 9000, direction: 'expense', status: 'completed', audited: true, bizType: 'landlord_rent', remark: '付孙房东承租款', creatorId: keeper.id },
-      { storeId: storePudong.id, amount: 68000, direction: 'income', status: 'completed', audited: true, bizType: 'sale_commission', remark: '售房佣金', creatorId: admin.id },
     ]);
 
     await this.configRepo.save([
@@ -240,7 +187,6 @@ export class BizSeedService {
       { employeeId: admin.id, module: 'system', action: 'login', objectType: 'auth', objectId: '', ip: '127.0.0.1', result: 'success' },
       { employeeId: salesman.id, module: 'house', action: 'sale:edit', objectType: 'sale_property', objectId: 'SALE2026080001', ip: '192.168.1.10', result: 'success' },
       { employeeId: keeper.id, module: 'house', action: 'renting:add', objectType: 'rental_room', objectId: 'RENT2026080001', ip: '192.168.1.11', result: 'success' },
-      { employeeId: finance.id, module: 'finance', action: 'finance:bill:modify', objectType: 'bill', objectId: 'RENT2026080001-A', ip: '192.168.1.12', result: 'success' },
     ]);
   }
 }

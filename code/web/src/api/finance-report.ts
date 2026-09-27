@@ -1,17 +1,5 @@
 import { get, post, put } from '@/utils/request';
 
-export interface RentIncrease {
-  id: number;
-  roomCode?: string;
-  year: number;
-  month: number;
-  lastRent: number;
-  currentRent: number;
-  increaseAmount: number;
-  increaseRate: number;
-  status: string;
-}
-
 export interface IncomeCost {
   id: number;
   period: string;
@@ -56,13 +44,7 @@ export interface Accounting {
   description?: string;
 }
 
-export function getRentIncreases(params?: { year?: number; month?: number; keyword?: string }) {
-  return get<{ list: RentIncrease[]; total: number }>('/finance/rent-increases', { params });
-}
 
-export function createRentIncrease(data: Partial<RentIncrease>) {
-  return post<RentIncrease>('/finance/rent-increases', data);
-}
 
 export function getIncomeCosts(params?: { period?: string; [key: string]: unknown }) {
   return get<{ list: IncomeCost[]; total: number }>('/finance/income-costs', { params });

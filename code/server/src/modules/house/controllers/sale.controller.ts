@@ -21,6 +21,20 @@ export class SaleTaxFeeDto {
   amount?: number | null;
 }
 
+export class SaleEmergencyContactDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsString()
+  @Matches(/^1\d{10}$/, { message: '紧急联系人电话须为 11 位手机号' })
+  phone: string;
+
+  @IsString()
+  @IsOptional()
+  relation?: string;
+}
+
 export class CreateSalePropertyDto {
   @IsString()
   @IsNotEmpty()
@@ -128,6 +142,10 @@ export class CreateSalePropertyDto {
   @IsOptional()
   isPublic?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  isOnlyProperty?: boolean;
+
   @IsString()
   @IsOptional()
   govVerifyCode?: string;
@@ -201,6 +219,21 @@ export class CreateSalePropertyDto {
   @Type(() => Number)
   floorPrice?: number;
 
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  downPayment?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  monthlyPayment?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  loanAmount?: number;
+
   @IsString()
   @IsOptional()
   taxType?: string;
@@ -223,6 +256,22 @@ export class CreateSalePropertyDto {
   certificateType?: string;
 
   @IsString()
+  @IsOptional()
+  propertyRights?: string;
+
+  @IsString()
+  @IsOptional()
+  propertyTerm?: string;
+
+  @IsString()
+  @IsOptional()
+  certificateTerm?: string;
+
+  @IsString()
+  @IsOptional()
+  acceptedPaymentMethods?: string;
+
+  @IsString()
   @IsNotEmpty()
   sourceChannel: string;
 
@@ -240,6 +289,26 @@ export class CreateSalePropertyDto {
   description?: string;
 
   @IsString()
+  @IsOptional()
+  ownerMentality?: string;
+
+  @IsString()
+  @IsOptional()
+  communityIntro?: string;
+
+  @IsString()
+  @IsOptional()
+  nearbySchool?: string;
+
+  @IsString()
+  @IsOptional()
+  taxDescription?: string;
+
+  @IsString()
+  @IsOptional()
+  advantages?: string;
+
+  @IsString()
   @IsNotEmpty()
   ownerName: string;
 
@@ -255,6 +324,21 @@ export class CreateSalePropertyDto {
   @IsString()
   @IsOptional()
   ownerPhoneBackup?: string;
+
+  @IsString()
+  @IsOptional()
+  ownerRemark?: string;
+
+  @IsArray()
+  @ArrayMaxSize(5)
+  @ValidateNested({ each: true })
+  @Type(() => SaleEmergencyContactDto)
+  @IsOptional()
+  emergencyContacts?: SaleEmergencyContactDto[];
+
+  @IsString()
+  @IsOptional()
+  followUpContent?: string;
 
   @IsNumber()
   @IsOptional()

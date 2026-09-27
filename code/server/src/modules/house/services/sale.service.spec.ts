@@ -62,6 +62,32 @@ describe('sale functional regressions', () => {
     await service.findAll({ status: 'price_negotiation' }, admin);
     expect(qb.andWhere).toHaveBeenCalledWith('s.status IN (:...statuses)', { statuses: ['price_negotiation', 'bargain'] });
   });
+  it('supports the reference-page filters, price unit conversion and sorting', async () => {
+    const { service, qb } = setup();
+    await service.findAll({
+      code: ' SJ ', community: '紫薇', propertyType: 'residence', isPublic: 'true',
+      minSalePrice: '100', maxSalePrice: '300', minArea: '80', maxArea: '120',
+      layoutRooms: '7', minQualityScore: '60', tag: '急售', sortBy: 'price_asc',
+    }, admin);
+    expect(qb.andWhere).toHaveBeenCalledWith('s.code ILIKE :code', { code: '%SJ%' });
+    expect(qb.andWhere).toHaveBeenCalledWith('community.name ILIKE :community', { community: '%紫薇%' });
+    expect(qb.andWhere).toHaveBeenCalledWith('s.isPublic = :isPublic', { isPublic: true });
+    expect(qb.andWhere).toHaveBeenCalledWith('s.salePrice >= :minSalePrice', { minSalePrice: 1000000 });
+    expect(qb.andWhere).toHaveBeenCalledWith('s.salePrice <= :maxSalePrice', { maxSalePrice: 3000000 });
+    expect(qb.andWhere).toHaveBeenCalledWith('s.layoutRooms >= :layoutRooms', { layoutRooms: 7 });
+    expect(qb.andWhere).toHaveBeenCalledWith('CAST(s.tags AS TEXT) ILIKE :tag', { tag: '%急售%' });
+    expect(qb.orderBy).toHaveBeenCalledWith('s.salePrice', 'ASC');
+  });
+  it('limits the mine scope to creator or maintainer and rejects inverted ranges', async () => {
+    const { service, qb } = setup();
+    await service.findAll({ scope: 'mine' }, admin);
+    const bracket = qb.andWhere.mock.calls.find(([value]: any[]) => value instanceof Brackets)[0];
+    const sub = { where: jest.fn().mockReturnThis(), orWhere: jest.fn().mockReturnThis() };
+    bracket.whereFactory(sub);
+    expect(sub.where).toHaveBeenCalledWith('s.creatorId = :scopeEmployeeId', { scopeEmployeeId: 1 });
+    expect(sub.orWhere).toHaveBeenCalledWith('s.maintainerId = :scopeEmployeeId', { scopeEmployeeId: 1 });
+    await expect(service.findAll({ minArea: 120, maxArea: 80 }, admin)).rejects.toThrow('最小面积不能大于最大面积');
+  });
   it('offers valid transitions for a legacy selling record and includes it in published results', async () => {
     const { service, qb } = setup();
     qb.getManyAndCount.mockResolvedValue([[{ id: 1, status: 'selling', salePrice: 100 }], 1]);

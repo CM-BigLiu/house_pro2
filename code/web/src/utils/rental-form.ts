@@ -1,5 +1,12 @@
 // 新增、编辑共用校验；空置房源不强制录入租客。
-export function rentalFormErrors(form: Record<string, any>, landlordRent: unknown, tenantRent: unknown) {
+export const rentalLandlordFields = [
+  'landlordId', 'landlordName', 'landlordPhone', 'landlordPhoneBackup', 'landlordIdCard',
+  'landlordBankName', 'landlordBankCard', 'landlordRent', 'landlordDeposit', 'leaseStart',
+  'leaseEnd', 'landlordPaymentMethod', 'rentFreePeriod', 'landlordRemark', 'emergencyContacts',
+  'viewingTime', 'viewingTimeAlt', 'followUpContent', 'isManaged',
+] as const;
+
+export function rentalFormErrors(form: Record<string, any>, landlordRent: unknown, tenantRent: unknown, canViewLandlordInfo = true) {
   const errors: Record<string, string> = {};
   const text = (key: string, label: string, value: unknown, required = true) => {
     if (required && (typeof value !== 'string' || !value.trim())) errors[key] = `请填写${label}`;
@@ -13,6 +20,14 @@ export function rentalFormErrors(form: Record<string, any>, landlordRent: unknow
   const phone = (key: string, value: unknown, required = false) => {
     if ((required || value) && !/^1\d{10}$/.test(String(value || '').trim())) errors[key] = '请填写 11 位手机号';
   };
+  const idCard = (key: string, value: unknown) => {
+    const normalized = String(value || '').trim();
+    if (normalized && !/^(\d{15}|\d{17}[\dXx])$/.test(normalized)) errors[key] = '请填写 15 或 18 位身份证号';
+  };
+  const bankCard = (key: string, value: unknown) => {
+    const normalized = String(value || '').replace(/\s+/g, '');
+    if (normalized && !/^\d{12,30}$/.test(normalized)) errors[key] = '请填写 12 至 30 位银行卡号';
+  };
   const dates = (key: string, start: string, end: string, required = false) => {
     if (!required && !start && !end) return;
     if (!start || !end || !Number.isFinite(Date.parse(start)) || !Number.isFinite(Date.parse(end))) errors[key] = '请选择完整有效的起止日期';
@@ -22,16 +37,21 @@ export function rentalFormErrors(form: Record<string, any>, landlordRent: unknow
   if (!['entire', 'shared'].includes(form.bizType)) errors.bizType = '请选择租赁方式';
   if (!Number.isInteger(form.communityId) || form.communityId <= 0) errors.communityId = '请选择小区';
   amount('buildingArea', '面积', form.buildingArea, true);
+  if (canViewLandlordInfo) {
   amount('landlordRent', '承租价', landlordRent);
   amount('landlordDeposit', '房东押金', form.landlordDeposit, false, false);
   phone('landlordPhone', form.landlordPhone);
+  idCard('landlordIdCard', form.landlordIdCard);
+  bankCard('landlordBankCard', form.landlordBankCard);
   dates('leaseDateRange', form.leaseStart, form.leaseEnd);
+  }
   if (form.bizType === 'entire') {
     const occupied = ['rented', 'checkout'].includes(form.status) || !!(form.tenantName || form.tenantPhone);
     amount('rent', '客租价', tenantRent, false, occupied);
     amount('deposit', '租客押金', form.deposit, false, occupied);
     text('tenantName', '租客姓名', form.tenantName, occupied);
     phone('tenantPhone', form.tenantPhone, occupied);
+    idCard('tenantIdCard', form.tenantIdCard);
     text('tenantPaymentMethod', '付款方式', form.tenantPaymentMethod, occupied);
     dates('tenantLeaseDateRange', form.tenantLeaseStart, form.tenantLeaseEnd, occupied);
   } else {
@@ -46,6 +66,7 @@ export function rentalFormErrors(form: Record<string, any>, landlordRent: unknow
       amount(prefix + 'depositAmount', '押金', room.depositAmount, false, occupied);
       text(prefix + 'tenantName', '租客姓名', room.tenantName, occupied);
       phone(prefix + 'tenantPhone', room.tenantPhone, occupied);
+      idCard(prefix + 'tenantIdCard', room.tenantIdCard);
       text(prefix + 'paymentMethod', '付款方式', room.paymentMethod, occupied);
       dates(prefix + 'leaseDateRange', room.leaseStart, room.leaseEnd, occupied);
     });

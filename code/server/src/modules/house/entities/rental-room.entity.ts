@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { RentalSet } from './rental-set.entity';
+import { encryptedTransformer } from '../../../common/transformers/encrypted.transformer';
 
 @Entity('house_rental_room')
 export class RentalRoom {
@@ -37,6 +38,9 @@ export class RentalRoom {
 
   @Column({ length: 30, nullable: true })
   tenantPhone: string;
+
+  @Column({ length: 255, nullable: true, transformer: encryptedTransformer })
+  tenantIdCard: string;
 
   @Column({ type: 'date', nullable: true })
   leaseEnd: string;

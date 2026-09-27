@@ -17,6 +17,12 @@ describe('租房新增编辑共用校验', () => {
     const result = rentalFormErrors({ ...valid, landlordPhone: '123', leaseStart: '2026-09-10', leaseEnd: '2026-09-01' }, 1, 1);
     expect(result.landlordPhone).toBeTruthy(); expect(result.leaseDateRange).toBeTruthy();
   });
+  it('已填写的身份证和银行卡必须格式正确', () => {
+    const result = rentalFormErrors({ ...valid, landlordIdCard: '123', landlordBankCard: 'abc' }, 1, 1);
+    expect(result).toHaveProperty('landlordIdCard');
+    expect(result).toHaveProperty('landlordBankCard');
+    expect(rentalFormErrors({ ...valid, landlordIdCard: '31010119900101123X', landlordBankCard: '6222020202020202020' }, 1, 1)).toEqual({});
+  });
   it('录入租客或已出租时须补齐租赁信息', () => {
     const result = rentalFormErrors({ ...valid, status: 'rented', deposit: '' }, 1, '');
     for (const key of ['rent','deposit','tenantName','tenantPhone','tenantPaymentMethod','tenantLeaseDateRange']) expect(result[key]).toBeTruthy();

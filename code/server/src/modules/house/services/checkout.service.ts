@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 import { Checkout } from '../entities/checkout.entity';
 import { RentalSet } from '../entities/rental-set.entity';
 import { RentalRoom } from '../entities/rental-room.entity';
@@ -10,6 +10,8 @@ import { Community } from '../entities/community.entity';
 import { matchingDeposits, settlementState } from './checkout-settlement';
 import { applyDataScope } from '../../../common/data-scope/data-scope.util';
 import { CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
+import { Deal } from '../entities/deal.entity';
+import { Customer } from '../entities/customer.entity';
 
 @Injectable()
 export class CheckoutService {
@@ -36,13 +38,25 @@ export class CheckoutService {
     return { list: list.map(item => ({ ...item, ...settlementState(item, matchingDeposits(item, deposits)) })), total };
   }
 
-  async create(data: Partial<Checkout>, user: CurrentUserPayload) {
+  async create(data: Partial<Checkout>, user: CurrentUserPayload, transactionManager?: EntityManager) {
     if (!Number.isInteger(data.rentalSetId) || data.rentalSetId <= 0) {
       throw new BadRequestException('退租必须关联出租房源');
     }
-    return this.checkoutRepo.manager.transaction(async (manager) => {
+    const execute = async (manager: EntityManager) => {
       // 锁定实际房源，校验、登记和房态更新在同一事务内完成，防止并发重复退租。
       const { rentalSet, target, room } = await this.lockTarget(manager, data, user);
+      const deal = await manager.getRepository(Deal).findOne({ where: data.contractCode
+        ? { contractCode: data.contractCode }
+        : { bizType: 'rent', propertyId: rentalSet.id, roomId: room?.id ?? IsNull(), status: 'active',
+            customerName: target.tenantName, leaseStart: (room ? room.leaseStart : rentalSet.tenantLeaseStart) ?? IsNull(),
+            leaseEnd: (room ? room.leaseEnd : rentalSet.tenantLeaseEnd) ?? IsNull() } });
+      if (deal) {
+        if (deal && (deal.propertyId !== rentalSet.id || (deal.roomId || null) !== (room?.id || null) ||
+          deal.customerName !== target.tenantName || (deal.customerPhone && deal.customerPhone !== target.tenantPhone) ||
+          deal.leaseStart !== (room ? room.leaseStart : rentalSet.tenantLeaseStart) || deal.leaseEnd !== (room ? room.leaseEnd : rentalSet.tenantLeaseEnd))) {
+          throw new BadRequestException('当前租客或租期与解约合同不一致，请核对后处理，不能影响新的租客');
+        }
+      }
       if (target.status !== 'rented') throw new BadRequestException('仅已出租的房源或房间可发起退租');
       const repo = manager.getRepository(Checkout);
       const duplicateQb = repo.createQueryBuilder('c')
@@ -54,7 +68,7 @@ export class CheckoutService {
       const community = await manager.getRepository(Community).findOne({ where: { id: rentalSet.communityId } });
       const houseInfo = `${community?.name || rentalSet.address} ${rentalSet.building}-${rentalSet.unit}-${rentalSet.roomNo}${room ? ` ${room.roomNo}室` : ''}`;
       const record = repo.create({
-        contractCode: data.contractCode || `CO${Date.now()}${randomUUID().slice(0, 8)}`,
+        contractCode: deal?.contractCode || data.contractCode || `CO${Date.now()}${randomUUID().slice(0, 8)}`,
         houseInfo,
         tenantName: target.tenantName || data.tenantName,
         rentalSetId: rentalSet.id,
@@ -71,8 +85,14 @@ export class CheckoutService {
       target.status = 'checkout';
       if (room) await manager.getRepository(RentalRoom).save(room);
       else await manager.getRepository(RentalSet).save(rentalSet);
-      return repo.save(record);
-    });
+      const saved = await repo.save(record);
+      // 从房源入口发起退租也同步成交合同，避免两个入口状态不一致。
+      if (deal) await manager.getRepository(Deal).update(
+        { id: deal.id, status: 'active' },
+        { checkoutId: saved.id, status: 'termination_pending', terminatedOn: data.checkoutDate, terminationReason: data.reason });
+      return saved;
+    };
+    return transactionManager ? execute(transactionManager) : this.checkoutRepo.manager.transaction(execute);
   }
 
   async findOne(id: number, user: CurrentUserPayload) {
@@ -108,6 +128,17 @@ export class CheckoutService {
       }
       checkout.status = 'confirmed';
       checkout.confirmedAt = new Date();
+      const dealRepo = manager.getRepository(Deal);
+      const deal = await dealRepo.findOne({ where: { checkoutId: checkout.id } });
+      if (deal) {
+        deal.status = 'terminated'; await dealRepo.save(deal);
+        if (deal.customerId) {
+          const count = await dealRepo.createQueryBuilder('d')
+            .where('d.customerId = :customerId AND d.status IN (:...statuses)',
+              { customerId: deal.customerId, statuses: ['active', 'termination_pending'] }).getCount();
+          if (!count) await manager.getRepository(Customer).update({ id: deal.customerId, status: 'done' }, { status: 'active' });
+        }
+      }
       return manager.getRepository(Checkout).save(checkout);
     });
   }

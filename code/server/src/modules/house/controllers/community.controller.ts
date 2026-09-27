@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Put, Delete, Param, Query, UseGuards } from '@nestjs/common';
 import { PartialType } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CommunityService } from '../services/community.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -28,11 +28,29 @@ class CreateCommunityDto {
 
   @IsString()
   @IsOptional()
-  businessCircle?: string;
+  district?: string;
 
   @IsString()
   @IsOptional()
-  address?: string;
+  businessCircle?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  address: string;
+
+  @IsString()
+  @IsOptional()
+  propertyType?: string;
+
+  @IsString()
+  @IsOptional()
+  supplement?: string;
+
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @IsOptional()
+  photos?: string[];
 
   @IsNumber()
   @IsOptional()

@@ -52,7 +52,7 @@ export class ArrearController {
   }
 
   @Post()
-  @RequirePermission('finance:bill:modify')
+  @RequirePermission('finance:arrears:modify')
   async create(@Body() data: CreateArrearDto) {
     return this.arrearService.create(data);
   }

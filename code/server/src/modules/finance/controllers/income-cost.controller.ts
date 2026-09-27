@@ -83,7 +83,7 @@ export class IncomeCostController {
   }
 
   @Post()
-  @RequirePermission('finance:bill:modify')
+  @RequirePermission('finance:income_cost:modify')
   async create(@Body() data: CreateIncomeCostDto) {
     return this.service.create(data);
   }

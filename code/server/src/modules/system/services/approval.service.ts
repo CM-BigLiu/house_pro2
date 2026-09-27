@@ -8,7 +8,6 @@ import { StateMachineService } from '../../../common/services/state-machine.serv
 import { EventsGateway } from '../../events/events.gateway';
 import { SaleProperty } from '../../house/entities/sale-property.entity';
 import { RentalRoom } from '../../house/entities/rental-room.entity';
-import { Bill } from '../../finance/entities/bill.entity';
 import { Invoice } from '../../finance/entities/invoice.entity';
 
 export interface SubmitApprovalInput {
@@ -32,8 +31,6 @@ export class ApprovalService {
     private saleRepo: Repository<SaleProperty>,
     @InjectRepository(RentalRoom)
     private roomRepo: Repository<RentalRoom>,
-    @InjectRepository(Bill)
-    private billRepo: Repository<Bill>,
     @InjectRepository(Invoice)
     private invoiceRepo: Repository<Invoice>,
     private stateMachine: StateMachineService,
@@ -185,7 +182,7 @@ export class ApprovalService {
     switch (entityType) {
       case 'sale_property': return get(SaleProperty, this.saleRepo);
       case 'rental_room': return get(RentalRoom, this.roomRepo);
-      case 'bill': return get(Bill, this.billRepo);
+      case 'bill': throw new BadRequestException('账单功能已退休，不再处理账单状态变更');
       case 'invoice': return get(Invoice, this.invoiceRepo);
       default: throw new BadRequestException(`不支持的审批业务类型：${entityType}`);
     }

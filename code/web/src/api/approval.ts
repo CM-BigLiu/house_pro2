@@ -41,7 +41,6 @@ export function rejectApproval(id: number, remark?: string) {
 const statusEndpoints: Record<string, string> = {
   sale_property: '/house/sale-properties',
   rental_room: '/house/rental-rooms',
-  bill: '/finance/bills',
   invoice: '/finance/invoices',
 };
 

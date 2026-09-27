@@ -12,7 +12,12 @@ vi.mock('@/stores/dict', () => ({
   useDictStore: () => ({
     ensureLoaded: vi.fn().mockResolvedValue(undefined),
     getLabel: (_type: string, value: string) => value,
+    getItems: () => [],
   }),
+}));
+vi.mock('@/api/organization', () => ({
+  getStores: vi.fn().mockResolvedValue([]),
+  getEmployees: vi.fn().mockResolvedValue({ list: [], total: 0 }),
 }));
 vi.mock('@/api/sale', () => ({
   getSaleProperties: vi.fn(),
@@ -76,5 +81,12 @@ describe('售房管理列表', () => {
     await nextTick();
 
     expect(root.textContent).toContain('紫薇苑 · 8号楼2单元1801');
+    expect(root.textContent).toContain('租售房源');
+    expect(root.textContent).toContain('成交房源');
+    expect(root.textContent).toContain('公私盘');
+    expect(root.textContent).toContain('验真状态');
+    expect(root.textContent).toContain('房源质量');
+    expect(root.textContent).toContain('跟进情况');
+    expect(root.textContent).toContain('发布时间');
   });
 });

@@ -32,7 +32,9 @@ export class CommunityService {
       }));
     }
     if (query.cityId) qb.andWhere('c.cityId = :cityId', { cityId: query.cityId });
+    if (query.district) qb.andWhere('c.district ILIKE :district', { district: `%${String(query.district).trim()}%` });
     if (query.businessCircle) qb.andWhere('c.businessCircle = :businessCircle', { businessCircle: query.businessCircle });
+    if (query.propertyType) qb.andWhere('c.propertyType = :propertyType', { propertyType: query.propertyType });
     qb.orderBy('c.id', 'DESC');
     const [list, total] = await qb
       .skip(((query.page || 1) - 1) * (query.pageSize || 20))

@@ -10,6 +10,7 @@ export interface CurrentUserPayload {
   dataScope: string;
   customScope?: Record<string, any>;
   permissions: string[];
+  roleCodes?: string[];
 }
 
 export const CurrentUser = createParamDecorator(

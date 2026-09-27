@@ -3,7 +3,7 @@ import { RentalService } from './rental.service';
 
 function queryBuilderMock() {
   const qb: any = {};
-  ['leftJoinAndSelect', 'where', 'andWhere', 'skip', 'take'].forEach((method) => {
+  ['leftJoinAndSelect', 'where', 'andWhere', 'orderBy', 'skip', 'take'].forEach((method) => {
     qb[method] = jest.fn().mockReturnValue(qb);
   });
   qb.getManyAndCount = jest.fn().mockResolvedValue([[], 0]);
@@ -57,6 +57,23 @@ describe('RentalService.findSets', () => {
     expect(sub.orWhere).toHaveBeenCalledWith('community.name ILIKE :keyword', { keyword: '%汤臣%' });
     expect(sub.orWhere).toHaveBeenCalledWith('rooms.roomNo ILIKE :keyword', { keyword: '%汤臣%' });
   });
+
+  it('applies compound ERP list filters and an explicit sort order', async () => {
+    const qb = queryBuilderMock();
+    const service = new RentalService({ createQueryBuilder: jest.fn().mockReturnValue(qb) } as any, {} as any);
+
+    await service.findSets({
+      storeId: '2', salesmanId: '7', district: ' 浦东 ', operationStatus: 'normal',
+      businessStatus: 'pending_collection', sortBy: 'lease_end',
+    }, { employeeId: 1, dataScope: 'company' } as any);
+
+    expect(qb.andWhere).toHaveBeenCalledWith('rs.storeId = :storeId', { storeId: 2 });
+    expect(qb.andWhere).toHaveBeenCalledWith('rs.salesmanId = :salesmanId', { salesmanId: 7 });
+    expect(qb.andWhere).toHaveBeenCalledWith('rs.district ILIKE :district', { district: '%浦东%' });
+    expect(qb.andWhere).toHaveBeenCalledWith('rs.operationStatus = :operationStatus', { operationStatus: 'normal' });
+    expect(qb.andWhere).toHaveBeenCalledWith('rs.businessStatus = :businessStatus', { businessStatus: 'pending_collection' });
+    expect(qb.orderBy).toHaveBeenCalledWith('rs."tenantLeaseEnd"', 'ASC', 'NULLS LAST');
+  });
 });
 
 describe('RentalService.updateSet', () => {
@@ -97,24 +114,34 @@ describe('RentalService.updateSet', () => {
     await service.updateSet(1, {
       tenantLeaseStart: '',
       tenantLeaseEnd: '',
-      landlordName: 'QA房东', landlordDeposit: 5000, tenantPhone: '13000000000', deposit: 1000,
-      rooms: [{ id: 10, roomNo: 'A', leaseStart: '2026-09-09', leaseEnd: '', tenantName: 'QA租客' }],
+      floor: '10', totalFloor: 18, orientation: 'south', tags: ['subway'],
+      landlordName: 'QA房东', landlordIdCard: '310101197801011234', landlordDeposit: 5000,
+      tenantPhone: '13000000000', tenantIdCard: '310101199201011234', deposit: 1000,
+      rooms: [{ id: 10, roomNo: 'A', leaseStart: '2026-09-09', leaseEnd: '', tenantName: 'QA租客', tenantIdCard: '310101199301011234' }],
     }, { employeeId: 1, dataScope: 'company', permissions: ['*'] } as any);
 
     expect(setTransactionRepo.create).toHaveBeenCalledWith(expect.objectContaining({
       tenantLeaseStart: null,
       tenantLeaseEnd: null,
-      landlordName: 'QA房东', landlordDeposit: 5000, tenantPhone: '13000000000', deposit: 1000,
+      floor: '10', totalFloor: 18, orientation: 'south', tags: ['subway'],
+      landlordName: 'QA房东', landlordIdCard: '310101197801011234', landlordDeposit: 5000,
+      tenantPhone: '13000000000', tenantIdCard: '310101199201011234', deposit: 1000,
     }));
     expect(roomTransactionRepo.create).toHaveBeenCalledWith(expect.objectContaining({
       id: 10,
       leaseEnd: null,
-      leaseStart: '2026-09-09', tenantName: 'QA租客',
+      leaseStart: '2026-09-09', tenantName: 'QA租客', tenantIdCard: '310101199301011234',
     }));
   });
 });
 
 describe('RentalService.createSet', () => {
+  it('rejects arbitrary regions for new Beijing rentals', async () => {
+    const transaction = jest.fn();
+    const service = new RentalService({ manager: { transaction } } as any, {} as any);
+    await expect(service.createSet({ district: '无效区域' })).rejects.toThrow('北京市所辖区域');
+    expect(transaction).not.toHaveBeenCalled();
+  });
   it('uses one transaction and normalizes optional dates without accepting caller ownership', async () => {
     const setRepo: any = { create: jest.fn(value => value), save: jest.fn(value => ({ ...value, id: 9 })) };
     const roomRepo: any = { create: jest.fn(value => value), save: jest.fn() };

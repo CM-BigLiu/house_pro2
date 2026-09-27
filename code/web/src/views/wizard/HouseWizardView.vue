@@ -4,13 +4,12 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, ArrowRight, Check, MapPin, Home, User, FileText } from 'lucide-vue-next';
 import { getCommunities, getCommunityBuildings, getCommunityUnits, getCommunityFloors, getCommunityRooms, type Community } from '@/api/community';
-import { createRentalSet, createSaleProperty, createReserveProperty, uploadImage } from '@/api/wizard';
+import { createRentalSet, createSaleProperty, uploadImage } from '@/api/wizard';
 import { checkBlacklist } from '@/api/blacklist';
 import { generateHouseCode } from '@/utils/code';
 import { useDictStore } from '@/stores/dict';
 import { useUserStore } from '@/stores/user';
 import { formatHouseAddress } from '@/utils/address';
-import { calculateUnitPrice } from '@/utils/sale-form';
 
 const router = useRouter();
 const dictStore = useDictStore();
@@ -27,7 +26,6 @@ const roomOptions = ref<{ id: number; name: string }[]>([]);
 
 const form = reactive({
   type: 'rent',
-  reserveType: 'rent' as 'rent' | 'sale',
   communityId: undefined as number | undefined,
   buildingId: undefined as number | undefined,
   unitId: undefined as number | undefined,
@@ -52,16 +50,12 @@ const form = reactive({
   rentPrice: undefined as number | undefined,
   depositAmount: undefined as number | undefined,
   totalPrice: undefined as number | undefined,
-  ownerQuote: undefined as number | undefined,
-  salePrice: undefined as number | undefined,
   unitPrice: undefined as number | undefined,
-  expectedPrice: undefined as number | undefined,
   ownerName: '',
   ownerIdCard: '',
   ownerPhone: '',
   ownerPhoneBackup: '',
   sourceChannel: '',
-  diskType: 'public',
   title: '',
   remark: '',
   tags: [] as string[],
@@ -73,7 +67,7 @@ const form = reactive({
 });
 
 const steps = [
-  { title: '选择房源类型', description: '租房/售房/储备', icon: FileText },
+  { title: '选择房源类型', description: '租房/售房', icon: FileText },
   { title: '填写位置信息', description: '小区、楼栋、房号', icon: MapPin },
   { title: '填写房屋信息', description: '面积、价格、装修', icon: Home },
   { title: '填写业主信息', description: '联系方式与备注', icon: User },
@@ -127,7 +121,7 @@ function applyTemplate(text: string) {
 }
 
 onMounted(async () => {
-  await dictStore.ensureLoaded(['decoration_level', 'orientation', 'source_channel', 'disk_type', 'house_tag']);
+  await dictStore.ensureLoaded(['decoration_level', 'orientation', 'source_channel', 'house_tag']);
   await loadCommunities();
   loadTemplates();
 });
@@ -208,13 +202,6 @@ function prev() {
 }
 
 function validateStep(step: number): boolean {
-  if (form.type === 'reserve') {
-    if (step === 3 && !form.communityId && !form.roomNo.trim() && !form.ownerName.trim() && !form.ownerPhone.trim() && !form.title.trim()) {
-      ElMessage.warning('请至少填写小区、房号、业主或标题中的一项');
-      return false;
-    }
-    return true;
-  }
   if (step === 1) {
     if (!form.communityId) { ElMessage.warning('请选择小区'); return false; }
     if (!form.buildingId) { ElMessage.warning('请选择楼栋'); return false; }
@@ -322,36 +309,9 @@ async function submit() {
         tags: form.tags,
         description: form.remark,
       });
-    } else {
-      await createReserveProperty({
-        reserveType: form.reserveType,
-        storeId,
-        communityId: form.communityId,
-        address: currentAddress.value,
-        roomNo: form.roomNo,
-        layout: `${form.layoutRooms}室${form.layoutHalls}厅${form.layoutBathrooms}卫`,
-        buildingArea: form.buildingArea,
-        decoration: form.decoration,
-        ownerName: form.ownerName,
-        ownerPhone: form.ownerPhone,
-        ownerQuote: form.expectedPrice,
-        sourceChannel: form.sourceChannel,
-        diskType: form.diskType,
-        details: form.reserveType === 'sale' ? {
-          title: form.title, propertyType: form.propertyType, building: form.building,
-          unit: form.unit, floor: form.floor, layoutRooms: form.layoutRooms,
-          layoutHalls: form.layoutHalls, layoutBathrooms: form.layoutBathrooms,
-          layoutBalconies: form.layoutBalconies, interiorArea: form.interiorArea,
-          orientation: form.orientation, elevator: form.elevator, tags: form.tags,
-          description: form.remark, unitPrice: calculateUnitPrice(form.expectedPrice, form.buildingArea),
-        } : {
-          bizType: form.bizType, building: form.building, unit: form.unit,
-          landlordRent: form.expectedPrice,
-        },
-      });
     }
     ElMessage.success('房源录入成功');
-    const routeMap: Record<string, string> = { rent: '/house/rent', sale: '/house/sale', reserve: '/house/reserve-house' };
+    const routeMap: Record<string, string> = { rent: '/house/rent', sale: '/house/sale' };
     router.push(routeMap[form.type]);
   } finally {
     submitting.value = false;
@@ -368,7 +328,7 @@ function generateCode(prefix: string) {
     <div class="page-header">
       <div>
         <div class="page-title">房源录入向导</div>
-        <div class="page-desc">统一 4 步录入流程，支持租房、售房、储备房源快速建档</div>
+        <div class="page-desc">统一 4 步录入流程，支持租房、售房快速建档</div>
       </div>
     </div>
 
@@ -389,7 +349,6 @@ function generateCode(prefix: string) {
               v-for="type in [
                 { value: 'rent', label: '租房', desc: '长租公寓 / 分散式房间' },
                 { value: 'sale', label: '售房', desc: '二手房 / 新房销售' },
-                { value: 'reserve', label: '储备房源', desc: '拿房签约前储备' },
               ]"
               :key="type.value"
               class="type-option"
@@ -401,20 +360,12 @@ function generateCode(prefix: string) {
               <Check v-if="form.type === type.value" class="type-check" :size="18" />
             </div>
           </div>
-          <el-form v-if="form.type === 'reserve'" :model="form" label-width="110px" style="margin-top: 20px;">
-            <el-form-item label="储备用途" required>
-              <el-radio-group v-model="form.reserveType">
-                <el-radio value="rent">租房储备</el-radio>
-                <el-radio value="sale">售房储备</el-radio>
-              </el-radio-group>
-            </el-form-item>
-          </el-form>
         </div>
 
         <!-- 步骤 2 -->
         <div v-if="activeStep === 1" class="step-form">
           <el-form :model="form" label-width="110px">
-            <el-form-item label="小区" :required="form.type !== 'reserve'">
+            <el-form-item label="小区" required>
               <el-select
                 v-model="form.communityId"
                 filterable
@@ -430,7 +381,7 @@ function generateCode(prefix: string) {
             </el-form-item>
             <el-row :gutter="16">
               <el-col :span="6">
-                <el-form-item label="楼栋" :required="form.type !== 'reserve'">
+                <el-form-item label="楼栋" required>
                   <el-select v-model="form.buildingId" placeholder="选择楼栋" style="width: 100%;" @change="onBuildingChange">
                     <el-option v-for="item in buildingOptions" :key="item.id" :label="item.name" :value="item.id" />
                   </el-select>
@@ -451,7 +402,7 @@ function generateCode(prefix: string) {
                 </el-form-item>
               </el-col>
               <el-col :span="6">
-                <el-form-item label="房号" :required="form.type !== 'reserve'">
+                <el-form-item label="房号" required>
                   <el-select v-model="form.roomId" placeholder="选择房号" style="width: 100%;" @change="onRoomChange">
                     <el-option v-for="item in roomOptions" :key="item.id" :label="item.name" :value="item.id" />
                   </el-select>
@@ -469,7 +420,7 @@ function generateCode(prefix: string) {
           <el-form :model="form" label-width="110px">
             <el-row :gutter="16">
               <el-col :span="12">
-                <el-form-item label="建筑面积" :required="form.type !== 'reserve'">
+                <el-form-item label="建筑面积" required>
                   <PlainNumberInput v-model="form.buildingArea" :min="0" :precision="2" style="width: 100%;" />
                 </el-form-item>
               </el-col>
@@ -487,7 +438,7 @@ function generateCode(prefix: string) {
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="装修" :required="form.type !== 'reserve'">
+                <el-form-item label="装修" required>
                   <el-select v-model="form.decoration" placeholder="装修" style="width: 100%;">
                     <el-option v-for="item in dictStore.getItems('decoration_level')" :key="item.value" :label="item.label" :value="item.value" />
                   </el-select>
@@ -583,23 +534,6 @@ function generateCode(prefix: string) {
               </el-form-item>
             </template>
 
-            <template v-if="form.type === 'reserve'">
-              <el-row :gutter="16">
-                <el-col :span="12">
-                  <el-form-item :label="form.reserveType === 'sale' ? '售价' : '房东报价'">
-                    <PlainNumberInput v-model="form.expectedPrice" :min="0" :precision="2" style="width: 100%;" /><MoneyUppercase :value="form.expectedPrice" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="公私盘">
-                    <el-radio-group v-model="form.diskType">
-                      <el-radio value="public">公盘</el-radio>
-                      <el-radio value="private">私盘</el-radio>
-                    </el-radio-group>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </template>
           </el-form>
         </div>
 
@@ -608,7 +542,7 @@ function generateCode(prefix: string) {
           <el-form :model="form" label-width="110px">
             <el-row :gutter="16">
               <el-col :span="12">
-                <el-form-item label="业主姓名" :required="form.type !== 'reserve'">
+                <el-form-item label="业主姓名" required>
                   <el-input v-model="form.ownerName" />
                 </el-form-item>
               </el-col>
@@ -620,7 +554,7 @@ function generateCode(prefix: string) {
             </el-row>
             <el-row :gutter="16">
               <el-col :span="12">
-                <el-form-item label="业主电话" :required="form.type !== 'reserve'">
+                <el-form-item label="业主电话" required>
                   <el-input v-model="form.ownerPhone" @blur="checkOwnerBlacklist" />
                 </el-form-item>
               </el-col>
@@ -630,12 +564,12 @@ function generateCode(prefix: string) {
                 </el-form-item>
               </el-col>
             </el-row>
-            <el-form-item label="来源渠道" :required="form.type !== 'reserve'">
+            <el-form-item label="来源渠道" required>
               <el-select v-model="form.sourceChannel" placeholder="来源渠道" style="width: 100%;">
                 <el-option v-for="item in dictStore.getItems('source_channel')" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
-            <el-form-item v-if="form.type === 'sale' || (form.type === 'reserve' && form.reserveType === 'sale')" label="房源标题">
+            <el-form-item v-if="form.type === 'sale'" label="房源标题">
               <el-input v-model="form.title" :placeholder="currentAddress" />
             </el-form-item>
             <el-row :gutter="16" v-if="form.type === 'sale'">

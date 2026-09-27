@@ -1,3 +1,4 @@
+import { Deal } from '../entities/deal.entity';
 import { CheckoutService } from './checkout.service';
 import { Checkout } from '../entities/checkout.entity';
 import { RentalRoom } from '../entities/rental-room.entity';
@@ -28,6 +29,7 @@ function setup(entire = false) {
   const roomRepo = { findOne: jest.fn(async () => room), save: jest.fn(async data => data) };
   const setRepo = { createQueryBuilder: jest.fn(() => queryBuilder(() => rentalSet)), save: jest.fn(async data => data) };
   const manager: any = { getRepository: jest.fn(entity => {
+    if (entity === Deal) return { findOne: jest.fn().mockResolvedValue(null), update: jest.fn() };
     if (entity === Checkout) return checkoutTxRepo;
     if (entity === RentalRoom) return roomRepo;
     if (entity === RentalSet) return setRepo;

@@ -80,30 +80,17 @@ export const dictSeedData: Record<string, { value: string; label: string; group?
     { value: 'published', label: '已发布' },
     { value: 'bargain', label: '议价中' },
     { value: 'not_rented', label: '未租' },
+    { value: 'vacant', label: '待租' },
     { value: 'rented', label: '已租' },
+    { value: 'checkout', label: '已退租' },
     { value: 'sold', label: '已售' },
     { value: 'pause', label: '暂不租' },
     { value: 'taken', label: '已拿房成交' },
     { value: 'signed', label: '已签约' },
     { value: 'deposit', label: '已交定' },
   ],
-  disk_type: [
-    { value: 'public', label: '公盘' },
-    { value: 'private', label: '私盘' },
-  ],
-  demand_type: [
-    { value: 'rent', label: '租房' },
-    { value: 'sale', label: '买房' },
-    { value: 'both', label: '租/买均可' },
-  ],
-  urgency: [
-    { value: 'urgent', label: '紧急' },
-    { value: 'normal', label: '一般' },
-    { value: 'long_term', label: '长期' },
-  ],
   customer_status: [
     { value: 'not_rented', label: '未租' },
-    { value: 'converted', label: '已转正式客户' },
     { value: 'rented', label: '已租' },
     { value: 'pause', label: '暂不租' },
     { value: 'no_answer', label: '电话未接听' },
@@ -190,7 +177,6 @@ export const dictSeedData: Record<string, { value: string; label: string; group?
   biz_type: [
     { value: 'rent', label: '租房' },
     { value: 'sale', label: '售房' },
-    { value: 'reserve', label: '储备' },
   ],
   orientation: [
     { value: 'south', label: '南' },

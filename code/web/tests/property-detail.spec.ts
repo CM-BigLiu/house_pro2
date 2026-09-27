@@ -19,6 +19,14 @@ async function mount() {
 beforeEach(() => { route.name = 'RentDetail'; route.query = {}; vi.clearAllMocks(); });
 afterEach(() => { app?.unmount(); document.body.innerHTML = ''; });
 describe('read-only property details', () => {
+  it.each([true, false])('房东详情只在服务端授权时显示：%s', async allowed => {
+    vi.mocked(getHouseDetail).mockResolvedValue({ ...fixture(), property: {
+      ...fixture().property, canViewLandlordInfo: allowed, landlordName: '私有房东', landlordRent: 1000,
+    } });
+    const root = await mount();
+    expect(root.textContent?.includes('业主与收房信息')).toBe(allowed);
+    expect(root.textContent?.includes('私有房东')).toBe(allowed);
+  });
   it('shows all shared rooms and honest empty history states', async () => {
     vi.mocked(getHouseDetail).mockResolvedValue(fixture()); const root = await mount();
     expect(root.textContent).toContain('A租客'); expect(root.textContent).toContain('B租客');

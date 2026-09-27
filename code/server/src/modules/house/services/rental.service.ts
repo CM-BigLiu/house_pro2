@@ -6,6 +6,8 @@ import { RentalRoom } from '../entities/rental-room.entity';
 import { Checkout } from '../entities/checkout.entity';
 import { applyDataScope } from '../../../common/data-scope/data-scope.util';
 import { CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
+import { BEIJING_DISTRICTS } from '../../../common/constants/beijing-districts';
+import { canAccessRentalLandlord, filterRentalLandlord, isRentalAdministrator, RENTAL_LANDLORD_FIELDS } from '../../../common/utils/rental-privacy.util';
 
 type RentalSetInput = Omit<Partial<RentalSet>, 'rooms'> & {
   rooms?: Partial<RentalRoom>[];
@@ -20,7 +22,7 @@ export class RentalService {
     private roomRepo: Repository<RentalRoom>,
   ) {}
 
-  private mapSet(rs: RentalSet) {
+  private mapSet(rs: RentalSet, user: CurrentUserPayload) {
     const rooms = rs.rooms || [];
     const rent = rs.bizType === 'entire'
       ? Number(rs.rent || 0)
@@ -28,7 +30,7 @@ export class RentalService {
     const deposit = rs.bizType === 'entire'
       ? Number(rs.deposit || 0)
       : rooms.reduce((sum, room) => sum + Number(room.depositAmount || 0), 0);
-    return {
+    return filterRentalLandlord({
       ...rs,
       communityName: rs.community?.name || '',
       landlordDeposit: Number(rs.landlordDeposit || 0),
@@ -36,7 +38,7 @@ export class RentalService {
       deposit,
       roomCount: rooms.length,
       vacantCount: rooms.filter((room) => room.status === 'vacant').length,
-    };
+    }, user);
   }
 
   private async findScopedSet(id: number, user: CurrentUserPayload) {
@@ -85,17 +87,75 @@ export class RentalService {
           .orWhere('rooms.roomNo ILIKE :keyword', { keyword: `%${keyword}%` });
       }));
     }
+    const likeFilters: Array<[string, string]> = [
+      ['code', 'rs.code'],
+      ['layout', 'rs.layout'],
+      ['district', 'rs.district'],
+      ['address', 'rs.address'],
+      ['building', 'rs.building'],
+      ['unit', 'rs.unit'],
+      ['landlordPhone', 'rs.landlordPhone'],
+    ];
+    for (const [key, column] of likeFilters) {
+      const value = typeof query[key] === 'string' ? query[key].trim() : '';
+      if (value && key === 'landlordPhone' && !isRentalAdministrator(user)) {
+        qb.andWhere('rs.creatorId = :landlordOwnerId', { landlordOwnerId: user.employeeId });
+      }
+      if (value) qb.andWhere(`${column} ILIKE :${key}`, { [key]: `%${value}%` });
+    }
+    const roomNo = typeof query.roomNo === 'string' ? query.roomNo.trim() : '';
+    if (roomNo) {
+      qb.andWhere(new Brackets((sub) => {
+        sub.where('rs.roomNo ILIKE :roomNo', { roomNo: `%${roomNo}%` })
+          .orWhere('rooms.roomNo ILIKE :roomNo', { roomNo: `%${roomNo}%` });
+      }));
+    }
+    for (const field of ['storeId', 'salesmanId', 'housekeeperId'] as const) {
+      const value = Number(query[field]);
+      if (Number.isFinite(value) && value > 0) {
+        qb.andWhere(`rs.${field} = :${field}`, { [field]: value });
+      }
+    }
+    if (query.paymentMethod) {
+      qb.andWhere(new Brackets((sub) => {
+        sub.where('rs.tenantPaymentMethod = :paymentMethod', { paymentMethod: query.paymentMethod })
+          .orWhere('rooms.paymentMethod = :paymentMethod', { paymentMethod: query.paymentMethod });
+      }));
+    }
+    if (query.leaseTerm) {
+      qb.andWhere(new Brackets((sub) => {
+        sub.where('rs.leaseTerm = :leaseTerm', { leaseTerm: query.leaseTerm })
+          .orWhere('rooms.leaseTerm = :leaseTerm', { leaseTerm: query.leaseTerm });
+      }));
+    }
+    if (query.operationStatus) {
+      qb.andWhere('rs.operationStatus = :operationStatus', { operationStatus: query.operationStatus });
+    }
+    if (query.businessStatus) {
+      qb.andWhere('rs.businessStatus = :businessStatus', { businessStatus: query.businessStatus });
+    }
+    for (const field of ['propertyType', 'orientation', 'decoration', 'sourceChannel'] as const) {
+      if (query[field]) qb.andWhere(`rs.${field} = :${field}`, { [field]: query[field] });
+    }
+    if (query.scope === 'mine') qb.andWhere('rs.creatorId = :scopeCreatorId', { scopeCreatorId: user.employeeId });
     applyDataScope(qb, user, 'rs', { ownerField: 'creatorId', groupField: 'groupId' });
+    if (query.sortBy === 'rent_desc') qb.orderBy('rs.rent', 'DESC', 'NULLS LAST');
+    else if (query.sortBy === 'rent_asc') qb.orderBy('rs.rent', 'ASC', 'NULLS LAST');
+    else if (query.sortBy === 'lease_end') {
+      qb.orderBy(isRentalAdministrator(user)
+        ? 'COALESCE(rs."tenantLeaseEnd", rs."leaseEnd")'
+        : 'rs."tenantLeaseEnd"', 'ASC', 'NULLS LAST');
+    } else qb.orderBy('rs.createdAt', 'DESC');
     const [list, total] = await qb
       .skip(((query.page || 1) - 1) * (query.pageSize || 20))
       .take(query.pageSize || 20)
       .getManyAndCount();
-    const mapped = list.map((rs) => this.mapSet(rs));
+    const mapped = list.map((rs) => this.mapSet(rs, user));
     return { list: mapped, total };
   }
 
   async findSet(id: number, user: CurrentUserPayload) {
-    return this.mapSet(await this.findScopedSet(id, user));
+    return this.mapSet(await this.findScopedSet(id, user), user);
   }
 
   async updateSet(
@@ -104,6 +164,13 @@ export class RentalService {
     user: CurrentUserPayload,
   ) {
     const existing = await this.findScopedSet(id, user);
+    if (!canAccessRentalLandlord(existing, user)
+      && RENTAL_LANDLORD_FIELDS.some(field => data[field] !== undefined)) {
+      throw new ForbiddenException('仅填写人和管理员可修改房东与收房信息或托管状态');
+    }
+    if (data.isManaged !== undefined && typeof data.isManaged !== 'boolean') throw new BadRequestException('托管状态须为布尔值');
+    if (data.isManaged === true) this.validateManagement({ ...existing, ...data });
+    if (data.district !== undefined && data.district !== existing.district) this.validateDistrict(data.district);
     if (
       data.storeId !== undefined
       && Number(data.storeId) !== Number(existing.storeId)
@@ -114,12 +181,19 @@ export class RentalService {
 
     const allowedSetFields: (keyof RentalSet)[] = [
       'code', 'bizType', 'communityId', 'address', 'building', 'unit', 'roomNo',
-      'layout', 'buildingArea', 'interiorArea', 'businessCircle', 'decoration',
-      'landlordRent', 'landlordDeposit', 'rent', 'leaseStart', 'leaseEnd', 'rentFreePeriod', 'status',
+      'floor', 'totalFloor', 'layout', 'buildingArea', 'interiorArea', 'businessCircle', 'district',
+      'propertyType', 'orientation', 'elevator', 'decoration', 'sourceChannel', 'tags', 'description',
+      'title', 'communityIntro', 'nearbySchool', 'taxDescription', 'advantages', 'facilities',
+      'landlordRent', 'landlordDeposit', 'rent', 'leaseStart', 'leaseEnd',
+      'landlordPaymentMethod', 'rentFreePeriod', 'status',
       'storeId', 'groupId', 'landlordId', 'salesmanId', 'housekeeperId',
       'tenantLeaseStart', 'tenantLeaseEnd',
-      'landlordName', 'landlordPhone', 'tenantName', 'tenantPhone',
+      'landlordName', 'landlordPhone', 'landlordPhoneBackup', 'landlordRemark', 'emergencyContacts',
+      'viewingTime', 'viewingTimeAlt', 'followUpContent', 'images',
+      'landlordIdCard', 'landlordBankCard', 'landlordBankName',
+      'tenantName', 'tenantPhone', 'tenantIdCard',
       'tenantPaymentMethod', 'deposit',
+      'isManaged',
     ];
     const setChanges: Partial<RentalSet> = {};
     const nullableDateFields = new Set<keyof RentalSet>([
@@ -174,7 +248,7 @@ export class RentalService {
           'roomNo', 'roomType', 'rentPrice', 'listedPrice', 'status', 'leaseEnd',
           'paymentMethod', 'leaseTerm', 'renovationProgress', 'cohabitantIds',
           'leaseDuration', 'arrearDays', 'depositAmount', 'paymentStatus', 'tenantId',
-          'leaseStart', 'tenantName', 'tenantPhone',
+          'leaseStart', 'tenantName', 'tenantPhone', 'tenantIdCard',
         ];
         const roomsToSave = incomingRooms.map((room) => {
           const current = room.id === undefined ? undefined : currentRoomById.get(Number(room.id));
@@ -202,6 +276,9 @@ export class RentalService {
   }
 
   async createSet(data: RentalSetInput, user?: CurrentUserPayload) {
+    this.validateDistrict(data.district);
+    if (data.isManaged !== undefined && typeof data.isManaged !== 'boolean') throw new BadRequestException('托管状态须为布尔值');
+    if (data.isManaged === true) this.validateManagement(data);
     const storeId = data.storeId ?? user?.storeIds?.[0];
     if (user && user.dataScope !== 'company' && !user.storeIds?.includes(Number(storeId))) {
       throw new ForbiddenException('无权在该门店新增房源');
@@ -211,11 +288,14 @@ export class RentalService {
       const roomRepo = manager.getRepository(RentalRoom);
       const { rooms: incomingRooms, ...setData } = data;
       delete setData.id;
+      delete setData.operationStatus;
+      delete setData.businessStatus;
+      delete setData.leaseTerm;
       for (const field of ['leaseStart', 'leaseEnd', 'tenantLeaseStart', 'tenantLeaseEnd']) {
         if (setData[field] === '') setData[field] = null;
       }
       const saved = await setRepo.save(setRepo.create({
-        ...setData, storeId, creatorId: user?.employeeId,
+        ...setData, operationStatus: 'normal', businessStatus: 'normal', storeId, creatorId: user?.employeeId,
       }));
       if (incomingRooms?.length) {
         const rooms = incomingRooms.map(({ id: _roomId, ...room }) => roomRepo.create({
@@ -229,6 +309,20 @@ export class RentalService {
       }
       return saved;
     });
+  }
+
+  private validateDistrict(district?: string) {
+    if (district && !BEIJING_DISTRICTS.includes(district)) throw new BadRequestException('请选择北京市所辖区域');
+  }
+
+  private validateManagement(data: RentalSetInput) {
+    if (!data.landlordName?.trim() || !/^1\d{10}$/.test(data.landlordPhone?.trim() || '')
+      || data.landlordRent == null || !Number.isFinite(Number(data.landlordRent)) || Number(data.landlordRent) < 0
+      || !data.leaseStart || !data.leaseEnd || !Number.isFinite(Date.parse(data.leaseStart))
+      || !Number.isFinite(Date.parse(data.leaseEnd)) || data.leaseStart > data.leaseEnd
+      || !data.landlordPaymentMethod?.trim()) {
+      throw new BadRequestException('托管前请补齐房东姓名、有效手机号、承租价、承租期和房东缴费方式');
+    }
   }
 
   async removeSet(id: number, user: CurrentUserPayload) {

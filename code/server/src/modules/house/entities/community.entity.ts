@@ -24,10 +24,22 @@ export class Community {
   districtId: number;
 
   @Column({ length: 100, nullable: true })
+  district: string;
+
+  @Column({ length: 100, nullable: true })
   businessCircle: string;
 
   @Column({ length: 255, nullable: true })
   address: string;
+
+  @Column({ length: 100, nullable: true })
+  propertyType: string;
+
+  @Column({ type: 'text', nullable: true })
+  supplement: string;
+
+  @Column('simple-json', { nullable: true })
+  photos: string[];
 
   @Column({ type: 'decimal', precision: 10, scale: 6, nullable: true })
   longitude: number;

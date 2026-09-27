@@ -51,6 +51,13 @@ export class SaleService {
     return ({ selling: SaleStatus.PUBLISHED, bargain: SaleStatus.PRICE_NEGOTIATION })[status] || status;
   }
 
+  private queryNumber(value: unknown, label: string) {
+    if (value === undefined || value === null || value === '') return undefined;
+    const result = Number(value);
+    if (!Number.isFinite(result)) throw new BadRequestException(`${label}参数无效`);
+    return result;
+  }
+
   async findAll(query: any, user: CurrentUserPayload) {
     this.require(user, 'house:sale');
     const qb = this.scoped(user);
@@ -60,6 +67,85 @@ export class SaleService {
           sub.orWhere(`${field} ILIKE :kw`, { kw: `%${query.keyword.trim()}%` });
         }
       }));
+    }
+
+    const fuzzyFilters: Array<[string, string]> = [
+      ['code', 's.code'], ['community', 'community.name'], ['building', 's.building'],
+      ['unit', 's.unit'], ['roomNo', 's.roomNo'],
+    ];
+    for (const [key, field] of fuzzyFilters) {
+      const value = query[key]?.trim?.();
+      if (value) qb.andWhere(`${field} ILIKE :${key}`, { [key]: `%${value}%` });
+    }
+
+    const exactFilters: Array<[string, string]> = [
+      ['propertyType', 's.propertyType'], ['decoration', 's.decoration'],
+      ['orientation', 's.orientation'], ['sourceChannel', 's.sourceChannel'],
+    ];
+    for (const [key, field] of exactFilters) {
+      if (query[key]) qb.andWhere(`${field} = :${key}`, { [key]: query[key] });
+    }
+
+    for (const [key, field, label] of [
+      ['maintainerId', 's.maintainerId', '维护人'], ['storeId', 's.storeId', '门店'],
+    ] as const) {
+      const value = this.queryNumber(query[key], label);
+      if (value !== undefined) qb.andWhere(`${field} = :${key}`, { [key]: value });
+    }
+
+    for (const [key, field, label] of [
+      ['isPublic', 's.isPublic', '公私盘'], ['verified', 's.verified', '验真状态'],
+    ] as const) {
+      if (query[key] !== undefined && query[key] !== '') {
+        if (![true, false, 'true', 'false'].includes(query[key])) throw new BadRequestException(`${label}参数无效`);
+        qb.andWhere(`${field} = :${key}`, { [key]: query[key] === true || query[key] === 'true' });
+      }
+    }
+
+    const minSalePrice = this.queryNumber(query.minSalePrice, '最低售价');
+    const maxSalePrice = this.queryNumber(query.maxSalePrice, '最高售价');
+    const minArea = this.queryNumber(query.minArea, '最小面积');
+    const maxArea = this.queryNumber(query.maxArea, '最大面积');
+    const minFloor = this.queryNumber(query.minFloor, '最低楼层');
+    const maxFloor = this.queryNumber(query.maxFloor, '最高楼层');
+    const minQualityScore = this.queryNumber(query.minQualityScore, '最低质量分');
+    const maxQualityScore = this.queryNumber(query.maxQualityScore, '最高质量分');
+    const buildYearFrom = this.queryNumber(query.buildYearFrom, '最早建筑年代');
+    const buildYearTo = this.queryNumber(query.buildYearTo, '最近建筑年代');
+    const layoutRooms = this.queryNumber(query.layoutRooms, '户型');
+
+    if (minSalePrice !== undefined && maxSalePrice !== undefined && minSalePrice > maxSalePrice) throw new BadRequestException('最低售价不能大于最高售价');
+    if (minArea !== undefined && maxArea !== undefined && minArea > maxArea) throw new BadRequestException('最小面积不能大于最大面积');
+    if (minFloor !== undefined && maxFloor !== undefined && minFloor > maxFloor) throw new BadRequestException('最低楼层不能大于最高楼层');
+    if (minQualityScore !== undefined && maxQualityScore !== undefined && minQualityScore > maxQualityScore) throw new BadRequestException('最低质量分不能大于最高质量分');
+    if (buildYearFrom !== undefined && buildYearTo !== undefined && buildYearFrom > buildYearTo) throw new BadRequestException('最早建筑年代不能大于最近建筑年代');
+
+    if (minSalePrice !== undefined) qb.andWhere('s.salePrice >= :minSalePrice', { minSalePrice: minSalePrice * 10000 });
+    if (maxSalePrice !== undefined) qb.andWhere('s.salePrice <= :maxSalePrice', { maxSalePrice: maxSalePrice * 10000 });
+    if (minArea !== undefined) qb.andWhere('s.buildingArea >= :minArea', { minArea });
+    if (maxArea !== undefined) qb.andWhere('s.buildingArea <= :maxArea', { maxArea });
+    const numericFloor = "CAST(NULLIF(SUBSTRING(s.floor FROM '-?[0-9]+'), '') AS INTEGER)";
+    if (minFloor !== undefined) qb.andWhere(`${numericFloor} >= :minFloor`, { minFloor });
+    if (maxFloor !== undefined) qb.andWhere(`${numericFloor} <= :maxFloor`, { maxFloor });
+    if (minQualityScore !== undefined) qb.andWhere('s.qualityScore >= :minQualityScore', { minQualityScore });
+    if (maxQualityScore !== undefined) qb.andWhere('s.qualityScore <= :maxQualityScore', { maxQualityScore });
+    if (buildYearFrom !== undefined) qb.andWhere('s.buildYear >= :buildYearFrom', { buildYearFrom });
+    if (buildYearTo !== undefined) qb.andWhere('s.buildYear <= :buildYearTo', { buildYearTo });
+    if (layoutRooms !== undefined) {
+      if (layoutRooms >= 7) qb.andWhere('s.layoutRooms >= :layoutRooms', { layoutRooms: 7 });
+      else qb.andWhere('s.layoutRooms = :layoutRooms', { layoutRooms });
+    }
+    if (query.tag?.trim()) qb.andWhere('CAST(s.tags AS TEXT) ILIKE :tag', { tag: `%${query.tag.trim()}%` });
+
+    if (query.scope === 'sold') {
+      qb.andWhere('s.status = :scopeStatus', { scopeStatus: SaleStatus.SOLD });
+    } else if (query.scope === 'mine') {
+      qb.andWhere(new Brackets((sub) => {
+        sub.where('s.creatorId = :scopeEmployeeId', { scopeEmployeeId: user.employeeId })
+          .orWhere('s.maintainerId = :scopeEmployeeId', { scopeEmployeeId: user.employeeId });
+      }));
+    } else if (query.scope && query.scope !== 'all') {
+      throw new BadRequestException('房源范围参数无效');
     }
     if (query.status === SaleStatus.PRICE_NEGOTIATION) {
       qb.andWhere('s.status IN (:...statuses)', { statuses: [SaleStatus.PRICE_NEGOTIATION, 'bargain'] });
@@ -72,7 +158,14 @@ export class SaleService {
     if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 200) {
       throw new BadRequestException('分页参数无效（每页 1–200 条）');
     }
-    const [list, total] = await qb.orderBy('s.id', 'DESC').skip((page - 1) * pageSize).take(pageSize).getManyAndCount();
+    const sortMap: Record<string, [string, 'ASC' | 'DESC']> = {
+      created_desc: ['s.createdAt', 'DESC'], published_desc: ['s.publishedAt', 'DESC'],
+      price_desc: ['s.salePrice', 'DESC'], price_asc: ['s.salePrice', 'ASC'],
+      area_desc: ['s.buildingArea', 'DESC'], quality_desc: ['s.qualityScore', 'DESC'],
+      follow_asc: ['s.daysWithoutFollow', 'DESC'],
+    };
+    const [sortField, sortDirection] = sortMap[query.sortBy] || sortMap.created_desc;
+    const [list, total] = await qb.orderBy(sortField, sortDirection).skip((page - 1) * pageSize).take(pageSize).getManyAndCount();
     return { list: list.map((item) => this.map(item)), total };
   }
 

@@ -15,6 +15,9 @@ import { DictItem } from '../../modules/system/entities/dict-item.entity';
 import { BizSeedService } from './biz.seed';
 import { dictSeedData } from './dict.seed';
 
+const appointmentWorkflowPermissions = ['renting:appointment:follow-up', 'renting:appointment:sign', 'renting:appointment:recommend'];
+const appointmentWorkflowRoles = ['super_admin', 'company_admin', 'store_manager', 'housekeeper', 'salesman', 'agent'];
+
 @Injectable()
 export class SeedService implements OnModuleInit {
   private readonly logger = new Logger(SeedService.name);
@@ -64,23 +67,19 @@ export class SeedService implements OnModuleInit {
       { code: 'house', name: '房屋管理', type: 'menu', sort: 2 },
       { code: 'house:rent', name: '租房管理', type: 'menu', parentId: null, path: '/house/rent', module: 'house', sort: 1 },
       { code: 'house:sale', name: '售房管理', type: 'menu', path: '/house/sale', module: 'house', sort: 2 },
-      { code: 'house:reserve_house', name: '储备房源', type: 'menu', path: '/house/reserve-house', module: 'house', sort: 3 },
-      { code: 'house:reserve_client', name: '储备客源', type: 'menu', path: '/house/reserve-client', module: 'house', sort: 4 },
+      { code: 'house:property_management', name: '房管房管理', type: 'menu', path: '/house/property-management', module: 'house', sort: 3 },
       { code: 'house:customer', name: '客户管理', type: 'menu', path: '/house/customer', module: 'house', sort: 5 },
       { code: 'house:blacklist', name: '黑名单', type: 'menu', path: '/house/blacklist', module: 'house', sort: 7 },
       { code: 'house:community', name: '小区管理', type: 'menu', path: '/house/community', module: 'house', sort: 8 },
       { code: 'house:checkout', name: '退租管理', type: 'menu', path: '/house/checkout', module: 'house', sort: 9 },
       { code: 'house:deposit', name: '押金管理', type: 'menu', path: '/house/deposit', module: 'house', sort: 10 },
       { code: 'finance', name: '财务管理', type: 'menu', sort: 3 },
-      { code: 'finance:bill', name: '账单', type: 'menu', path: '/finance/bill', module: 'finance', sort: 1 },
-      { code: 'finance:flow', name: '流水账', type: 'menu', path: '/finance/daily-account', module: 'finance', sort: 2 },
-      { code: 'finance:rent_increase', name: '涨价统计', type: 'menu', path: '/finance/rent-increase', module: 'finance', sort: 3 },
+      { code: 'finance:deal', name: '成交管理', type: 'menu', path: '/finance/deal', module: 'finance', sort: 1 },
       { code: 'finance:income_cost', name: '收入成本', type: 'menu', path: '/finance/income-cost', module: 'finance', sort: 4 },
       { code: 'finance:performance', name: '业绩核算', type: 'menu', path: '/finance/performance', module: 'finance', sort: 5 },
       { code: 'finance:accounting', name: '财务核算', type: 'menu', path: '/finance/accounting', module: 'finance', sort: 6 },
       { code: 'finance:arrears', name: '欠款统计', type: 'menu', path: '/finance/arrears', module: 'finance', sort: 7 },
       { code: 'finance:plan', name: '收支计划', type: 'menu', path: '/finance/plan', module: 'finance', sort: 8 },
-      { code: 'finance:payout', name: '代付管理', type: 'menu', path: '/finance/payout', module: 'finance', sort: 9 },
       { code: 'finance:billing', name: '开票管理', type: 'menu', path: '/finance/billing', module: 'finance', sort: 10 },
       { code: 'system', name: '系统管理', type: 'menu', sort: 4 },
       { code: 'system:role', name: '角色管理', type: 'menu', path: '/system/role', module: 'system', sort: 1 },
@@ -93,24 +92,27 @@ export class SeedService implements OnModuleInit {
       { code: 'system:approval', name: '审批中心', type: 'menu', path: '/system/approval', module: 'system', sort: 8 },
     ];
     const actions = [
+      { code: 'house:customer:appointment', name: '客户约看', type: 'action', module: 'house' },
+      { code: 'house:customer:sign', name: '客户签约', type: 'action', module: 'house' },
+      { code: 'house:customer:terminate', name: '客户解约', type: 'action', module: 'house' },
+      ...['income_cost', 'performance', 'accounting', 'arrears'].map(code => ({ code: `finance:${code}:modify`, name: '新增/编辑记录', type: 'action', module: 'finance' })),
+      { code: 'finance:plan:modify', name: '新增/编辑收支计划', type: 'action', module: 'finance' },
+      { code: 'finance:export', name: '导出保留的财务报表', type: 'action', module: 'finance' },
       { code: 'renting:add', name: '新建房间', type: 'action', module: 'house' },
       { code: 'renting:edit', name: '编辑房间', type: 'action', module: 'house' },
       { code: 'renting:delete', name: '删除出租房源', type: 'action', module: 'house' },
       { code: 'renting:checkout', name: '退房登记', type: 'action', module: 'house' },
       { code: 'renting:export', name: '导出', type: 'action', module: 'house' },
+      { code: 'renting:appointment:create', name: '发起约看', type: 'action', module: 'house' },
+      { code: 'renting:appointment:view', name: '查看约看记录', type: 'action', module: 'house' },
+      { code: 'renting:appointment:follow-up', name: '约看后跟进', type: 'action', module: 'house' },
+      { code: 'renting:appointment:sign', name: '约看签约', type: 'action', module: 'house' },
+      { code: 'renting:appointment:recommend', name: '再次推荐房源', type: 'action', module: 'house' },
       { code: 'sale:add', name: '新房源录入', type: 'action', module: 'house' },
       { code: 'sale:edit', name: '修改房源', type: 'action', module: 'house' },
       { code: 'sale:delete', name: '删除售房房源', type: 'action', module: 'house' },
       { code: 'sale:changeStatus', name: '上架/下架/成交', type: 'action', module: 'house' },
       { code: 'sale:export', name: '导出', type: 'action', module: 'house' },
-      { code: 'reserve:house:add', name: '录入房源', type: 'action', module: 'house' },
-      { code: 'reserve:house:delete', name: '删除储备房源', type: 'action', module: 'house' },
-      { code: 'reserve:house:take', name: '拿房签约', type: 'action', module: 'house' },
-      { code: 'reserve:house:transfer', name: '转业务员', type: 'action', module: 'house' },
-      { code: 'reserve:house:export', name: '导出储备房源', type: 'action', module: 'house' },
-      { code: 'reserve:client:add', name: '录入客源', type: 'action', module: 'house' },
-      { code: 'reserve:client:transfer', name: '转正式客户', type: 'action', module: 'house' },
-      { code: 'reserve:client:export', name: '导出储备客源', type: 'action', module: 'house' },
       { code: 'house:customer:create', name: '新增客户', type: 'action', module: 'house' },
       { code: 'house:customer:edit', name: '编辑客户', type: 'action', module: 'house' },
       { code: 'house:blacklist:create', name: '新增黑名单', type: 'action', module: 'house' },
@@ -119,15 +121,8 @@ export class SeedService implements OnModuleInit {
       { code: 'house:community:create', name: '新增小区', type: 'action', module: 'house' },
       { code: 'house:community:edit', name: '编辑小区', type: 'action', module: 'house' },
       { code: 'house:community:delete', name: '删除小区', type: 'action', module: 'house' },
-      { code: 'finance:bill:modify', name: '修改账单', type: 'action', module: 'finance' },
-      { code: 'finance:bill:cancel', name: '作废账单', type: 'action', module: 'finance' },
-      { code: 'finance:flow:modify', name: '新增/编辑流水', type: 'action', module: 'finance' },
-      { code: 'finance:flow:export', name: '导出流水', type: 'action', module: 'finance' },
       { code: 'finance:ticket:apply', name: '开票申请', type: 'action', module: 'finance' },
       { code: 'finance:ticket:approve', name: '开票审批', type: 'action', module: 'finance' },
-      { code: 'finance:payout:create', name: '新增代付', type: 'action', module: 'finance' },
-      { code: 'finance:payout:batch', name: '批量代付', type: 'action', module: 'finance' },
-      { code: 'finance:export', name: '导出报表', type: 'action', module: 'finance' },
       { code: 'system:role:create', name: '创建角色', type: 'action', module: 'system' },
       { code: 'system:role:edit', name: '编辑角色', type: 'action', module: 'system' },
       { code: 'system:role:delete', name: '删除角色', type: 'action', module: 'system' },
@@ -177,12 +172,17 @@ export class SeedService implements OnModuleInit {
 
     // 无直接前缀菜单的操作权限，按语义归属
     const actionFallback: Record<string, string> = {
+      'finance:export': 'finance',
       'finance:ticket:apply': 'finance:billing',
       'finance:ticket:approve': 'finance:billing',
-      'finance:export': 'finance:bill',
       'renting:add': 'house:rent',
       'renting:edit': 'house:rent',
       'renting:delete': 'house:rent',
+      'renting:appointment:create': 'house:rent',
+      'renting:appointment:view': 'house:rent',
+      'renting:appointment:follow-up': 'house:rent',
+      'renting:appointment:sign': 'house:rent',
+      'renting:appointment:recommend': 'house:rent',
       'renting:checkout': 'house:rent',
       'renting:export': 'house:rent',
       'sale:add': 'house:sale',
@@ -190,14 +190,6 @@ export class SeedService implements OnModuleInit {
       'sale:delete': 'house:sale',
       'sale:changeStatus': 'house:sale',
       'sale:export': 'house:sale',
-      'reserve:house:add': 'house:reserve_house',
-      'reserve:house:delete': 'house:reserve_house',
-      'reserve:house:take': 'house:reserve_house',
-      'reserve:house:transfer': 'house:reserve_house',
-      'reserve:house:export': 'house:reserve_house',
-      'reserve:client:add': 'house:reserve_client',
-      'reserve:client:transfer': 'house:reserve_client',
-      'reserve:client:export': 'house:reserve_client',
       'checkout:confirm': 'house:checkout',
       'checkout:export': 'house:checkout',
       'deposit:refund': 'house:deposit',
@@ -256,31 +248,38 @@ export class SeedService implements OnModuleInit {
     const roleMenuAllowlist: Record<string, string[]> = {
       super_admin: Array.from(menuCodes),
       company_admin: Array.from(menuCodes),
-      store_manager: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:blacklist', 'house:community', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:rent_increase', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing', 'system', 'system:approval'],
-      finance_manager: ['home', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:rent_increase', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing', 'house', 'house:rent', 'house:sale', 'house:customer', 'system', 'system:approval'],
-      finance_clerk: ['home', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'system', 'system:approval'],
-      housekeeper: ['home', 'house', 'house:rent', 'house:reserve_house', 'house:customer', 'house:community', 'system', 'system:approval'],
-      salesman: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:community', 'system', 'system:approval'],
-      agent: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:community', 'system', 'system:approval'],
-      readonly: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:blacklist', 'house:community', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:rent_increase', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing'],
+      store_manager: ['home', 'house', 'house:rent', 'house:sale', 'house:customer', 'house:blacklist', 'house:community', 'finance', 'finance:arrears', 'finance:plan', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing', 'system', 'system:approval'],
+      finance_manager: ['home', 'finance', 'finance:arrears', 'finance:plan', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing', 'house', 'house:rent', 'house:sale', 'house:customer', 'system', 'system:approval'],
+      finance_clerk: ['home', 'finance', 'finance:arrears', 'finance:plan', 'system', 'system:approval'],
+      housekeeper: ['home', 'house', 'house:rent', 'house:customer', 'house:community', 'system', 'system:approval'],
+      salesman: ['home', 'house', 'house:rent', 'house:sale', 'house:customer', 'house:community', 'system', 'system:approval'],
+      agent: ['home', 'house', 'house:rent', 'house:sale', 'house:customer', 'house:community', 'system', 'system:approval'],
+      readonly: ['home', 'house', 'house:rent', 'house:sale', 'house:customer', 'house:blacklist', 'house:community', 'finance', 'finance:arrears', 'finance:plan', 'finance:income_cost', 'finance:performance', 'finance:accounting', 'finance:billing'],
     };
 
     const roleActionAllowlist: Record<string, string[]> = {
       super_admin: allPerms.filter((p) => p.type === 'action').map((p) => p.code),
       company_admin: allPerms.filter((p) => p.type === 'action').map((p) => p.code),
-      store_manager: ['sale:add', 'sale:edit', 'sale:delete', 'sale:changeStatus', 'sale:export', 'renting:add', 'renting:edit', 'renting:delete', 'renting:checkout', 'renting:export', 'reserve:house:add', 'reserve:house:delete', 'reserve:house:take', 'reserve:house:transfer', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'house:customer:create', 'house:customer:edit', 'finance:bill:modify', 'finance:bill:cancel', 'finance:flow:modify', 'finance:flow:export', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'system:employee:edit', 'system:approval:review', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
-      finance_manager: ['finance:bill:modify', 'finance:bill:cancel', 'finance:flow:modify', 'finance:flow:export', 'finance:ticket:apply', 'finance:ticket:approve', 'finance:payout:create', 'finance:payout:batch', 'finance:export', 'system:approval:review', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
-      finance_clerk: ['finance:bill:modify', 'finance:flow:modify', 'finance:ticket:apply', 'finance:payout:create', 'finance:payout:batch'],
-      housekeeper: ['renting:add', 'renting:edit', 'renting:checkout', 'reserve:house:add', 'reserve:house:take', 'reserve:house:export', 'checkout:confirm'],
-      salesman: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'house:customer:create', 'house:customer:edit'],
-      agent: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'house:customer:create', 'house:customer:edit'],
+      store_manager: ['sale:add', 'sale:edit', 'sale:delete', 'sale:changeStatus', 'sale:export', 'renting:add', 'renting:edit', 'renting:delete', 'renting:checkout', 'renting:export', 'renting:appointment:create', 'renting:appointment:view', 'house:customer:create', 'house:customer:edit', 'system:employee:edit', 'system:approval:review', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
+      finance_manager: ['finance:ticket:apply', 'finance:ticket:approve', 'system:approval:review', 'checkout:confirm', 'deposit:refund', 'deposit:deduct'],
+      finance_clerk: ['finance:ticket:apply', ],
+      housekeeper: ['renting:add', 'renting:edit', 'renting:checkout', 'renting:appointment:create', 'renting:appointment:view', 'checkout:confirm'],
+      salesman: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'renting:appointment:create', 'renting:appointment:view', 'house:customer:create', 'house:customer:edit'],
+      agent: ['sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'renting:appointment:create', 'renting:appointment:view', 'house:customer:create', 'house:customer:edit'],
       readonly: [],
     };
 
     for (const cfg of roleConfigs) {
       if (existing.has(cfg.code)) continue;
       const allowedMenus = new Set(roleMenuAllowlist[cfg.code] || []);
-      const allowedActions = new Set(roleActionAllowlist[cfg.code] || []);
+      if (allowedMenus.has('finance')) allowedMenus.add('finance:deal');
+      if (allowedMenus.has('house:rent')) allowedMenus.add('house:property_management');
+      const allowedActions = new Set([
+        ...(roleActionAllowlist[cfg.code] || []),
+        ...(['super_admin','company_admin','store_manager','finance_manager'].includes(cfg.code) ? ['finance:export'] : []),
+        ...(appointmentWorkflowRoles.includes(cfg.code) ? [...appointmentWorkflowPermissions, 'house:customer:appointment', 'house:customer:sign', 'house:customer:terminate'] : []),
+        ...(['super_admin','company_admin','store_manager','finance_manager','finance_clerk'].includes(cfg.code) ? ['finance:plan:modify', 'finance:income_cost:modify', 'finance:performance:modify', 'finance:accounting:modify', 'finance:arrears:modify'] : []),
+      ]);
       const rolePerms = allPerms.filter(
         (p) => (p.type === 'menu' && allowedMenus.has(p.code)) || (p.type === 'action' && allowedActions.has(p.code)),
       );
@@ -293,24 +292,33 @@ export class SeedService implements OnModuleInit {
     if (!addedCodes.length) return;
     const grants: Record<string, string[]> = {
       super_admin: [
-        'renting:delete', 'sale:delete', 'reserve:house:delete',
-        'house:blacklist:create', 'house:blacklist:edit',
-        'house:community:create', 'house:community:edit', 'house:community:delete', 'house:customer:edit', 'reserve:house:export', 'reserve:client:export',
-        'finance:flow:modify', 'finance:flow:export', 'system:approval', 'system:approval:review',
+        'renting:appointment:create', 'renting:appointment:view',
+        'renting:delete', 'sale:delete', 'house:blacklist:create', 'house:blacklist:edit',
+        'house:community:create', 'house:community:edit', 'house:community:delete', 'house:customer:edit', 'system:approval', 'system:approval:review',
       ],
       company_admin: [
-        'renting:delete', 'sale:delete', 'reserve:house:delete',
-        'house:blacklist:create', 'house:blacklist:edit',
-        'house:community:create', 'house:community:edit', 'house:community:delete', 'house:customer:edit', 'reserve:house:export', 'reserve:client:export',
-        'finance:flow:modify', 'finance:flow:export', 'system:approval', 'system:approval:review',
+        'renting:appointment:create', 'renting:appointment:view',
+        'renting:delete', 'sale:delete', 'house:blacklist:create', 'house:blacklist:edit',
+        'house:community:create', 'house:community:edit', 'house:community:delete', 'house:customer:edit', 'system:approval', 'system:approval:review',
       ],
-      store_manager: ['renting:delete', 'sale:delete', 'reserve:house:delete', 'house:customer:edit', 'reserve:house:export', 'reserve:client:export', 'finance:flow:modify', 'finance:flow:export', 'system:approval', 'system:approval:review'],
-      finance_manager: ['finance:flow:modify', 'finance:flow:export', 'system:approval', 'system:approval:review'],
-      finance_clerk: ['finance:flow:modify', 'system:approval'],
-      housekeeper: ['reserve:house:export', 'system:approval'],
-      salesman: ['house:customer:edit', 'reserve:house:export', 'reserve:client:export', 'system:approval'],
-      agent: ['house:customer:edit', 'reserve:house:export', 'reserve:client:export', 'system:approval'],
+      store_manager: ['renting:appointment:create', 'renting:appointment:view', 'renting:delete', 'sale:delete', 'house:customer:edit', 'system:approval', 'system:approval:review'],
+      finance_manager: ['system:approval', 'system:approval:review'],
+      finance_clerk: ['system:approval'],
+      housekeeper: ['renting:appointment:create', 'renting:appointment:view', 'system:approval'],
+      salesman: ['renting:appointment:create', 'renting:appointment:view', 'house:customer:edit', 'system:approval'],
+      agent: ['renting:appointment:create', 'renting:appointment:view', 'house:customer:edit', 'system:approval'],
     };
+    for (const roleCode of appointmentWorkflowRoles) grants[roleCode].push(...appointmentWorkflowPermissions);
+    // 新入口只在首次加入时授予原有租房菜单的内置角色，不恢复被管理员撤销的权限。
+    grants.readonly = [];
+    for (const roleCode of [...appointmentWorkflowRoles, 'finance_manager', 'readonly']) {
+      grants[roleCode].push('house:property_management');
+    }
+    for (const roleCode of appointmentWorkflowRoles) grants[roleCode].push('house:customer:appointment', 'house:customer:sign', 'house:customer:terminate');
+    grants.finance_clerk.push('finance:plan:modify', 'finance:arrears:modify');
+    for (const roleCode of ['super_admin','company_admin','store_manager','finance_manager']) grants[roleCode].push('finance:export');
+    for (const roleCode of ['super_admin','company_admin','store_manager','finance_manager']) grants[roleCode].push('finance:plan:modify', 'finance:income_cost:modify', 'finance:performance:modify', 'finance:accounting:modify', 'finance:arrears:modify');
+    for (const roleCode of Object.keys(grants)) grants[roleCode].push('finance:deal');
     const codes = [...new Set(Object.values(grants).flat())];
     const permissions = await this.permissionRepo.find({ where: { code: In(codes) } });
     const permissionByCode = new Map(permissions.map((permission) => [permission.code, permission]));
@@ -323,6 +331,7 @@ export class SeedService implements OnModuleInit {
       const existingCodes = new Set((role.permissions || []).map((permission) => permission.code));
       const missing = grants[role.code]
         .filter((code) => addedCodes.includes(code) && !existingCodes.has(code))
+        .filter((code) => code !== 'house:property_management' || existingCodes.has('house:rent'))
         .map((code) => permissionByCode.get(code))
         .filter((permission): permission is Permission => Boolean(permission));
       if (missing.length) {

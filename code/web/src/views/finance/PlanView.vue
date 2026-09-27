@@ -36,7 +36,7 @@ function typeClass(type: string) {
         <div class="page-desc">管理应收应支计划、分期与审批状态</div>
       </div>
       <div class="page-actions">
-        <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="router.push('/finance/plan/create')">新增计划</button>
+        <button v-permission="['finance:plan:modify']" class="btn btn-primary" @click="router.push('/finance/plan/create')">新增计划</button>
       </div>
     </div>
 
@@ -63,7 +63,7 @@ function typeClass(type: string) {
       <el-table-column prop="auditStatus" label="审批状态" />
       <el-table-column label="操作" width="120">
         <template #default="{ row }">
-          <button type="button" class="btn btn-ghost btn-sm" v-permission="['finance:bill:modify']" @click="router.push(`/finance/plan/edit/${row.id}`)">编辑</button>
+          <button type="button" class="btn btn-ghost btn-sm" v-permission="['finance:plan:modify']" @click="router.push(`/finance/plan/edit/${row.id}`)">编辑</button>
         </template>
       </el-table-column>
     </el-table>

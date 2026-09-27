@@ -62,7 +62,7 @@ export class PlanController {
   }
 
   @Post()
-  @RequirePermission('finance:bill:modify')
+  @RequirePermission('finance:plan:modify')
   async create(@Body() data: CreatePlanDto) {
     return this.planService.create(data);
   }

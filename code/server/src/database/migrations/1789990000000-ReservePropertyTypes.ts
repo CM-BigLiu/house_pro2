@@ -4,6 +4,9 @@ export class ReservePropertyTypes1789990000000 implements MigrationInterface {
   name = 'ReservePropertyTypes1789990000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {
+    // 保留迁移历史；移除储备实体后，新数据库不再创建此历史表。
+    const [table] = await queryRunner.query(`SELECT to_regclass('house_reserve') AS name`);
+    if (!table?.name) return;
     await queryRunner.query(`ALTER TABLE "house_reserve"
       ADD COLUMN IF NOT EXISTS "reserveType" varchar(10) NOT NULL DEFAULT 'rent',
       ADD COLUMN IF NOT EXISTS "details" jsonb`);

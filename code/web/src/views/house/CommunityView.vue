@@ -1,446 +1,152 @@
 <script setup lang="ts">
-import { ref, onMounted, reactive, computed } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import {
-  deleteCommunity as deleteCommunityApi, getCommunities, getCommunityFilters, type Community, type CommunityCityFilter,
-} from '@/api/community';
+import { Building2, ChevronLeft, ChevronRight, MapPin, Plus, RotateCcw, Search } from 'lucide-vue-next';
+import { deleteCommunity as deleteCommunityApi, getCommunities, type Community, type CommunityQuery } from '@/api/community';
+import { getCities } from '@/api/organization';
 
-/* ── Data ── */
 const router = useRouter();
 const list = ref<Community[]>([]);
 const total = ref(0);
 const loading = ref(false);
-const treeError = ref(false);
-const filterKeyword = ref('');
-const treeKeyword = ref('');
+const deletingId = ref<number>();
+const cities = ref<{ id: number; name: string }[]>([]);
+const propertyTypes = ['普通住宅', '别墅', '商住两用', '车位', '商铺', '写字楼', '厂房', '土地'];
 
-/* 城市/商圈来自实际小区数据，不使用演示区域及演示数量。 */
-const treeData = ref<CommunityCityFilter[]>([]);
-const selectedCityId = ref<number>();
-
-const selectedDistrict = ref<string>('');
-const selectedBizCircle = ref<string>('');
-
-const filteredTreeData = computed(() => {
-  const kw = treeKeyword.value.trim().toLowerCase();
-  if (!kw) return treeData.value;
-  return treeData.value
-    .map(d => ({
-      ...d,
-      children: d.children.filter(c => c.name.toLowerCase().includes(kw)),
-    }))
-    .filter(d => d.children.length > 0 || d.name.toLowerCase().includes(kw));
+const query = reactive<CommunityQuery & { page: number; pageSize: number }>({
+  cityId: '', district: '', businessCircle: '', propertyType: '', keyword: '', page: 1, pageSize: 10,
 });
-
-const allCount = computed(() => treeData.value.reduce((s, d) => s + d.count, 0));
-
-/* ── Query ── */
-const query = reactive({ keyword: '', page: 1, pageSize: 20 });
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / query.pageSize)));
+const cityNames = computed(() => new Map(cities.value.map(item => [item.id, item.name])));
 
 onMounted(async () => {
-  await Promise.all([load(), loadTree()]);
+  const [cityResult] = await Promise.allSettled([getCities()]);
+  cities.value = cityResult.status === 'fulfilled' ? cityResult.value : [];
+  await load();
 });
-
-async function loadTree() {
-  treeError.value = false;
-  try { treeData.value = await getCommunityFilters(); }
-  catch { treeError.value = true; }
-}
 
 async function load() {
   loading.value = true;
   try {
-    const params: any = { page: query.page, pageSize: query.pageSize };
-    if (query.keyword) params.keyword = query.keyword;
-    if (selectedCityId.value) params.cityId = selectedCityId.value;
-    if (selectedBizCircle.value) params.businessCircle = selectedBizCircle.value;
-    const res = await getCommunities(params);
-    list.value = res.list;
-    total.value = res.total;
+    const result = await getCommunities(query);
+    list.value = result.list;
+    total.value = result.total;
   } finally {
     loading.value = false;
   }
 }
 
-function onPageChange(page: number) {
-  query.page = page;
+function search() { query.page = 1; load(); }
+function reset() {
+  Object.assign(query, { cityId: '', district: '', businessCircle: '', propertyType: '', keyword: '', page: 1, pageSize: query.pageSize });
   load();
 }
-
-/* ── Tree & search ── */
-function selectAll() {
-  selectedCityId.value = undefined;
-  selectedDistrict.value = '';
-  selectedBizCircle.value = '';
-  query.keyword = '';
-  filterKeyword.value = '';
-  treeKeyword.value = '';
-  query.page = 1;
+function goToPage(page: number) {
+  const target = Math.max(1, Math.min(pageCount.value, page));
+  if (target === query.page) return;
+  query.page = target;
   load();
 }
-
-function selectDistrict(city: CommunityCityFilter) {
-  selectedCityId.value = city.id;
-  selectedDistrict.value = city.name;
-  selectedBizCircle.value = '';
-  query.page = 1;
-  load();
-}
-
-function selectBizCircle(city: CommunityCityFilter, name: string) {
-  selectedCityId.value = city.id;
-  selectedDistrict.value = city.name;
-  selectedBizCircle.value = name;
-  query.page = 1;
-  load();
-}
-
-function onSearch() {
-  query.keyword = filterKeyword.value;
-  query.page = 1;
-  load();
-}
-
-/* ── Create / Edit / Delete ── */
-function openCreate() {
-  router.push('/house/community/create');
-}
-function editCommunity(item: Community) {
-  router.push(`/house/community/edit/${item.id}`);
-}
+function openCreate() { router.push('/house/community/create'); }
+function editCommunity(item: Community) { router.push(`/house/community/edit/${item.id}`); }
+function cityName(item: Community) { return item.cityName || (item.cityId ? cityNames.value.get(item.cityId) : '') || '-'; }
 
 async function deleteCommunity(item: Community) {
   try {
-    await ElMessageBox.confirm(`确认删除"${item.name}"？`, '删除确认', {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning',
+    await ElMessageBox.confirm(`确认删除“小区 ${item.name}”？`, '删除确认', {
+      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
     });
+    deletingId.value = item.id;
     await deleteCommunityApi(item.id);
+    if (list.value.length === 1 && query.page > 1) query.page--;
+    await load();
     ElMessage.success('删除成功');
-    await Promise.all([load(), loadTree()]);
   } catch {
-    // cancelled
+    // 用户取消时保持列表不变。
+  } finally {
+    deletingId.value = undefined;
   }
 }
-
 </script>
 
 <template>
   <div class="community-page">
-    <div v-if="treeError" role="alert" class="filter-bar">小区筛选数据加载失败 <button class="btn btn-default btn-sm" @click="loadTree">重试</button></div>
-    <!-- Page header -->
     <div class="page-header">
       <div>
         <div class="page-title">小区管理</div>
-        <div class="page-desc">小区信息、楼栋结构、房源数量统计</div>
+        <div class="page-desc">维护城市、区域、商圈、详细地址与物业类型</div>
       </div>
       <div class="page-actions">
-        <div class="search-input-wrap query-input-shell">
-          <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-          </svg>
-          <input v-model="filterKeyword" class="input" placeholder="搜索小区名称或地址…" @keyup.enter="onSearch" />
-        </div>
-        <button class="btn btn-primary btn-sm" @click="onSearch">筛选</button>
-        <button class="btn btn-default btn-sm" @click="selectAll">重置</button>
-        <button v-permission="['house:community:create']" class="btn btn-primary" @click="openCreate">
-          <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          新增小区
-        </button>
+        <button v-permission="['house:community:create']" class="btn btn-primary" @click="openCreate"><Plus :size="16" />申请添加小区</button>
       </div>
     </div>
 
-    <!-- Split layout: tree + cards -->
-    <div class="split-layout">
-      <!-- Tree panel -->
-      <div class="tree-panel">
-        <div class="tree-search query-input-shell">
-          <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-          </svg>
-          <input v-model="treeKeyword" class="input-tree" placeholder="筛选城市/商圈…" />
-        </div>
-        <ul class="tree">
-          <li :class="{ active: !selectedDistrict }">
-            <span @click="selectAll">
-              全部
-              <span class="tree-count">{{ allCount }}</span>
-            </span>
-          </li>
-          <li v-for="dist in filteredTreeData" :key="dist.id">
-            <span
-              :class="{ active: selectedDistrict === dist.name && !selectedBizCircle }"
-              @click="selectDistrict(dist)"
-            >
-              {{ dist.name }}
-              <span class="tree-count">{{ dist.count }}</span>
-            </span>
-            <ul v-if="dist.children.length">
-              <li
-                v-for="biz in dist.children"
-                :key="biz.name"
-                :class="{ active: selectedCityId === dist.id && selectedBizCircle === biz.name }"
-              >
-                <span @click="selectBizCircle(dist, biz.name)">
-                  {{ biz.name }}
-                  <span class="tree-count">{{ biz.count }}</span>
-                </span>
-              </li>
-            </ul>
-          </li>
-        </ul>
+    <div class="tabs"><button class="tab active">小区列表 <span class="tab-count">{{ total }}</span></button></div>
+
+    <section class="filter-panel">
+      <div class="filter-grid">
+        <label class="filter-field"><span>城市</span><el-select v-model="query.cityId" clearable filterable placeholder="全部城市"><el-option v-for="city in cities" :key="city.id" :label="city.name" :value="city.id" /></el-select></label>
+        <label class="filter-field"><span>区域</span><el-input v-model="query.district" clearable placeholder="请输入区域" @keyup.enter="search" /></label>
+        <label class="filter-field"><span>商圈</span><el-input v-model="query.businessCircle" clearable placeholder="请输入商圈" @keyup.enter="search" /></label>
+        <label class="filter-field"><span>物业类型</span><el-select v-model="query.propertyType" clearable placeholder="全部类型"><el-option v-for="item in propertyTypes" :key="item" :label="item" :value="item" /></el-select></label>
+        <label class="filter-field filter-keyword"><span>综合查询</span><el-input v-model="query.keyword" clearable placeholder="小区名称、别名、详细地址" @keyup.enter="search" /></label>
+        <div class="filter-actions"><button class="btn btn-primary" @click="search"><Search :size="15" />查询</button><button class="btn btn-default" @click="reset"><RotateCcw :size="15" />重置</button></div>
       </div>
+    </section>
 
-      <!-- Main content -->
-      <div class="split-main">
-        <!-- Summary -->
-        <div class="summary-row">
-          <span class="summary-chip">
-            共 <strong>{{ total }}</strong> 个小区
-          </span>
-          <span v-if="selectedDistrict" class="summary-chip">
-            城市/商圈：<strong>{{ selectedDistrict }}{{ selectedBizCircle ? ' / ' + selectedBizCircle : '' }}</strong>
-          </span>
-        </div>
-
-        <!-- Cards grid -->
-        <div v-loading="loading" class="house-grid">
-          <div v-for="item in list" :key="item.id" class="detail-card">
-            <div class="detail-card-header">
-              <div class="detail-card-title">{{ item.name }}</div>
-              <div class="detail-card-actions">
-                <button v-permission="['house:community:edit']" class="btn btn-sm btn-ghost" title="编辑" @click="editCommunity(item)">
-                  <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                  </svg>
-                </button>
-                <button v-permission="['house:community:delete']" class="btn btn-sm btn-ghost" title="删除" @click="deleteCommunity(item)">
-                  <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div class="detail-card-body">
-              <!-- Address & district -->
-              <div class="detail-card-meta">
-                <span v-if="item.address" class="meta-item">
-                  <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" />
-                  </svg>
-                  {{ item.address }}
-                </span>
-                <span v-if="item.district || item.area" class="meta-item">
-                  <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 3v18" /><path d="M15 3v18" />
-                  </svg>
-                  {{ item.district || item.area }}
-                </span>
-              </div>
-
-              <!-- Metric chips -->
-              <div class="metric-row">
-                <div class="metric-chip">
-                  <span class="metric-label">楼栋数</span>
-                  <span class="metric-value">{{ item.buildingCount ?? '—' }}</span>
-                </div>
-                <div class="metric-chip">
-                  <span class="metric-label">总户数</span>
-                  <span class="metric-value">{{ item.roomCount ?? '—' }}</span>
-                </div>
-                <div class="metric-chip metric-rent">
-                  <span class="metric-label">出租房源</span>
-                  <span class="metric-value">{{ item.currentRentCount ?? '—' }}</span>
-                </div>
-                <div class="metric-chip metric-sale">
-                  <span class="metric-label">出售房源</span>
-                  <span class="metric-value">{{ item.currentSaleCount ?? '—' }}</span>
-                </div>
-                <div class="metric-chip metric-price">
-                  <span class="metric-label">均价</span>
-                  <span class="metric-value" title="暂无均价数据">—</span>
-                </div>
-              </div>
-
-              <!-- Tags -->
-              <div class="house-tags">
-                <span v-if="item.businessCircle" class="tag tag-blue">{{ item.businessCircle }}</span>
-                <span v-if="item.alias" class="tag tag-green">{{ item.alias }}</span>
-                <span v-if="item.cityName" class="tag tag-purple">{{ item.cityName }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Empty state -->
-          <div v-if="!loading && list.length === 0" class="empty-state">
-            暂无小区数据
-          </div>
-        </div>
-
-        <!-- Pagination -->
-        <div v-if="total > query.pageSize" class="table-footer">
-          <span class="text-muted">共 {{ total }} 条</span>
-          <div class="pagination">
-            <button
-              class="page-btn"
-              :disabled="query.page <= 1"
-              @click="onPageChange(query.page - 1)"
-            >
-              <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </button>
-            <button
-              v-for="p in Math.ceil(total / query.pageSize)"
-              :key="p"
-              :class="['page-btn', { active: p === query.page }]"
-              @click="onPageChange(p)"
-            >
-              {{ p }}
-            </button>
-            <button
-              class="page-btn"
-              :disabled="query.page >= Math.ceil(total / query.pageSize)"
-              @click="onPageChange(query.page + 1)"
-            >
-              <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </button>
-          </div>
-        </div>
+    <section class="table-card" v-loading="loading">
+      <div class="table-summary"><Building2 :size="16" />共 <strong>{{ total }}</strong> 个小区</div>
+      <div class="table-wrap">
+        <table class="data-table community-table">
+          <thead><tr><th>城市</th><th>小区名称</th><th>区域</th><th>商圈</th><th>详细地址</th><th>物业类型</th><th>房源</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="item in list" :key="item.id">
+              <td>{{ cityName(item) }}</td>
+              <td><div class="community-name"><Building2 :size="16" /><div><strong>{{ item.name }}</strong><small v-if="item.alias">别名：{{ item.alias }}</small></div></div></td>
+              <td>{{ item.district || item.area || '-' }}</td>
+              <td>{{ item.businessCircle || '-' }}</td>
+              <td><span class="address"><MapPin :size="14" />{{ item.address || '-' }}</span></td>
+              <td><span class="tag tag-blue">{{ item.propertyType || '普通住宅' }}</span></td>
+              <td><span class="metric">租 {{ item.currentRentCount ?? 0 }}</span><span class="metric sale">售 {{ item.currentSaleCount ?? 0 }}</span></td>
+              <td class="actions"><button v-permission="['house:community:edit']" class="btn btn-sm btn-default" @click="editCommunity(item)">编辑</button><button v-permission="['house:community:delete']" class="btn btn-sm btn-ghost" :disabled="deletingId === item.id" @click="deleteCommunity(item)">删除</button></td>
+            </tr>
+            <tr v-if="!loading && !list.length"><td colspan="8"><div class="empty-state">暂无小区数据</div></td></tr>
+          </tbody>
+        </table>
       </div>
-    </div>
-
-    <!-- Create dialog -->
+      <div class="table-footer">
+        <span class="text-muted">共 {{ total }} 条 · 第 {{ query.page }} / {{ pageCount }} 页</span>
+        <div class="pagination"><button class="page-btn" :disabled="query.page <= 1" @click="goToPage(query.page - 1)"><ChevronLeft :size="15" /></button><button class="page-btn active">{{ query.page }}</button><button class="page-btn" :disabled="query.page >= pageCount" @click="goToPage(query.page + 1)"><ChevronRight :size="15" /></button></div>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped lang="scss">
-.community-page {
-  min-height: 100%;
-}
-
-/* ── Tree search ── */
-.tree-search {
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-/* ── Search input in page-actions ── */
-.search-input-wrap {
-  min-width: 220px;
-}
-
-/* ── Cards grid ── */
-.house-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 14px;
-}
-
-/* ── Detail card ── */
-.detail-card {
-  background: #fff;
-  border: 1px solid var(--ink-200);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-xs);
-  transition: all 0.18s;
-}
-.detail-card:hover {
-  border-color: var(--ink-300);
-  box-shadow: var(--shadow-sm);
-}
-
-.detail-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px 14px 0;
-}
-
-.detail-card-title {
-  font-weight: 700;
-  color: var(--ink-900);
-  font-size: 15px;
-  line-height: 1.4;
-}
-
-.detail-card-actions {
-  display: flex;
-  gap: 2px;
-  flex: none;
-}
-
-.detail-card-body {
-  padding: 10px 14px 14px;
-}
-
-.detail-card-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 16px;
-  margin-bottom: 10px;
-
-  .meta-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    color: var(--ink-500);
-
-    .lucide {
-      width: 12px;
-      height: 12px;
-      flex: none;
-      color: var(--ink-400);
-    }
-  }
-}
-
-/* ── Metric row (楼栋数 · 总户数 · 出租 · 出售 · 均价) ── */
-.metric-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.metric-chip {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-  padding: 5px 10px;
-  background: var(--ink-50);
-  border: 1px solid var(--ink-100);
-  border-radius: 6px;
-  min-width: 52px;
-  flex: 1 0 auto;
-  max-width: 80px;
-
-  .metric-label {
-    font-size: 10px;
-    color: var(--ink-400);
-    font-weight: 500;
-    line-height: 1.3;
-  }
-
-  .metric-value {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--ink-800);
-    font-family: var(--font-num);
-    line-height: 1.4;
-  }
-}
-
-.metric-chip.metric-rent .metric-value { color: var(--warning); }
-.metric-chip.metric-sale .metric-value { color: var(--danger); }
-.metric-chip.metric-price .metric-value { color: var(--primary); font-size: 13px; }
+.community-page { min-height: 100%; }
+.tabs { margin-bottom: 12px; border-bottom: 1px solid var(--ink-200); }
+.tab { padding: 10px 18px; border: 0; border-bottom: 2px solid transparent; color: var(--ink-500); background: transparent; font-weight: 600; }
+.tab.active { border-color: var(--primary); color: var(--primary); }
+.tab-count { margin-left: 4px; padding: 1px 7px; border-radius: 10px; background: var(--ink-100); font-size: 11px; }
+.filter-panel, .table-card { border: 1px solid var(--ink-200); border-radius: var(--radius); background: #fff; }
+.filter-panel { margin-bottom: 14px; padding: 16px; }
+.filter-grid { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 12px; align-items: end; }
+.filter-field { display: grid; gap: 6px; color: var(--ink-500); font-size: 12px; }
+.filter-keyword { grid-column: span 2; }
+.filter-actions { display: flex; gap: 8px; }
+.table-summary { display: flex; align-items: center; gap: 6px; padding: 14px 16px; border-bottom: 1px solid var(--ink-100); color: var(--ink-500); font-size: 13px; }
+.table-summary strong { color: var(--ink-900); }
+.community-table { min-width: 1050px; }
+.community-name { display: flex; align-items: flex-start; gap: 8px; min-width: 170px; }
+.community-name strong, .community-name small { display: block; }
+.community-name small { margin-top: 3px; color: var(--ink-400); font-size: 11px; }
+.address { display: inline-flex; align-items: flex-start; gap: 4px; min-width: 180px; color: var(--ink-600); }
+.metric { display: inline-block; margin-right: 5px; padding: 2px 6px; border-radius: 4px; color: #b45309; background: #fff7ed; font-size: 11px; }
+.metric.sale { color: #b91c1c; background: #fef2f2; }
+.actions { white-space: nowrap; }
+.actions .btn + .btn { margin-left: 4px; }
+.table-footer { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--ink-100); }
+@media (max-width: 1100px) { .filter-grid { grid-template-columns: repeat(2, minmax(180px, 1fr)); } }
+@media (max-width: 680px) { .filter-grid { grid-template-columns: 1fr; } .filter-keyword { grid-column: auto; } }
 </style>

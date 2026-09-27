@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 // 本地全量功能测试可启用空业务数据模式；账号、权限、组织、字典和系统配置仍保留。
 const EMPTY_BUSINESS_DATA = process.env.HOUSE_MOCK_EMPTY === '1';
@@ -51,27 +51,33 @@ const USERS = {
     id: 3, name: '张店长', mobile: 'store_manager', avatar: '',
     role: 'store_manager', roleName: '店长', dataScope: 'store',
     storeIds: [1], groupIds: [1], assignedStoreIds: [],
-    permissions: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:customer', 'house:community', 'house:blacklist', 'house:checkout', 'house:deposit', 'renting:add', 'renting:edit', 'renting:delete', 'renting:checkout', 'renting:export', 'renting:approve', 'checkout:list', 'checkout:confirm', 'checkout:export', 'deposit:list', 'deposit:refund', 'deposit:deduct', 'deposit:export', 'sale:add', 'sale:edit', 'sale:delete', 'sale:changeStatus', 'sale:export', 'reserve:house:add', 'reserve:house:delete', 'reserve:house:take', 'reserve:house:transfer', 'reserve:house:export', 'reserve:client:add', 'reserve:client:transfer', 'reserve:client:export', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'system:approval', 'system:approval:review'],
+    permissions: ['home', 'house', 'house:rent', 'house:sale', 'house:customer', 'house:community', 'house:blacklist', 'house:checkout', 'house:deposit', 'renting:add', 'renting:edit', 'renting:delete', 'renting:checkout', 'renting:export', 'renting:approve', 'checkout:list', 'checkout:confirm', 'checkout:export', 'deposit:list', 'deposit:refund', 'deposit:deduct', 'deposit:export', 'sale:add', 'sale:edit', 'sale:delete', 'sale:changeStatus', 'sale:export', 'finance', 'finance:arrears', 'finance:plan', 'system:approval', 'system:approval:review'],
   },
   salesman: {
     id: 4, name: '李业务员', mobile: 'salesman', avatar: '',
     role: 'salesman', roleName: '业务员', dataScope: 'self',
     storeIds: [1], groupIds: [1], assignedStoreIds: [],
-    permissions: ['home', 'house', 'house:rent', 'house:sale', 'house:reserve_house', 'house:reserve_client', 'house:customer', 'house:community', 'renting:add', 'renting:edit', 'renting:checkout', 'sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'reserve:house:add', 'reserve:house:take', 'reserve:house:transfer', 'reserve:client:add', 'reserve:client:transfer', 'system:approval'],
+    permissions: ['home', 'house', 'house:rent', 'house:sale', 'house:customer', 'house:community', 'renting:add', 'renting:edit', 'renting:checkout', 'sale:add', 'sale:edit', 'sale:changeStatus', 'sale:export', 'system:approval'],
   },
   finance: {
     id: 5, name: '赵财务', mobile: 'finance', avatar: '',
     role: 'finance_manager', roleName: '财务负责人', dataScope: 'company',
     storeIds: [1,2,3], groupIds: [1,2], assignedStoreIds: [],
-    permissions: ['home', 'finance', 'finance:bill', 'finance:flow', 'finance:arrears', 'finance:plan', 'finance:payout', 'finance:billing', 'finance:ticket:apply', 'finance:ticket:approve', 'house:deposit', 'deposit:list', 'deposit:refund', 'deposit:deduct', 'deposit:export', 'system:approval', 'system:approval:review'],
+    permissions: ['home', 'finance', 'finance:arrears', 'finance:plan', 'finance:billing', 'finance:ticket:apply', 'finance:ticket:approve', 'house:deposit', 'deposit:list', 'deposit:refund', 'deposit:deduct', 'deposit:export', 'system:approval', 'system:approval:review'],
   },
   housekeeper: {
     id: 6, name: '周管家', mobile: 'housekeeper', avatar: '',
     role: 'housekeeper', roleName: '管家', dataScope: 'group',
     storeIds: [1], groupIds: [1], assignedStoreIds: [],
-    permissions: ['home', 'house', 'house:rent', 'house:reserve_house', 'house:customer', 'house:checkout', 'renting:add', 'renting:edit', 'renting:checkout', 'checkout:list', 'system:approval'],
+    permissions: ['home', 'house', 'house:rent', 'house:customer', 'house:checkout', 'renting:add', 'renting:edit', 'renting:checkout', 'checkout:list', 'system:approval'],
   },
 };
+
+// 兼容保留模块的共享导出及只读成交入口；不模拟正式签约业务。
+for (const user of Object.values(USERS)) {
+  if (user.permissions.includes('finance')) user.permissions.push('finance:deal');
+  if (['store_manager', 'finance_manager'].includes(user.role)) user.permissions.push('finance:export');
+}
 
 // All menus
 const ALL_MENUS = [
@@ -83,8 +89,6 @@ const ALL_MENUS = [
       { id: 'checkout', label: '退租管理', path: '/house/checkout', permission: 'house:checkout' },
       { id: 'deposit', label: '押金管理', path: '/house/deposit', permission: 'house:deposit' },
       { id: 'sale', label: '售房管理', path: '/house/sale', permission: 'house:sale' },
-      { id: 'reserve-house', label: '储备房源', path: '/house/reserve-house', permission: 'house:reserve_house' },
-      { id: 'reserve-client', label: '储备客源', path: '/house/reserve-client', permission: 'house:reserve_client' },
       { id: 'customer', label: '客户管理', path: '/house/customer', permission: 'house:customer' },
       { id: 'blacklist', label: '黑名单', path: '/house/blacklist', permission: 'house:blacklist' },
       { id: 'community', label: '小区管理', path: '/house/community', permission: 'house:community' },
@@ -93,15 +97,12 @@ const ALL_MENUS = [
   {
     id: 'finance', label: '财务管理', icon: 'banknote',
     children: [
-      { id: 'bill', label: '账单', path: '/finance/bill', permission: 'finance:bill' },
-      { id: 'daily-account', label: '流水账', path: '/finance/daily-account', permission: 'finance:flow' },
-      { id: 'rent-increase', label: '涨价统计', path: '/finance/rent-increase', permission: 'finance:rent_increase' },
+      { id: 'deal', label: '成交管理', path: '/finance/deal', permission: 'finance:deal' },
       { id: 'income-cost', label: '收入成本', path: '/finance/income-cost', permission: 'finance:income_cost' },
       { id: 'performance', label: '业绩核算', path: '/finance/performance', permission: 'finance:performance' },
       { id: 'accounting', label: '财务核算', path: '/finance/accounting', permission: 'finance:accounting' },
       { id: 'arrears', label: '欠款统计', path: '/finance/arrears', permission: 'finance:arrears' },
       { id: 'plan', label: '收支计划', path: '/finance/plan', permission: 'finance:plan' },
-      { id: 'payout', label: '代付管理', path: '/finance/payout', permission: 'finance:payout' },
       { id: 'billing', label: '开票管理', path: '/finance/billing', permission: 'finance:billing' },
     ],
   },
@@ -138,6 +139,35 @@ function requirePermission(...codes) {
     return res.status(403).json({ code: 403, message: '无操作权限' });
   };
 }
+
+// 本地 mock 同步支持房源图片上传，返回可直接预览并随表单保存的 data URL。
+app.post(
+  '/api/upload/image',
+  authMiddleware,
+  requirePermission('renting:add', 'renting:edit', 'sale:add', 'sale:edit', ),
+  express.raw({ type: 'multipart/form-data', limit: '3mb' }),
+  (req, res) => {
+    const contentType = String(req.headers['content-type'] || '');
+    const boundary = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/)?.slice(1).find(Boolean);
+    if (!boundary || !Buffer.isBuffer(req.body)) {
+      return res.status(400).json({ code: 400, message: '请选择图片文件' });
+    }
+
+    const body = req.body.toString('latin1');
+    const headerEnd = body.indexOf('\r\n\r\n');
+    const dataEnd = body.lastIndexOf(`\r\n--${boundary}`);
+    const fileType = body.slice(0, headerEnd).match(/Content-Type:\s*([^\r\n]+)/i)?.[1]?.trim();
+    if (headerEnd < 0 || dataEnd <= headerEnd || !fileType?.startsWith('image/')) {
+      return res.status(400).json({ code: 400, message: '仅支持图片文件' });
+    }
+
+    const fileBuffer = Buffer.from(body.slice(headerEnd + 4, dataEnd), 'latin1');
+    if (fileBuffer.length > 2 * 1024 * 1024) {
+      return res.status(413).json({ code: 413, message: '单张图片不能超过 2MB' });
+    }
+    return res.json({ code: 0, data: { url: `data:${fileType};base64,${fileBuffer.toString('base64')}` } });
+  },
+);
 
 // POST /api/auth/login
 app.post('/api/auth/login', (req, res) => {
@@ -295,7 +325,6 @@ app.get('/api/dashboard/house-status', authMiddleware, (req, res) => {
         { name: '租房中', value: 156, color: '#3b82f6' },
         { name: '待租房', value: 12, color: '#f59e0b' },
         { name: '出售中', value: 28, color: '#10b981' },
-        { name: '储备房源', value: 45, color: '#8b5cf6' },
       ],
       validCount: 180,
       frozenCount: 15,
@@ -456,19 +485,6 @@ app.get('/api/dashboard/large-cards', authMiddleware, (req, res) => {
           { label: '今日待办', value: 5, color: '#ef4444' },
           { label: '待跟客源', value: 12, color: '#f59e0b' },
           { label: '待签合同', value: 8, color: '#3b82f6' },
-          { label: '储备房源', value: '45套', color: '#10b981' },
-        ],
-      },
-      {
-        id: 'reserve-house-analysis',
-        title: '储备房源分析',
-        stats: [
-          { label: '一室户', value: 12, color: '#3b82f6' },
-          { label: '两室一厅', value: 18, color: '#10b981' },
-          { label: '三室一厅', value: 10, color: '#f59e0b' },
-          { label: '三室两厅', value: 5, color: '#6366f1' },
-          { label: '四室及以上', value: 3, color: '#8b5cf6' },
-          { label: '商铺', value: 7, color: '#ec4899' },
         ],
       },
       {
@@ -638,7 +654,6 @@ const DICTS = [
   { id: 6, code: 'decoration', name: '装修情况', description: '毛坯/简装/精装/豪装', enabled: true },
   { id: 7, code: 'orientation', name: '朝向', description: '东南西北朝向', enabled: true },
   { id: 8, code: 'source_channel', name: '客源渠道', description: '58/贝壳/安居客/抖音/微信/门店/老客户/中介/其他', enabled: true },
-  { id: 9, code: 'disk_type', name: '储备盘源类型', description: '住宅/商铺/写字楼/公寓', enabled: true },
   { id: 10, code: 'blacklist_type', name: '黑名单类型', description: '恶意欠款/损坏房屋/扰民/违约/诈骗/其他', enabled: true },
   { id: 11, code: 'payment_method', name: '付款方式', description: '月付/季付/半年付/年付', enabled: true },
   { id: 12, code: 'bill_category', name: '账单类型', description: '租金/押金/物业费/水费/电费/燃气费/其他', enabled: true },
@@ -702,11 +717,6 @@ const DICT_ITEMS = [
   { id: 40, dictCode: 'employee_status', value: 'active', label: '在职', sort: 1, enabled: true, isBuiltin: false },
   { id: 41, dictCode: 'employee_status', value: 'left', label: '离职', sort: 2, enabled: true, isBuiltin: false },
   { id: 42, dictCode: 'employee_status', value: 'vacation', label: '休假', sort: 3, enabled: true, isBuiltin: false },
-  // disk_type
-  { id: 43, dictCode: 'disk_type', value: 'house', label: '住宅', sort: 1, enabled: true, isBuiltin: false },
-  { id: 44, dictCode: 'disk_type', value: 'shop', label: '商铺', sort: 2, enabled: true, isBuiltin: false },
-  { id: 45, dictCode: 'disk_type', value: 'office', label: '写字楼', sort: 3, enabled: true, isBuiltin: false },
-  { id: 46, dictCode: 'disk_type', value: 'apartment', label: '公寓', sort: 4, enabled: true, isBuiltin: false },
   // blacklist_type
   { id: 47, dictCode: 'blacklist_type', value: 'debt', label: '恶意欠款', sort: 1, enabled: true, isBuiltin: false },
   { id: 48, dictCode: 'blacklist_type', value: 'damage', label: '损坏房屋', sort: 2, enabled: true, isBuiltin: false },
@@ -775,8 +785,6 @@ for (const [code, dict] of Object.entries(saleFormDicts)) {
 
 const sharedFormDicts = {
   blacklist_status: { name: '黑名单状态', items: [['active', '生效'], ['inactive', '已移除']] },
-  demand_type: { name: '需求类型', items: [['rent', '求租'], ['buy', '求购'], ['rent_buy', '租购均可']] },
-  urgency: { name: '紧急程度', items: [['normal', '普通'], ['urgent', '紧急'], ['flexible', '时间灵活']] },
   payment_type: { name: '支付方式', items: [['bank', '银行转账'], ['wechat', '微信'], ['alipay', '支付宝'], ['cash', '现金']] },
   ticket_status: { name: '开票状态', items: [['pending', '待处理'], ['processing', '审批中'], ['issued', '已开票'], ['void', '已作废']] },
   identity: { name: '欠款人身份', items: [['rent_a', '整租租客'], ['rent_b', '合租租客'], ['buyer', '买家'], ['landlord', '业主']] },
@@ -865,15 +873,6 @@ const PERM_TREE = [
       { id: 223, code: 'sale:edit', name: '编辑', type: 'action', sort: 3, status: 'active' },
       { id: 224, code: 'sale:delete', name: '删除', type: 'action', sort: 4, status: 'active' },
     ]},
-    { id: 23, code: 'house:reserve_house', name: '储备房源', type: 'menu', sort: 3, status: 'active', children: [
-      { id: 231, code: 'reserve_house:list', name: '查看列表', type: 'action', sort: 1, status: 'active' },
-      { id: 232, code: 'reserve_house:create', name: '新增', type: 'action', sort: 2, status: 'active' },
-      { id: 233, code: 'reserve:house:delete', name: '删除', type: 'action', sort: 3, status: 'active' },
-    ]},
-    { id: 24, code: 'house:reserve_client', name: '储备客源', type: 'menu', sort: 4, status: 'active', children: [
-      { id: 241, code: 'reserve_client:list', name: '查看列表', type: 'action', sort: 1, status: 'active' },
-      { id: 242, code: 'reserve_client:create', name: '新增', type: 'action', sort: 2, status: 'active' },
-    ]},
     { id: 25, code: 'house:customer', name: '客户管理', type: 'menu', sort: 5, status: 'active', children: [
       { id: 251, code: 'customer:list', name: '查看列表', type: 'action', sort: 1, status: 'active' },
       { id: 252, code: 'customer:create', name: '新增客户', type: 'action', sort: 2, status: 'active' },
@@ -900,15 +899,13 @@ const PERM_TREE = [
     ]},
   ]},
   { id: 3, code: 'finance', name: '财务管理', type: 'menu', sort: 3, status: 'active', icon: 'banknote', children: [
-    { id: 31, code: 'finance:bill', name: '账单', type: 'menu', sort: 1, status: 'active' },
-    { id: 32, code: 'finance:flow', name: '流水账', type: 'menu', sort: 2, status: 'active' },
-    { id: 33, code: 'finance:rent_increase', name: '涨价统计', type: 'menu', sort: 3, status: 'active' },
+    { id: 31, code: 'finance:deal', name: '成交管理', type: 'menu', sort: 1, status: 'active' },
+    { id: 313, code: 'finance:export', name: '导出保留的财务报表', type: 'action', sort: 99, status: 'active' },
     { id: 36, code: 'finance:income_cost', name: '收入成本', type: 'menu', sort: 4, status: 'active' },
     { id: 37, code: 'finance:performance', name: '业绩核算', type: 'menu', sort: 5, status: 'active' },
     { id: 38, code: 'finance:accounting', name: '财务核算', type: 'menu', sort: 6, status: 'active' },
     { id: 39, code: 'finance:arrears', name: '欠款统计', type: 'menu', sort: 7, status: 'active' },
     { id: 310, code: 'finance:plan', name: '收支计划', type: 'menu', sort: 8, status: 'active' },
-    { id: 311, code: 'finance:payout', name: '代付管理', type: 'menu', sort: 9, status: 'active' },
     { id: 312, code: 'finance:billing', name: '开票管理', type: 'menu', sort: 10, status: 'active' },
   ]},
   { id: 4, code: 'system', name: '系统管理', type: 'menu', sort: 4, status: 'active', icon: 'settings', children: [
@@ -1035,6 +1032,35 @@ const RENTAL_SETS = [
   { id: 22, code: 'ZJ022', bizType: 'entire', communityId: 14, communityName: '川杨新苑', address: '浦东新区川杨河路296号', building: '20', unit: '2', roomNo: '1502', layout: '两室两厅', buildingArea: 88, decoration: 'fine', landlordRent: 3500, rent: 5300, deposit: 5300, leaseStart: '2026-03-10', leaseEnd: '2026-09-05', status: 'checkout', storeId: 1, groupId: 2, landlordId: 11, salesmanId: 5, housekeeperId: 15, roomCount: 0, vacantCount: 0, createdAt: '2026-02-25', landlordName: '吴刚', landlordPhone: '13912121212', tenantName: '华仔', tenantPhone: '13600000019', tenantLeaseStart: '2026-03-10', tenantLeaseEnd: '2026-09-05', tenantPaymentMethod: 'quarterly', rooms: [] },
 ];
 
+for (const set of RENTAL_SETS) {
+  set.district ||= set.address?.includes('浦东') ? '浦东新区' : '';
+  set.businessCircle ||= COMMUNITIES.find(item => item.id === set.communityId)?.businessCircle || '';
+  set.operationStatus ||= 'normal';
+  set.businessStatus ||= set.status === 'checkout' ? 'checkout_pending' : 'normal';
+  set.leaseTerm ||= set.leaseStart && set.leaseEnd ? 'one_year' : '';
+  set.floor ||= String(set.roomNo || '').slice(0, -2) || '';
+  set.totalFloor ||= 18;
+  set.propertyType ||= 'residential';
+  set.orientation ||= 'south';
+  set.elevator ||= 'yes';
+  set.sourceChannel ||= 'store';
+  set.tags ||= [];
+  set.description ||= '';
+  if (set.id === 1) Object.assign(set, {
+    landlordIdCard: '310101197801011234',
+    landlordBankName: '中国建设银行张江支行',
+    landlordBankCard: '6227001234567890123',
+    tenantIdCard: '310101199201011234',
+    tags: ['subway', 'elevator'],
+    description: '钥匙存放门店，工作日晚间可约看。',
+  });
+  for (const room of set.rooms || []) {
+    room.leaseTerm ||= room.leaseStart && room.leaseEnd ? 'one_year' : '';
+    room.renovationProgress ||= room.status === 'maintenance' ? '维修中' : '';
+    room.paymentStatus ||= room.status === 'rented' ? 'normal' : '';
+  }
+}
+
 // ============================================================
 //  MOCK DATA: 退租记录
 // ============================================================
@@ -1106,27 +1132,6 @@ const CUSTOMERS = [
 ];
 
 // ============================================================
-//  MOCK DATA: 储备房源/客源
-// ============================================================
-const RESERVE_PROPERTIES = [
-  { id: 1, title: '张江地铁站三室两厅', communityName: '张江汤臣豪园', ownerName: '刘建国', ownerPhone: '13911111111', expectedPrice: 6500, status: 'reserved', diskType: 'house', source: '58', createdAt: '2026-08-01' },
-  { id: 2, title: '联洋商圈两室一厅', communityName: '联洋年华', ownerName: '王芳', ownerPhone: '13922222222', expectedPrice: 4800, status: 'pending', diskType: 'house', source: 'agent', createdAt: '2026-08-05' },
-  { id: 3, title: '花木地铁口商铺', communityName: '浦东世纪花园', ownerName: '陈伟', ownerPhone: '13933333333', expectedPrice: 12000, status: 'reserved', diskType: 'shop', source: 'referral', createdAt: '2026-08-08' },
-  { id: 4, title: '张江科技园写字楼', communityName: '张江科技园', ownerName: '赵秀英', ownerPhone: '13944444444', expectedPrice: 15000, status: 'cancelled', diskType: 'office', source: 'beike', createdAt: '2026-07-20' },
-  { id: 5, title: '碧云国际公寓', communityName: '碧云国际社区', ownerName: '孙丽', ownerPhone: '13955555555', expectedPrice: 8000, status: 'pending', diskType: 'apartment', source: 'wechat', createdAt: '2026-08-15' },
-  { id: 6, title: '川杨新苑两室一厅', communityName: '川杨新苑', ownerName: '吴刚', ownerPhone: '13912121212', expectedPrice: 4300, status: 'reserved', diskType: 'house', source: '58', createdAt: '2026-08-18' },
-  { id: 7, title: '大华锦绣华城三室两厅', communityName: '大华锦绣华城', ownerName: '褚亮', ownerPhone: '13915151515', expectedPrice: 7800, status: 'pending', diskType: 'house', source: 'beike', createdAt: '2026-08-20' },
-  { id: 8, title: '香楠路临街商铺', communityName: '香楠小区', ownerName: '卫平', ownerPhone: '13916161616', expectedPrice: 9500, status: 'reserved', diskType: 'shop', source: 'store', createdAt: '2026-08-22' },
-  { id: 9, title: '张江写字楼B座902', communityName: '张江科技园', ownerName: '蒋敏', ownerPhone: '13917171717', expectedPrice: 13500, status: 'pending', diskType: 'office', source: 'agent', createdAt: '2026-08-25' },
-  { id: 10, title: '玉兰香苑一室一厅', communityName: '玉兰香苑', ownerName: '韩雪', ownerPhone: '13919191919', expectedPrice: 3200, status: 'cancelled', diskType: 'house', source: 'douyin', createdAt: '2026-08-10' },
-];
-const RESERVE_CLIENTS = [
-  { id: 1, clientName: '刘伟', clientMobile: '13600000001', desiredLocation: '张江', demandType: 'rent', desiredLayout: '两室一厅', areaMin: 60, areaMax: 90, priceMin: 3000, priceMax: 4000, sourceChannel: '58', usage: '自住', urgency: 'normal', ownership: 'private', status: 'active', dataSource: 'online', salesmanName: '李娜', createdAt: '2026-08-01' },
-  { id: 2, clientName: '赵志强', clientMobile: '13600000003', desiredLocation: '联洋', demandType: 'buy', desiredLayout: '三室一厅', areaMin: 80, areaMax: 120, priceMin: 400, priceMax: 500, sourceChannel: 'douyin', usage: '自住', urgency: 'urgent', ownership: 'private', status: 'active', dataSource: 'online', salesmanName: '陈静', createdAt: '2026-08-08' },
-  { id: 3, clientName: '冯刚', clientMobile: '13600000008', desiredLocation: '浦东', demandType: 'rent_buy', desiredLayout: '三室两厅', areaMin: 90, areaMax: 130, priceMin: 5000, priceMax: 8000, sourceChannel: 'agent', usage: '家庭', urgency: 'normal', ownership: 'private', status: 'active', dataSource: 'agent', salesmanName: '吴杰', createdAt: '2026-08-20' },
-];
-
-// ============================================================
 //  MOCK DATA: 黑名单
 // ============================================================
 const BLACKLIST = [
@@ -1146,53 +1151,7 @@ const BLACKLIST = [
 // ============================================================
 //  MOCK DATA: 财务
 // ============================================================
-const BILLS = [
-  { id: 1, title: '张江汤臣豪园802租金-刘洋', category: 'rent', amount: 6200, paidAmount: 6200, status: 'paid', tenantName: '刘洋', houseTitle: '张江汤臣豪园12-1-802', billDate: '2026-08-01', dueDate: '2026-08-10', createdAt: '2026-08-01 09:00:00' },
-  { id: 2, title: '张江汤臣豪园501-A租金-陈静', category: 'rent', amount: 2800, paidAmount: 2800, status: 'paid', tenantName: '陈静', houseTitle: '张江汤臣豪园8-2-501A', billDate: '2026-08-01', dueDate: '2026-08-10', createdAt: '2026-08-01 09:00:00' },
-  { id: 3, title: '张江汤臣豪园501-B租金-赵磊', category: 'rent', amount: 2200, paidAmount: 2200, status: 'paid', tenantName: '赵磊', houseTitle: '张江汤臣豪园8-2-501B', billDate: '2026-08-01', dueDate: '2026-08-10', createdAt: '2026-08-01 09:00:00' },
-  { id: 4, title: '张江汤臣豪园501-C租金', category: 'rent', amount: 2000, paidAmount: 0, status: 'pending', tenantName: '钱峰', houseTitle: '张江汤臣豪园8-2-501C', billDate: '2026-08-01', dueDate: '2026-08-10', createdAt: '2026-08-01 09:00:00' },
-  { id: 5, title: '张江家园302-A租金-孙悦', category: 'rent', amount: 2200, paidAmount: 2200, status: 'paid', tenantName: '孙悦', houseTitle: '张江家园5-1-302A', billDate: '2026-08-05', dueDate: '2026-08-15', createdAt: '2026-08-05 10:00:00' },
-  { id: 6, title: '张江家园302-B租金-周涛', category: 'rent', amount: 1800, paidAmount: 0, status: 'overdue', tenantName: '周涛', houseTitle: '张江家园5-1-302B', billDate: '2026-08-05', dueDate: '2026-08-15', createdAt: '2026-08-05 10:00:00' },
-  { id: 7, title: '城市经典花园1501物业费', category: 'property', amount: 360, paidAmount: 360, status: 'paid', tenantName: '吴杰', houseTitle: '城市经典花园3-2-1501', billDate: '2026-08-10', dueDate: '2026-08-20', createdAt: '2026-08-10 11:00:00' },
-  { id: 8, title: '联洋年华601水费', category: 'water', amount: 85, paidAmount: 0, status: 'pending', tenantName: '吴杰', houseTitle: '联洋年华9-1-601', billDate: '2026-08-15', dueDate: '2026-08-25', createdAt: '2026-08-15 14:00:00' },
-  { id: 9, title: '金桥新村401电费', category: 'electric', amount: 156, paidAmount: 156, status: 'paid', tenantName: '黄磊', houseTitle: '金桥新村15-2-401A', billDate: '2026-08-10', dueDate: '2026-08-20', createdAt: '2026-08-10 15:00:00' },
-  { id: 10, title: '张江汤臣豪园802物业费', category: 'property', amount: 340, paidAmount: 0, status: 'pending', tenantName: '刘洋', houseTitle: '张江汤臣豪园12-1-802', billDate: '2026-08-20', dueDate: '2026-08-30', createdAt: '2026-08-20 16:00:00' },
-  { id: 11, title: '海上国际花园1201燃气费', category: 'gas', amount: 68, paidAmount: 68, status: 'paid', tenantName: '周涛', houseTitle: '海上国际花园6-3-1201', billDate: '2026-08-10', dueDate: '2026-08-20', createdAt: '2026-08-10 09:30:00' },
-  { id: 12, title: '浦东世纪花园901租金-刘洋', category: 'rent', amount: 7500, paidAmount: 7500, status: 'paid', tenantName: '刘洋', houseTitle: '浦东世纪花园2-1-901', billDate: '2026-08-01', dueDate: '2026-08-10', createdAt: '2026-08-01 08:00:00' },
-  { id: 13, title: '香楠小区201租金', category: 'rent', amount: 3900, paidAmount: 3900, status: 'paid', tenantName: '潘月', houseTitle: '香楠小区3-1-201', billDate: '2026-08-15', dueDate: '2026-08-25', createdAt: '2026-08-15 09:00:00' },
-  { id: 14, title: '川杨新苑704-A租金-罗琳', category: 'rent', amount: 1900, paidAmount: 1900, status: 'paid', tenantName: '罗琳', houseTitle: '川杨新苑11-2-704A', billDate: '2026-08-10', dueDate: '2026-08-20', createdAt: '2026-08-10 09:00:00' },
-  { id: 15, title: '川杨新苑704-B租金-谢芳', category: 'rent', amount: 1600, paidAmount: 800, status: 'partial', tenantName: '谢芳', houseTitle: '川杨新苑11-2-704B', billDate: '2026-08-10', dueDate: '2026-08-20', createdAt: '2026-08-10 09:00:00' },
-  { id: 16, title: '玉兰香苑502物业费', category: 'property', amount: 228, paidAmount: 0, status: 'pending', tenantName: '邓成', houseTitle: '玉兰香苑18-1-502', billDate: '2026-08-20', dueDate: '2026-08-30', createdAt: '2026-08-20 10:00:00' },
-  { id: 17, title: '仁恒河滨城1101租金', category: 'rent', amount: 12000, paidAmount: 12000, status: 'paid', tenantName: '贺斌', houseTitle: '仁恒河滨城5-2-1101', billDate: '2026-08-01', dueDate: '2026-08-05', createdAt: '2026-08-01 09:00:00' },
-  { id: 18, title: '益丰新村301-A电费', category: 'electric', amount: 210, paidAmount: 210, status: 'paid', tenantName: '唐娟', houseTitle: '益丰新村6-3-301A', billDate: '2026-08-12', dueDate: '2026-08-22', createdAt: '2026-08-12 11:00:00' },
-  { id: 19, title: '大华锦绣华城1103-A租金-邓超', category: 'rent', amount: 2600, paidAmount: 0, status: 'overdue', tenantName: '邓超', houseTitle: '大华锦绣华城22-1-1103A', billDate: '2026-08-10', dueDate: '2026-08-20', createdAt: '2026-08-10 09:00:00' },
-  { id: 20, title: '张江家园801-A租金-潘婷', category: 'rent', amount: 2300, paidAmount: 2300, status: 'paid', tenantName: '潘婷', houseTitle: '张江家园12-1-801A', billDate: '2026-08-05', dueDate: '2026-08-15', createdAt: '2026-08-05 09:00:00' },
-  { id: 21, title: '玉兰香苑1201水费', category: 'water', amount: 46, paidAmount: 46, status: 'paid', tenantName: '鲁强', houseTitle: '玉兰香苑25-2-1201', billDate: '2026-08-18', dueDate: '2026-08-28', createdAt: '2026-08-18 14:00:00' },
-  { id: 22, title: '香楠小区201电费', category: 'electric', amount: 132, paidAmount: 0, status: 'pending', tenantName: '潘月', houseTitle: '香楠小区3-1-201', billDate: '2026-08-22', dueDate: '2026-09-01', createdAt: '2026-08-22 15:00:00' },
-];
 
-const FLOWS = [
-  { id: 1, title: '张江汤臣豪园802租金收入', type: 'income', amount: 6200, paymentType: 'bank', houseTitle: '张江汤臣豪园12-1-802', customerName: '刘洋', flowDate: '2026-08-01', createdAt: '2026-08-01 09:00:00' },
-  { id: 2, title: '张江汤臣豪园501-A租金收入', type: 'income', amount: 2800, paymentType: 'wechat', houseTitle: '张江汤臣豪园8-2-501A', customerName: '陈静', flowDate: '2026-08-01', createdAt: '2026-08-01 09:30:00' },
-  { id: 3, title: '支付房东刘建国房租', type: 'expense', amount: 4500, paymentType: 'bank', houseTitle: '张江汤臣豪园12-1-802', customerName: '刘建国', flowDate: '2026-08-05', createdAt: '2026-08-05 10:00:00' },
-  { id: 4, title: '支付房东王芳房租', type: 'expense', amount: 3500, paymentType: 'bank', houseTitle: '张江家园5-1-302', customerName: '王芳', flowDate: '2026-08-05', createdAt: '2026-08-05 10:30:00' },
-  { id: 5, title: '城市经典花园1501租金收入', type: 'income', amount: 8500, paymentType: 'bank', houseTitle: '城市经典花园3-2-1501', customerName: '吴杰', flowDate: '2026-08-01', createdAt: '2026-08-01 08:00:00' },
-  { id: 6, title: '联洋年华601-A租金收入', type: 'income', amount: 3200, paymentType: 'alipay', houseTitle: '联洋年华9-1-601A', customerName: '钱峰', flowDate: '2026-08-01', createdAt: '2026-08-01 09:00:00' },
-  { id: 7, title: '装修费-金桥新村401', type: 'expense', amount: 8500, paymentType: 'bank', houseTitle: '金桥新村15-2-401', flowDate: '2026-08-10', createdAt: '2026-08-10 14:00:00' },
-  { id: 8, title: '物业费-张江汤臣豪园802', type: 'expense', amount: 340, paymentType: 'bank', houseTitle: '张江汤臣豪园12-1-802', flowDate: '2026-08-15', createdAt: '2026-08-15 11:00:00' },
-  { id: 9, title: '碧云国际社区702租金收入', type: 'income', amount: 8000, paymentType: 'bank', houseTitle: '碧云国际社区9-1-702', customerName: '许晴', flowDate: '2026-08-01', createdAt: '2026-08-01 09:00:00' },
-  { id: 10, title: '浦东世纪花园901租金收入', type: 'income', amount: 7500, paymentType: 'bank', houseTitle: '浦东世纪花园2-1-901', customerName: '刘洋', flowDate: '2026-08-01', createdAt: '2026-08-01 08:00:00' },
-  { id: 11, title: '仁恒河滨城1101租金收入', type: 'income', amount: 12000, paymentType: 'bank', houseTitle: '仁恒河滨城5-2-1101', customerName: '贺斌', flowDate: '2026-08-01', createdAt: '2026-08-01 09:10:00' },
-  { id: 12, title: '玉兰香苑502租金收入', type: 'income', amount: 5000, paymentType: 'wechat', houseTitle: '玉兰香苑18-1-502', customerName: '邓成', flowDate: '2026-08-10', createdAt: '2026-08-10 09:00:00' },
-  { id: 13, title: '支付房东孙丽房租', type: 'expense', amount: 5500, paymentType: 'bank', houseTitle: '碧云国际社区9-1-702', customerName: '孙丽', flowDate: '2026-08-08', createdAt: '2026-08-08 10:00:00' },
-  { id: 14, title: '香楠小区201租金收入', type: 'income', amount: 3900, paymentType: 'alipay', houseTitle: '香楠小区3-1-201', customerName: '潘月', flowDate: '2026-08-15', createdAt: '2026-08-15 09:20:00' },
-  { id: 15, title: '维修费-川杨新苑704空调加氟', type: 'expense', amount: 380, paymentType: 'wechat', houseTitle: '川杨新苑11-2-704', flowDate: '2026-08-18', createdAt: '2026-08-18 16:00:00' },
-  { id: 16, title: '张江家园801-A租金收入', type: 'income', amount: 2300, paymentType: 'bank', houseTitle: '张江家园12-1-801A', customerName: '潘婷', flowDate: '2026-08-05', createdAt: '2026-08-05 09:05:00' },
-  { id: 17, title: '保洁费-大华锦绣华城1103', type: 'expense', amount: 260, paymentType: 'alipay', houseTitle: '大华锦绣华城22-1-1103', flowDate: '2026-08-20', createdAt: '2026-08-20 13:00:00' },
-  { id: 18, title: '川杨新苑704-A租金收入', type: 'income', amount: 1900, paymentType: 'wechat', houseTitle: '川杨新苑11-2-704A', customerName: '罗琳', flowDate: '2026-08-10', createdAt: '2026-08-10 09:15:00' },
-  { id: 19, title: '益丰新村301-A租金收入', type: 'income', amount: 1800, paymentType: 'bank', houseTitle: '益丰新村6-3-301A', customerName: '唐娟', flowDate: '2026-08-20', createdAt: '2026-08-20 09:00:00' },
-  { id: 20, title: '中介费收入-售房SJ013', type: 'income', amount: 27600, paymentType: 'bank', houseTitle: '香楠小区5-1-401', customerName: '卫平', flowDate: '2026-08-22', createdAt: '2026-08-22 15:00:00' },
-];
 
 const PAYMENT_PLANS = [
   { id: 1, title: '张江汤臣豪园802租金', planType: 'income', amount: 6200, planDate: '2026-09-01', actualDate: null, status: 'pending', houseTitle: '张江汤臣豪园12-1-802', billingCategory: '租金', reason: null, totalPeriods: 12, totalAmount: 74400, auditStatus: null, createdAt: '2026-08-01' },
@@ -1217,16 +1176,6 @@ const ARREARS = [
   { id: 6, name: '刘伟', identity: 'rent_a', phone: '13600000001', amount: 340, paidAmount: 0, remainAmount: 340, status: 'pending', createdAt: '2026-08-22' },
 ];
 
-const PAYOUTS = [
-  { id: 1, batchNo: 'ZF202608001', accountName: '刘建国', bankCardNo: '6222****1234', bankName: '工商银行', cardType: '储蓄卡', payoutAmount: 4500, payableAmount: 4500, actualAmount: 4500, operateDate: '2026-08-05', status: 'paid', createdAt: '2026-08-05 10:00:00' },
-  { id: 2, batchNo: 'ZF202608002', accountName: '王芳', bankCardNo: '6222****5678', bankName: '建设银行', cardType: '储蓄卡', payoutAmount: 3500, payableAmount: 3500, actualAmount: 3500, operateDate: '2026-08-05', status: 'paid', createdAt: '2026-08-05 10:30:00' },
-  { id: 3, batchNo: 'ZF202608003', accountName: '张伟装修队', bankCardNo: '6222****9012', bankName: '农业银行', cardType: '储蓄卡', payoutAmount: 8500, payableAmount: 8500, actualAmount: 8500, operateDate: '2026-08-10', status: 'paid', createdAt: '2026-08-10 14:00:00' },
-  { id: 4, batchNo: 'ZF202608004', accountName: '浦东物业公司', bankCardNo: '6222****3456', bankName: '中国银行', cardType: '储蓄卡', payoutAmount: 340, payableAmount: 340, actualAmount: 340, operateDate: '2026-08-15', status: 'paid', createdAt: '2026-08-15 11:00:00' },
-  { id: 5, batchNo: 'ZF202609001', accountName: '刘建国', bankCardNo: '6222****1234', bankName: '工商银行', cardType: '储蓄卡', payoutAmount: 4500, payableAmount: 4500, actualAmount: 0, operateDate: '2026-09-05', status: 'pending', createdAt: '2026-09-01 10:00:00' },
-  { id: 6, batchNo: 'ZF202609002', accountName: '孙丽', bankCardNo: '6222****2468', bankName: '招商银行', cardType: '储蓄卡', payoutAmount: 5500, payableAmount: 5500, actualAmount: 0, operateDate: '2026-09-08', status: 'pending', createdAt: '2026-09-01 10:05:00' },
-  { id: 7, batchNo: 'ZF202608005', accountName: '上海电力公司', bankCardNo: '6222****1357', bankName: '工商银行', cardType: '对公账户', payoutAmount: 156, payableAmount: 156, actualAmount: 156, operateDate: '2026-08-18', status: 'paid', createdAt: '2026-08-18 09:30:00' },
-  { id: 8, batchNo: 'ZF202608006', accountName: '恒信维修公司', bankCardNo: '6222****8642', bankName: '农业银行', cardType: '对公账户', payoutAmount: 380, payableAmount: 380, actualAmount: 380, operateDate: '2026-08-18', status: 'paid', createdAt: '2026-08-18 16:30:00' },
-];
 
 const INVOICES = [
   { id: 1, applySource: 'bill', buyerName: '刘洋', buyerTaxNo: null, amountWithoutTax: 5849.06, taxAmount: 350.94, amountWithTax: 6200, remark: '张江汤臣豪园802租金', issuer: '赵财务', status: 'issued', createdAt: '2026-08-10' },
@@ -1251,7 +1200,6 @@ function findApprovalEntity(entityType, entityId) {
     return RENTAL_SETS.flatMap(item => item.rooms || []).find(item => item.id === entityId);
   }
   if (entityType === 'invoice') return INVOICES.find(item => item.id === entityId);
-  if (entityType === 'bill') return BILLS.find(item => item.id === entityId);
   return null;
 }
 
@@ -1314,15 +1262,6 @@ const ACCOUNTINGS = [
   { id: 5, period: '2026-07', revenue: 198200, receivable: 32000, payable: 18600, actualIncome: 166200, actualExpense: 85600, diff: 80600 },
   { id: 6, period: '2026-08', revenue: 216800, receivable: 35000, payable: 22000, actualIncome: 181800, actualExpense: 89200, diff: 92600 },
 ];
-const RENT_INCREASES = [
-  { id: 1, roomCode: 'ZJ001', year: 2026, month: 9, lastRent: 5800, currentRent: 6200, increaseAmount: 400, increaseRate: 6.9, status: 'approved' },
-  { id: 2, roomCode: 'ZJ004', year: 2026, month: 9, lastRent: 8200, currentRent: 8500, increaseAmount: 300, increaseRate: 3.7, status: 'approved' },
-  { id: 3, roomCode: 'ZJ006', year: 2026, month: 10, lastRent: 6800, currentRent: 7200, increaseAmount: 400, increaseRate: 5.9, status: 'pending' },
-  { id: 4, roomCode: 'ZJ013', year: 2026, month: 9, lastRent: 3700, currentRent: 3900, increaseAmount: 200, increaseRate: 5.4, status: 'approved' },
-  { id: 5, roomCode: 'ZJ017', year: 2026, month: 11, lastRent: 11500, currentRent: 12000, increaseAmount: 500, increaseRate: 4.3, status: 'pending' },
-  { id: 6, roomCode: 'ZJ020', year: 2026, month: 9, lastRent: 5300, currentRent: 5600, increaseAmount: 300, increaseRate: 5.7, status: 'rejected' },
-  { id: 7, roomCode: 'ZJ015', year: 2026, month: 10, lastRent: 4800, currentRent: 5000, increaseAmount: 200, increaseRate: 4.2, status: 'approved' },
-];
 
 // ============================================================
 //  MOCK DATA: 系统配置 / 日志
@@ -1360,23 +1299,6 @@ const LOGS = [
   { id: 17, time: '2026-08-31 11:18:29', module: '房屋管理', action: '编辑出售房源', operator: '陈静', ip: '192.168.1.103', detail: '调整仁恒河滨城三室两厅总价1180万' },
   { id: 18, time: '2026-08-31 14:26:55', module: '客户管理', action: '新增黑名单', operator: '吴杰', ip: '192.168.1.105', detail: '新增黑名单人员徐某某' },
   { id: 19, time: '2026-08-31 16:44:12', module: '财务管理', action: '代付审核', operator: '赵财务', ip: '192.168.1.102', detail: '审核支付孙丽房租代付申请' },
-  { id: 20, time: '2026-08-31 17:30:08', module: '房屋管理', action: '新增储备房源', operator: '卫东', ip: '192.168.1.106', detail: '新增香楠路临街商铺储备房源' },
-];
-
-// ============================================================
-//  MOCK DATA: 储备客源 (extra)
-// ============================================================
-const EXTRA_RESERVE_CLIENTS = [
-  { id: 1, name: '李小明', phone: '13611111111', budget: 3500, intention: '整租两室', status: 'active', source: '58', employeeName: '李娜', createdAt: '2026-08-01' },
-  { id: 2, name: '王小红', phone: '13611111112', budget: 2500, intention: '合租主卧', status: 'active', source: 'beike', employeeName: '王强', createdAt: '2026-08-05' },
-  { id: 3, name: '张大伟', phone: '13611111113', budget: 5000, intention: '整租三室', status: 'contacted', source: 'douyin', employeeName: '陈静', createdAt: '2026-08-10' },
-  { id: 4, name: '赵雪', phone: '13611111114', budget: 2000, intention: '合租次卧', status: 'active', source: 'referral', employeeName: '刘洋', createdAt: '2026-08-15' },
-  { id: 5, name: '刘阳', phone: '13611111115', budget: 8000, intention: '整租三室两厅', status: 'contacted', source: 'agent', employeeName: '孙悦', createdAt: '2026-08-20' },
-  { id: 6, name: '施诗', phone: '13611111116', budget: 4200, intention: '整租两室', status: 'active', source: 'wechat', employeeName: '刘洋', createdAt: '2026-08-22' },
-  { id: 7, name: '贺斌', phone: '13611111117', budget: 12000, intention: '整租三室两厅（高端）', status: 'contacted', source: 'referral', employeeName: '郑凯', createdAt: '2026-08-23' },
-  { id: 8, name: '鲁强', phone: '13611111118', budget: 5500, intention: '整租两室两厅', status: 'active', source: '58', employeeName: '冯雪', createdAt: '2026-08-24' },
-  { id: 9, name: '崔健', phone: '13611111119', budget: 1600, intention: '合租小卧', status: 'inactive', source: 'douyin', employeeName: '卫东', createdAt: '2026-08-15' },
-  { id: 10, name: '潘月', phone: '13611111120', budget: 3900, intention: '整租一室一厅', status: 'contacted', source: 'beike', employeeName: '李娜', createdAt: '2026-08-26' },
 ];
 
 // ============================================================
@@ -1393,8 +1315,6 @@ function permissionList(nodes = PERM_TREE, parentId) {
 const permissionAliases = {
   'renting:create': 'renting:add',
   'sale:create': 'sale:add',
-  'reserve_house:create': 'reserve:house:add',
-  'reserve_client:create': 'reserve:client:add',
 };
 
 function roleResponse(role) {
@@ -1632,12 +1552,57 @@ app.get('/api/system/positions', (req, res) => {
 //  ROUTES: 房屋路由
 // ============================================================
 // 出租房源
-app.get('/api/house/rental-sets', (req, res) => {
+app.get('/api/house/rental-sets', authMiddleware, (req, res) => {
   let data = [...RENTAL_SETS];
-  const { keyword, status, bizType } = req.query;
-  if (keyword) data = data.filter(s => s.code.includes(keyword) || (s.communityName || '').includes(keyword) || s.address.includes(keyword));
-  if (status) data = data.filter(s => status === 'vacant' ? ['active', 'vacant'].includes(s.status) : s.status === status);
+  const {
+    keyword, status, bizType, code, roomNo, storeId, salesmanId, housekeeperId,
+    paymentMethod, leaseTerm, layout, district, address, building, unit,
+    operationStatus, businessStatus, propertyType, orientation, decoration,
+    sourceChannel, landlordPhone, scope, sortBy,
+  } = req.query;
+  if (keyword) {
+    const normalized = String(keyword).trim().toLowerCase();
+    data = data.filter((set) => [
+      set.code,
+      set.communityName,
+      set.address,
+      set.building,
+      set.unit,
+      set.roomNo,
+      ...(set.rooms || []).map(room => room.roomNo),
+    ].some(value => String(value || '').toLowerCase().includes(normalized)));
+  }
+  if (status) {
+    data = data.filter((set) => {
+      if (status === 'vacant' || status === 'rented') {
+        if (set.bizType === 'shared') return (set.rooms || []).some(room => room.status === status);
+        return status === 'vacant' ? ['active', 'vacant'].includes(set.status) : set.status === 'rented';
+      }
+      return set.status === status;
+    });
+  }
   if (bizType) data = data.filter(s => s.bizType === bizType);
+  const contains = (value, expected) => String(value || '').toLowerCase().includes(String(expected || '').trim().toLowerCase());
+  if (code) data = data.filter(set => contains(set.code, code));
+  if (roomNo) data = data.filter(set => contains(set.roomNo, roomNo) || (set.rooms || []).some(room => contains(room.roomNo, roomNo)));
+  if (storeId) data = data.filter(set => Number(set.storeId) === Number(storeId));
+  if (salesmanId) data = data.filter(set => Number(set.salesmanId) === Number(salesmanId));
+  if (housekeeperId) data = data.filter(set => Number(set.housekeeperId) === Number(housekeeperId));
+  if (paymentMethod) data = data.filter(set => set.tenantPaymentMethod === paymentMethod || (set.rooms || []).some(room => room.paymentMethod === paymentMethod));
+  if (leaseTerm) data = data.filter(set => set.leaseTerm === leaseTerm || (set.rooms || []).some(room => room.leaseTerm === leaseTerm));
+  for (const [field, value] of Object.entries({ layout, district, address, building, unit, landlordPhone })) {
+    if (value) data = data.filter(set => contains(set[field], value));
+  }
+  if (operationStatus) data = data.filter(set => set.operationStatus === operationStatus);
+  if (businessStatus) data = data.filter(set => set.businessStatus === businessStatus);
+  for (const [field, value] of Object.entries({ propertyType, orientation, decoration, sourceChannel })) {
+    if (value) data = data.filter(set => set[field] === value);
+  }
+  if (scope === 'mine') data = data.filter(set => Number(set.creatorId) === Number(req.user?.employeeId));
+  if (sortBy === 'rent_desc') data.sort((a, b) => Number(b.rent || 0) - Number(a.rent || 0));
+  else if (sortBy === 'rent_asc') data.sort((a, b) => Number(a.rent || 0) - Number(b.rent || 0));
+  else if (sortBy === 'lease_end') data.sort((a, b) => String(a.tenantLeaseEnd || a.leaseEnd || '9999').localeCompare(String(b.tenantLeaseEnd || b.leaseEnd || '9999')));
+  else data.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   res.json({ code: 0, data: paginate(req.query, data) });
 });
 function nextRentalSetId() {
@@ -2103,254 +2068,11 @@ app.get('/api/house/blacklist/:id', (req, res) => {
   if (!item) return notFound(res, '黑名单记录不存在');
   res.json({ code: 0, data: item });
 });
-// 储备房源
-function reservePropertyResponse(item) {
-  const status = ({ reserved: 'not_rented', pending: 'not_rented', cancelled: 'pause' })[item.status] || item.status;
-  return {
-    ...item,
-    title: item.title || `${item.communityName || item.address || '储备房源'} ${item.roomNo || ''}`.trim(),
-    address: item.address || '', roomNo: item.roomNo || '', layout: item.layout || '',
-    ownerQuote: Number(item.ownerQuote ?? item.expectedPrice ?? 0),
-    expectedPrice: Number(item.ownerQuote ?? item.expectedPrice ?? 0),
-    sourceChannel: item.sourceChannel || item.source || '',
-    source: item.sourceChannel || item.source || '',
-    status,
-  };
-}
-app.get('/api/house/reserve-properties', (req, res) => {
-  let data = RESERVE_PROPERTIES.map(reservePropertyResponse);
-  const { keyword, status } = req.query;
-  if (keyword) data = data.filter(r => [r.title, r.communityName, r.address, r.roomNo, r.ownerName, r.ownerPhone].some(value => String(value || '').includes(keyword)));
-  if (status) data = data.filter(r => r.status === status);
-  res.json({ code: 0, data: paginate(req.query, data) });
-});
-app.post('/api/house/reserve-properties', (req, res) => {
-  if (requireText(res, req.body, [['address', '地址'], ['roomNo', '门牌号'], ['layout', '户型'], ['ownerName', '业主'], ['sourceChannel', '来源渠道']])) return;
-  const r = { id: nextId(RESERVE_PROPERTIES), ...req.body, status: req.body.status || 'not_rented', createdAt: new Date().toISOString() };
-  RESERVE_PROPERTIES.push(r);
-  res.json({ code: 0, data: reservePropertyResponse(r) });
-});
-app.put('/api/house/reserve-properties/:id', (req, res) => {
-  if (requireText(res, req.body, [['address', '地址'], ['roomNo', '门牌号'], ['layout', '户型'], ['ownerName', '业主'], ['sourceChannel', '来源渠道']])) return;
-  const idx = RESERVE_PROPERTIES.findIndex(r => r.id === parseInt(req.params.id));
-  if (idx < 0) return notFound(res, '储备房源不存在');
-  Object.assign(RESERVE_PROPERTIES[idx], req.body);
-  res.json({ code: 0, data: reservePropertyResponse(RESERVE_PROPERTIES[idx]) });
-});
-app.delete('/api/house/reserve-properties/:id', authMiddleware, requirePermission('reserve:house:delete'), (req, res) => {
-  const index = RESERVE_PROPERTIES.findIndex(item => item.id === Number(req.params.id));
-  if (index < 0) return notFound(res, '储备房源不存在');
-  if (['taken', 'signed', 'sold', 'rented', 'deposit_paid'].includes(RESERVE_PROPERTIES[index].status)) {
-    return res.status(400).json({ code: 400, message: '已签约、成交或流转的储备房源不能删除' });
-  }
-  const [item] = RESERVE_PROPERTIES.splice(index, 1);
-  res.json({ code: 0, data: { id: item.id } });
-});
-app.get('/api/house/reserve-properties/:id/edit', (req, res) => {
-  const item = RESERVE_PROPERTIES.find(entry => entry.id === Number(req.params.id));
-  if (!item) return notFound(res, '储备房源不存在');
-  res.json({ code: 0, data: reservePropertyResponse(item) });
-});
-app.post('/api/house/reserve-properties/:id/transfer', (req, res) => {
-  const item = RESERVE_PROPERTIES.find(entry => entry.id === Number(req.params.id));
-  if (!item) return notFound(res, '储备房源不存在');
-  const employee = EMPLOYEES.find(entry => entry.id === Number(req.body.salesmanId) && entry.status === 'active');
-  if (!employee) return res.status(400).json({ code: 400, message: '请选择有效的在职业务员' });
-  item.salesmanId = employee.id;
-  item.salesmanName = employee.name;
-  res.json({ code: 0, data: reservePropertyResponse(item) });
-});
-app.post('/api/house/reserve-properties/:id/sign-contract', (req, res) => {
-  const item = RESERVE_PROPERTIES.find(entry => entry.id === Number(req.params.id));
-  if (!item) return notFound(res, '储备房源不存在');
-  if (!['not_rented', 'pause', 'reserved', 'pending'].includes(item.status)) return res.status(400).json({ code: 400, message: '当前状态不可拿房签约' });
-  if (requireText(res, req.body, [['bizType', '租赁方式'], ['leaseStart', '开始日期'], ['leaseEnd', '结束日期']])) return;
-  const completed = {
-    communityId: req.body.communityId || item.communityId,
-    address: String(req.body.address || item.address || '').trim(),
-    roomNo: String(req.body.roomNo || item.roomNo || '').trim(),
-    layout: String(req.body.layout || item.layout || '').trim(),
-    ownerName: String(req.body.ownerName || item.ownerName || '').trim(),
-  };
-  const missing = [
-    !completed.communityId && '小区', !completed.address && '地址', !completed.roomNo && '房号',
-    !completed.layout && '户型', !completed.ownerName && '房东姓名',
-  ].filter(Boolean);
-  if (missing.length) return res.status(400).json({ code: 400, message: `请补充签约必填信息：${missing.join('、')}` });
-  Object.assign(item, completed);
-  if (Number(req.body.landlordRent) <= 0) return res.status(400).json({ code: 400, message: '房东租金必须大于 0' });
-  const id = nextId(RENTAL_SETS);
-  const rentalSet = {
-    id, code: `ZJ${String(id).padStart(3, '0')}`,
-    communityId: item.communityId, communityName: item.communityName, address: item.address,
-    roomNo: item.roomNo, layout: item.layout, buildingArea: item.buildingArea, decoration: item.decoration,
-    landlordName: item.ownerName, landlordPhone: item.ownerPhone, landlordRent: Number(req.body.landlordRent),
-    landlordDeposit: Number(req.body.landlordDeposit ?? item.details?.landlordDeposit ?? item.details?.deposit ?? 0),
-    bizType: req.body.bizType, leaseStart: req.body.leaseStart, leaseEnd: req.body.leaseEnd,
-    deposit: 0,
-    status: 'vacant', storeId: item.storeId, rooms: [], createdAt: new Date().toISOString(),
-  };
-  RENTAL_SETS.push(rentalSet);
-  item.status = 'signed';
-  item.contractCode = req.body.contractCode || `HT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${item.id}`;
-  res.json({ code: 0, data: { reserveId: item.id, rentalSetId: rentalSet.id, contractCode: item.contractCode, status: item.status } });
-});
-// 储备客源 (extra version)
-function reserveClientResponse(item) {
-  const status = ({ active: 'not_rented', contacted: 'not_rented', inactive: 'pause' })[item.status] || item.status;
-  return {
-    ...item,
-    clientName: item.clientName || item.name || '', clientMobile: item.clientMobile || item.phone || '',
-    desiredLocation: item.desiredLocation || '', demandType: item.demandType || 'rent',
-    desiredLayout: item.desiredLayout || item.intention || '',
-    areaMin: Number(item.areaMin || 0), areaMax: Number(item.areaMax || 0),
-    priceMin: Number(item.priceMin ?? item.budget ?? 0), priceMax: Number(item.priceMax ?? item.budget ?? 0),
-    sourceChannel: item.sourceChannel || item.source || '', urgency: item.urgency || 'normal',
-    ownership: item.ownership || 'house', salesmanName: item.salesmanName || item.employeeName || '', status,
-  };
-}
-app.get('/api/house/reserve-clients', (req, res) => {
-  let data = EXTRA_RESERVE_CLIENTS.map(reserveClientResponse).filter(item => item.status !== 'converted');
-  const { keyword, demandType, status } = req.query;
-  if (keyword) data = data.filter(c => [c.clientName, c.clientMobile, c.desiredLocation, c.desiredLayout].some(value => String(value || '').includes(keyword)));
-  if (demandType) data = data.filter(c => c.demandType === demandType);
-  if (status) data = data.filter(c => c.status === status);
-  res.json({ code: 0, data: paginate(req.query, data) });
-});
-app.post('/api/house/reserve-clients', (req, res) => {
-  if (requireText(res, req.body, [['clientName', '姓名'], ['demandType', '需求类型']])) return;
-  if (req.body.priceMin != null && req.body.priceMax != null && Number(req.body.priceMin) > Number(req.body.priceMax)) return res.status(400).json({ code: 400, message: '最低预算不能高于最高预算' });
-  const c = { id: nextId(EXTRA_RESERVE_CLIENTS), ...req.body, status: req.body.status || 'not_rented', followUps: [], createdAt: new Date().toISOString() };
-  EXTRA_RESERVE_CLIENTS.push(c);
-  res.json({ code: 0, data: reserveClientResponse(c) });
-});
-app.put('/api/house/reserve-clients/:id', (req, res) => {
-  if (requireText(res, req.body, [['clientName', '姓名'], ['demandType', '需求类型']])) return;
-  const idx = EXTRA_RESERVE_CLIENTS.findIndex(c => c.id === parseInt(req.params.id));
-  if (idx < 0) return notFound(res, '储备客源不存在');
-  Object.assign(EXTRA_RESERVE_CLIENTS[idx], req.body);
-  res.json({ code: 0, data: reserveClientResponse(EXTRA_RESERVE_CLIENTS[idx]) });
-});
-app.get('/api/house/reserve-clients/:id/edit', (req, res) => {
-  const item = EXTRA_RESERVE_CLIENTS.find(entry => entry.id === Number(req.params.id));
-  if (!item) return notFound(res, '储备客源不存在');
-  res.json({ code: 0, data: reserveClientResponse(item) });
-});
-app.post('/api/house/reserve-clients/:id/follow-ups', (req, res) => {
-  const item = EXTRA_RESERVE_CLIENTS.find(entry => entry.id === Number(req.params.id));
-  if (!item) return notFound(res, '储备客源不存在');
-  if (requireText(res, req.body, [['content', '跟进内容']])) return;
-  item.followUps ||= [];
-  const followUp = { id: nextId(item.followUps), ...req.body, createdAt: new Date().toISOString() };
-  item.followUps.push(followUp);
-  item.lastFollowAt = followUp.createdAt;
-  res.json({ code: 0, data: followUp });
-});
-app.post('/api/house/reserve-clients/:id/convert', (req, res) => {
-  const item = EXTRA_RESERVE_CLIENTS.find(entry => entry.id === Number(req.params.id));
-  if (!item) return notFound(res, '储备客源不存在');
-  if (!['not_rented', 'deposit', 'active', 'contacted'].includes(item.status)) return res.status(400).json({ code: 400, message: '当前状态不可转为正式客户' });
-  const data = reserveClientResponse(item);
-  const contractCode = String(req.body?.contractCode || '').trim() || undefined;
-  const customer = {
-    id: nextId(CUSTOMERS), name: data.clientName, mobile: data.clientMobile,
-    customerType: data.demandType === 'sale' ? 'buyer' : 'tenant', status: 'active', sourceChannel: data.sourceChannel,
-    relatedPropertyCode: contractCode, contractEndDate: contractCode ? req.body.contractEndDate || undefined : undefined,
-    desiredDistrict: data.desiredLocation, budgetMin: data.priceMin, budgetMax: data.priceMax,
-    employeeName: data.salesmanName, createdAt: new Date().toISOString(),
-  };
-  CUSTOMERS.push(customer);
-  item.status = 'converted';
-  res.json({ code: 0, data: { reserveClientId: item.id, customerId: customer.id, contractCode, status: item.status } });
-});
-
 // ============================================================
 //  ROUTES: 财务路由
 // ============================================================
-function billResponse(item) {
-  const category = item.category || item.billSource || 'other';
-  return {
-    ...item, category, billSource: item.billSource || category,
-    title: item.title || `${item.payer || item.payee || item.roomCode || item.bizId || '账单'}-${category}`,
-    tenantName: item.tenantName || item.payer || '', houseTitle: item.houseTitle || item.roomCode || item.bizId || '',
-    paidAmount: Number(item.paidAmount ?? item.actualAmount ?? 0),
-    billDate: item.billDate || item.createdAt?.slice(0, 10), status: item.status || 'pending',
-  };
-}
-app.get('/api/finance/bills', (req, res) => {
-  let data = BILLS.map(billResponse);
-  const { keyword, status, category, dateStart, dateEnd } = req.query;
-  if (keyword) data = data.filter(b => [b.title, b.tenantName, b.houseTitle, b.bizId, b.roomCode].some(value => String(value || '').includes(keyword)));
-  if (status) data = data.filter(b => b.status === status);
-  if (category) data = data.filter(b => b.category === category);
-  if (dateStart) data = data.filter(b => String(b.dueDate || '') >= dateStart);
-  if (dateEnd) data = data.filter(b => String(b.dueDate || '') <= dateEnd);
-  res.json({ code: 0, data: paginate(req.query, data) });
-});
-app.post('/api/finance/bills', (req, res) => {
-  if (requireText(res, req.body, [['bizType', '业务类型'], ['billSource', '款项种类'], ['dueDate', '到期日']])) return;
-  if (Number(req.body.amount) <= 0) return res.status(400).json({ code: 400, message: '账单金额必须大于 0' });
-  const b = { id: nextId(BILLS), ...req.body, status: 'pending', paidAmount: 0, createdAt: new Date().toISOString() };
-  BILLS.push(b);
-  res.json({ code: 0, data: billResponse(b) });
-});
-app.get('/api/finance/bills/:id/edit', (req, res) => {
-  const bill = BILLS.find(item => item.id === Number(req.params.id));
-  if (!bill) return notFound(res, '账单不存在');
-  res.json({ code: 0, data: billResponse(bill) });
-});
-app.put('/api/finance/bills/:id', (req, res) => {
-  if (requireText(res, req.body, [['bizType', '业务类型'], ['billSource', '款项种类'], ['dueDate', '到期日']])) return;
-  if (Number(req.body.amount) <= 0) return res.status(400).json({ code: 400, message: '账单金额必须大于 0' });
-  const bill = BILLS.find(item => item.id === Number(req.params.id));
-  if (!bill) return notFound(res, '账单不存在');
-  Object.assign(bill, req.body);
-  res.json({ code: 0, data: billResponse(bill) });
-});
-app.post('/api/finance/bills/:id/void', (req, res) => {
-  const bill = BILLS.find(item => item.id === Number(req.params.id));
-  if (!bill) return notFound(res, '账单不存在');
-  if (bill.status === 'paid') return res.status(400).json({ code: 400, message: '已缴账单不可作废' });
-  bill.status = 'cancelled';
-  res.json({ code: 0, data: billResponse(bill) });
-});
-function flowResponse(item) {
-  return {
-    ...item, title: item.title || item.remark || '未命名流水', remark: item.remark || item.title || '',
-    type: item.type || item.direction || 'expense', direction: item.direction || item.type || 'expense',
-    flowDate: item.flowDate || item.occurredOn || item.createdAt?.slice(0, 10),
-    occurredOn: item.occurredOn || item.flowDate || item.createdAt?.slice(0, 10),
-    status: item.status || 'pending', audited: Boolean(item.audited), isRed: Boolean(item.isRed),
-  };
-}
-app.get('/api/finance/flows', (req, res) => {
-  let data = FLOWS.map(flowResponse);
-  const { keyword, type } = req.query;
-  if (keyword) data = data.filter(f => [f.title, f.remark, f.houseTitle, f.customerName].some(value => String(value || '').includes(keyword)));
-  if (type) data = data.filter(f => f.type === type);
-  res.json({ code: 0, data: paginate(req.query, data) });
-});
-app.post('/api/finance/flows', (req, res) => {
-  if (requireText(res, req.body, [['remark', '摘要'], ['direction', '收支方向']])) return;
-  if (Number(req.body.amount) <= 0) return res.status(400).json({ code: 400, message: '流水金额必须大于 0' });
-  const f = { id: nextId(FLOWS), ...req.body, status: 'pending', audited: false, createdAt: new Date().toISOString() };
-  FLOWS.push(f);
-  res.json({ code: 0, data: flowResponse(f) });
-});
-app.get('/api/finance/flows/:id/edit', (req, res) => {
-  const flow = FLOWS.find(item => item.id === Number(req.params.id));
-  if (!flow) return notFound(res, '流水不存在');
-  res.json({ code: 0, data: flowResponse(flow) });
-});
-app.put('/api/finance/flows/:id', (req, res) => {
-  if (requireText(res, req.body, [['remark', '摘要'], ['direction', '收支方向']])) return;
-  if (Number(req.body.amount) <= 0) return res.status(400).json({ code: 400, message: '流水金额必须大于 0' });
-  const flow = FLOWS.find(item => item.id === Number(req.params.id));
-  if (!flow) return notFound(res, '流水不存在');
-  if (flow.audited || flow.isRed) return res.status(400).json({ code: 400, message: '已审核或红冲流水不可编辑' });
-  Object.assign(flow, req.body);
-  res.json({ code: 0, data: flowResponse(flow) });
-});
+// 演示服务不伪造成交，正式约看签约及合同状态由 NestJS / PostgreSQL 后端提供。
+app.get('/api/finance/deals', authMiddleware, requirePermission('finance:deal'), (req, res) => res.json({ code: 0, data: { list: [], total: 0, stats: { total: 0, rentCount: 0, saleCount: 0, monthlyRent: 0, saleAmount: 0 } } }));
 app.get('/api/finance/plans', (req, res) => {
   let data = [...PAYMENT_PLANS];
   const { keyword, planType, status } = req.query;
@@ -2413,34 +2135,6 @@ app.post('/api/finance/arrears/:id/collect', (req, res) => {
   item.status = item.remainAmount > 0 ? 'unpaid' : 'paid';
   res.json({ code: 0, data: item });
 });
-app.get('/api/finance/payouts', (req, res) => {
-  let data = PAYOUTS.map(item => ({
-    ...item,
-    type: item.type || (/装修/.test(item.accountName) ? 'decorate' : /物业/.test(item.accountName) ? 'property' : /电力|能源/.test(item.accountName) ? 'energy' : /刘建国|王芳|孙丽/.test(item.accountName) ? 'rent_cost' : 'other'),
-  }));
-  const { keyword, status, type, dateStart, dateEnd } = req.query;
-  if (keyword) data = data.filter(p => [p.accountName, p.bankName, p.batchNo].some(value => String(value || '').includes(keyword)));
-  if (status) data = data.filter(p => p.status === status);
-  if (type) data = data.filter(p => (p.type || 'other') === type);
-  if (dateStart) data = data.filter(p => String(p.operateDate || '') >= dateStart);
-  if (dateEnd) data = data.filter(p => String(p.operateDate || '') <= dateEnd);
-  res.json({ code: 0, data: paginate(req.query, data) });
-});
-app.post('/api/finance/payouts', authMiddleware, requirePermission('finance:payout:create'), (req, res) => {
-  if (requireText(res, req.body, [['accountName', '收款人'], ['bankName', '开户行'], ['operateDate', '计划付款日']])) return;
-  if (Number(req.body.payoutAmount) <= 0) return res.status(400).json({ code: 400, message: '代付金额必须大于 0' });
-  const p = { id: nextId(PAYOUTS), ...req.body, batchNo: 'ZF' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + String(nextId(PAYOUTS)).padStart(3, '0'), actualAmount: 0, status: 'pending', createdAt: new Date().toISOString() };
-  PAYOUTS.push(p);
-  res.json({ code: 0, data: p });
-});
-app.post('/api/finance/payouts/batch-pay', authMiddleware, requirePermission('finance:payout:batch'), (req, res) => {
-  const ids = Array.isArray(req.body.ids) ? [...new Set(req.body.ids.map(Number))] : [];
-  if (!ids.length) return res.status(400).json({ code: 400, message: '请选择待支付记录' });
-  const changed = PAYOUTS.filter(item => ids.includes(item.id) && item.status === 'pending');
-  if (changed.length !== ids.length) return res.status(400).json({ code: 400, message: '选择项包含不存在或已支付的记录，请刷新后重试' });
-  changed.forEach(item => { item.status = 'paid'; item.actualAmount = Number(item.payoutAmount || item.payableAmount || 0); });
-  res.json({ code: 0, data: { count: changed.length } });
-});
 app.get('/api/finance/invoices', (req, res) => {
   let data = [...INVOICES];
   const { keyword, status } = req.query;
@@ -2472,24 +2166,6 @@ app.post('/api/finance/invoices/:id/change-status', authMiddleware, requirePermi
   res.json({ code: 0, data: result.record });
 });
 // 报表
-app.get('/api/finance/rent-increases', (req, res) => {
-  let data = [...RENT_INCREASES];
-  const { year, month, keyword } = req.query;
-  if (year) data = data.filter(r => r.year === parseInt(year));
-  if (month) data = data.filter(r => r.month === parseInt(month));
-  if (keyword) data = data.filter(r => r.roomCode.includes(keyword));
-  res.json({ code: 0, data: paginate(req.query, data) });
-});
-app.post('/api/finance/rent-increases', (req, res) => {
-  if (requireText(res, req.body, [['roomCode', '房源编号']])) return;
-  const lastRent = Number(req.body.lastRent), currentRent = Number(req.body.currentRent);
-  if (lastRent <= 0 || currentRent <= 0) return res.status(400).json({ code: 400, message: '原租金和现租金必须大于 0' });
-  if (currentRent <= lastRent) return res.status(400).json({ code: 400, message: '现租金必须高于原租金' });
-  const increaseAmount = currentRent - lastRent;
-  const r = { id: nextId(RENT_INCREASES), ...req.body, lastRent, currentRent, increaseAmount, increaseRate: Number((increaseAmount / lastRent * 100).toFixed(1)), status: req.body.status || 'pending' };
-  RENT_INCREASES.push(r);
-  res.json({ code: 0, data: r });
-});
 app.get('/api/finance/income-costs', (req, res) => {
   let data = [...INCOME_COSTS];
   const { period, keyword, dateStart, dateEnd } = req.query;
@@ -2689,23 +2365,16 @@ if (require.main === module && EMPTY_BUSINESS_DATA) {
     DEPOSITS,
     SALE_PROPERTIES,
     CUSTOMERS,
-    RESERVE_PROPERTIES,
-    RESERVE_CLIENTS,
     BLACKLIST,
-    BILLS,
-    FLOWS,
     PAYMENT_PLANS,
     ARREARS,
-    PAYOUTS,
     INVOICES,
     APPROVALS,
     HOUSE_OPERATIONS,
     INCOME_COSTS,
     PERFORMANCES,
     ACCOUNTINGS,
-    RENT_INCREASES,
     LOGS,
-    EXTRA_RESERVE_CLIENTS,
   ];
   for (const collection of businessCollections) collection.splice(0, collection.length);
   todoIdCounter = 1;

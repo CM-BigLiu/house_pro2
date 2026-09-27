@@ -108,7 +108,7 @@ function exportCurrent() {
         <div class="page-desc">按收支科目归集收入明细，支持多维度筛选</div>
       </div>
       <div class="page-actions">
-        <button v-permission="['finance:bill:modify']" class="btn btn-primary" @click="openCreate"><i data-lucide="plus"></i> 新增收入</button>
+        <button v-permission="['finance:income_cost:modify']" class="btn btn-primary" @click="openCreate"><i data-lucide="plus"></i> 新增收入</button>
         <button v-permission="['finance:export']" class="btn btn-default" @click="exportCurrent"><i data-lucide="download"></i> 导出</button>
       </div>
     </div>
@@ -177,7 +177,7 @@ function exportCurrent() {
               <td>
                 <div class="operation-cell">
                   <button class="btn btn-ghost btn-sm" @click="showDetails(row)">查看</button>
-                  <button v-permission="['finance:bill:modify']" class="btn btn-ghost btn-sm" @click="openEdit(row)">编辑</button>
+                  <button v-permission="['finance:income_cost:modify']" class="btn btn-ghost btn-sm" @click="openEdit(row)">编辑</button>
                 </div>
               </td>
             </tr>

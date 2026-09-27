@@ -26,8 +26,8 @@ code/server/
 │   ├── modules/
 │   │   ├── auth/                # JWT 登录
 │   │   ├── system/              # 角色、权限、字典、员工、店面
-│   │   ├── house/               # 小区、售房、租房、储备、客源、客户
-│   │   ├── finance/             # 账单、流水、开票、代付、计划、欠款
+│   │   ├── house/               # 小区、售房、租房、房管房管理、客户
+│   │   ├── finance/             # 成交管理、开票、计划、欠款与核算
 │   │   └── dashboard/           # 首页看板聚合数据
 │   └── database/seeds/          # 默认角色/字典/演示账号种子
 ├── docker-compose.yml
@@ -50,13 +50,15 @@ code/server/
 | GET /api/house/communities | 小区列表 |
 | GET /api/house/sale-properties | 售房房源 |
 | GET /api/house/rental-sets | 租房套 |
-| GET /api/house/reserves/properties | 储备房源 |
-| GET /api/house/reserves/clients | 储备客源 |
+| GET /api/house/property-management/properties | 房管管理（所有租房类型） |
+| GET /api/house/property-management/tenants | 实际租客管理（整租与合租合同） |
 | GET /api/house/customers | 客户 |
-| GET /api/finance/bills | 账单 |
-| GET /api/finance/flows | 流水账 |
+| GET /api/finance/deals | 按权限、租售类型、状态、签约时间筛选成交合同 |
+| GET /api/house/customers/:id/workflow/context | 客户可见的未签约约看与生效合同 |
+| POST /api/house/customers/:id/workflow/appointments | 客户约看，负责人自动使用当前员工 |
+| POST /api/house/customers/:id/workflow/sign | 基于该客户约看记录签约并生成成交合同 |
+| POST /api/house/customers/:id/workflow/terminate | 解约，租房走退租审批，售房恢复签约前房态 |
 | GET /api/finance/invoices | 开票 |
-| GET /api/finance/payouts | 代付 |
 | GET /api/finance/plans | 收支计划 |
 | GET /api/finance/arrears | 欠款 |
 | GET /api/dashboard/overview | 看板概览 |

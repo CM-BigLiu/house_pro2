@@ -82,7 +82,7 @@ export class PerformanceController {
   }
 
   @Post()
-  @RequirePermission('finance:bill:modify')
+  @RequirePermission('finance:performance:modify')
   async create(@Body() data: CreatePerformanceDto) {
     return this.service.create(data);
   }

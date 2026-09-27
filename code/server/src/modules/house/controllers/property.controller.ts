@@ -23,7 +23,8 @@ class UnifiedPropertyCreateDto {
   @IsNumber()
   @IsNotEmpty()
   @Type(() => Number)
-  transType: number; // 1 rental, 2 sale, 3 reserve
+  @IsIn([1, 2])
+  transType: number; // 1 rental, 2 sale
 
   // Sale fields
   @IsString()

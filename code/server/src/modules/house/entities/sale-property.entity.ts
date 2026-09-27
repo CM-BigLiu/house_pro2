@@ -74,6 +74,9 @@ export class SaleProperty {
   @Column({ default: false })
   isPublic: boolean;
 
+  @Column({ default: false })
+  isOnlyProperty: boolean;
+
   @Column({ length: 100, nullable: true })
   govVerifyCode: string;
 
@@ -137,6 +140,15 @@ export class SaleProperty {
   @Column({ type: 'decimal', precision: 14, scale: 2, nullable: true })
   floorPrice: number;
 
+  @Column({ type: 'decimal', precision: 14, scale: 2, nullable: true })
+  downPayment: number;
+
+  @Column({ type: 'decimal', precision: 14, scale: 2, nullable: true })
+  monthlyPayment: number;
+
+  @Column({ type: 'decimal', precision: 14, scale: 2, nullable: true })
+  loanAmount: number;
+
   @Column({ length: 20, nullable: true })
   taxType: string;
 
@@ -148,6 +160,18 @@ export class SaleProperty {
 
   @Column({ length: 20, nullable: true })
   certificateType: string;
+
+  @Column({ length: 50, nullable: true })
+  propertyRights: string;
+
+  @Column({ length: 50, nullable: true })
+  propertyTerm: string;
+
+  @Column({ length: 50, nullable: true })
+  certificateTerm: string;
+
+  @Column({ length: 100, nullable: true })
+  acceptedPaymentMethods: string;
 
   @Column({ length: 50 })
   sourceChannel: string;
@@ -161,6 +185,21 @@ export class SaleProperty {
   @Column({ type: 'text', nullable: true })
   description: string;
 
+  @Column({ type: 'text', nullable: true })
+  ownerMentality: string;
+
+  @Column({ type: 'text', nullable: true })
+  communityIntro: string;
+
+  @Column({ type: 'text', nullable: true })
+  nearbySchool: string;
+
+  @Column({ type: 'text', nullable: true })
+  taxDescription: string;
+
+  @Column({ type: 'text', nullable: true })
+  advantages: string;
+
   @Column({ length: 50 })
   ownerName: string;
 
@@ -172,6 +211,15 @@ export class SaleProperty {
 
   @Column({ length: 255, nullable: true, transformer: encryptedTransformer })
   ownerPhoneBackup: string;
+
+  @Column({ type: 'text', nullable: true })
+  ownerRemark: string;
+
+  @Column('simple-json', { nullable: true })
+  emergencyContacts: { name: string; phone: string; relation?: string }[];
+
+  @Column({ type: 'text', nullable: true })
+  followUpContent: string;
 
   @ManyToOne(() => Employee, { nullable: true })
   @JoinColumn({ name: 'maintainer_id' })

@@ -9,7 +9,7 @@ export function databaseConfig(): TypeOrmModuleOptions {
     password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.DB_DATABASE || 'house_pro',
     entities: [__dirname + '/../modules/**/*.entity{.ts,.js}'],
-    synchronize: process.env.NODE_ENV !== 'production',
+    synchronize: process.env.NODE_ENV !== 'production' && process.env.DB_SYNCHRONIZE !== 'false',
     logging: process.env.NODE_ENV === 'development',
   };
 }

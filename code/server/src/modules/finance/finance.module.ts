@@ -1,52 +1,40 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BillController } from './controllers/bill.controller';
-import { FlowController } from './controllers/flow.controller';
 import { InvoiceController } from './controllers/invoice.controller';
-import { PayoutController } from './controllers/payout.controller';
 import { PlanController } from './controllers/plan.controller';
 import { ArrearController } from './controllers/arrear.controller';
-import { RentIncreaseController } from './controllers/rent-increase.controller';
 import { IncomeCostController } from './controllers/income-cost.controller';
 import { PerformanceController } from './controllers/performance.controller';
 import { AccountingController } from './controllers/accounting.controller';
-import { BillService } from './services/bill.service';
-import { FlowService } from './services/flow.service';
 import { InvoiceService } from './services/invoice.service';
-import { PayoutService } from './services/payout.service';
 import { PlanService } from './services/plan.service';
 import { ArrearService } from './services/arrear.service';
-import { RentIncreaseService } from './services/rent-increase.service';
 import { IncomeCostService } from './services/income-cost.service';
 import { PerformanceService } from './services/performance.service';
 import { AccountingService } from './services/accounting.service';
-import { Bill } from './entities/bill.entity';
-import { FinanceFlow } from './entities/finance-flow.entity';
 import { Invoice } from './entities/invoice.entity';
-import { Payout } from './entities/payout.entity';
 import { PaymentPlan } from './entities/payment-plan.entity';
 import { Arrear } from './entities/arrear.entity';
-import { RentIncrease } from './entities/rent-increase.entity';
 import { IncomeCost } from './entities/income-cost.entity';
 import { Performance } from './entities/performance.entity';
 import { Accounting } from './entities/accounting.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([
-    Bill, FinanceFlow, Invoice, Payout, PaymentPlan, Arrear,
-    RentIncrease, IncomeCost, Performance, Accounting,
+    Invoice, PaymentPlan, Arrear,
+    IncomeCost, Performance, Accounting,
   ])],
   controllers: [
-    BillController, FlowController, InvoiceController, PayoutController, PlanController, ArrearController,
-    RentIncreaseController, IncomeCostController, PerformanceController, AccountingController,
+    InvoiceController, PlanController, ArrearController,
+    IncomeCostController, PerformanceController, AccountingController,
   ],
   providers: [
-    BillService, FlowService, InvoiceService, PayoutService, PlanService, ArrearService,
-    RentIncreaseService, IncomeCostService, PerformanceService, AccountingService,
+    InvoiceService, PlanService, ArrearService,
+    IncomeCostService, PerformanceService, AccountingService,
   ],
   exports: [
-    BillService, FlowService, InvoiceService, PayoutService, PlanService, ArrearService,
-    RentIncreaseService, IncomeCostService, PerformanceService, AccountingService,
+    InvoiceService, PlanService, ArrearService,
+    IncomeCostService, PerformanceService, AccountingService,
   ],
 })
 export class FinanceModule {}

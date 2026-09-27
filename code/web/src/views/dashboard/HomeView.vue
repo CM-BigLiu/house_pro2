@@ -38,8 +38,7 @@ const can = (code: string) => permissions.value.includes('*') || permissions.val
 const canViewFinance = computed(() => permissions.value.includes('*') || permissions.value.some((code) => code.startsWith('finance:')));
 const canAddRent = computed(() => can('renting:add'));
 const canAddSale = computed(() => can('sale:add'));
-const canAddReserve = computed(() => can('reserve:house:add'));
-const hasQuickAction = computed(() => canAddRent.value || canAddSale.value || canAddReserve.value);
+const hasQuickAction = computed(() => canAddRent.value || canAddSale.value);
 
 const userName = computed(() => userStore.userInfo?.name || overview.value?.greetingName || '用户');
 const maskedMobile = computed(() => {
@@ -161,7 +160,6 @@ onMounted(loadDashboard);
           <div v-if="hasQuickAction" class="quick-actions">
             <button v-if="canAddRent" class="quick-btn" @click="router.push('/house/rent/create')">录入租房</button>
             <button v-if="canAddSale" class="quick-btn" @click="router.push('/house/sale/create')">录入售房</button>
-            <button v-if="canAddReserve" class="quick-btn" @click="router.push('/house/reserve-house/create')">录入储备</button>
           </div>
           <div v-else class="read-only-tip">当前账号为只读权限，无可用录入操作</div>
         </div>

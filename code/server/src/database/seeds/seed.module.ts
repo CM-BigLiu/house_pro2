@@ -21,12 +21,8 @@ import { RentalSet } from '../../modules/house/entities/rental-set.entity';
 import { RentalRoom } from '../../modules/house/entities/rental-room.entity';
 import { Checkout } from '../../modules/house/entities/checkout.entity';
 import { Deposit } from '../../modules/house/entities/deposit.entity';
-import { ReserveProperty } from '../../modules/house/entities/reserve-property.entity';
-import { ReserveClient } from '../../modules/house/entities/reserve-client.entity';
 import { Customer } from '../../modules/house/entities/customer.entity';
 import { Blacklist } from '../../modules/house/entities/blacklist.entity';
-import { Bill } from '../../modules/finance/entities/bill.entity';
-import { FinanceFlow } from '../../modules/finance/entities/finance-flow.entity';
 
 @Module({
   imports: [
@@ -35,7 +31,7 @@ import { FinanceFlow } from '../../modules/finance/entities/finance-flow.entity'
       OperationLog, Config,
       Community, Building, Unit, Floor, RoomCode, SaleProperty, RentalSet, RentalRoom,
       Checkout, Deposit,
-      ReserveProperty, ReserveClient, Customer, Blacklist, Bill, FinanceFlow,
+      Customer, Blacklist,
     ]),
   ],
   providers: [SeedService, BizSeedService],

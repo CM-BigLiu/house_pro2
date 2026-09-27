@@ -37,7 +37,6 @@ import { ApprovalService } from './services/approval.service';
 import { StateMachineService } from '../../common/services/state-machine.service';
 import { SaleProperty } from '../house/entities/sale-property.entity';
 import { RentalRoom } from '../house/entities/rental-room.entity';
-import { Bill } from '../finance/entities/bill.entity';
 import { Invoice } from '../finance/entities/invoice.entity';
 
 @Module({
@@ -45,7 +44,7 @@ import { Invoice } from '../finance/entities/invoice.entity';
     TypeOrmModule.forFeature([
       Company, City, Store, Department, Group, Position,
       Employee, Role, Permission, Dict, DictItem, OperationLog,
-      ApprovalRecord, SaleProperty, RentalRoom, Bill, Invoice, Config,
+      ApprovalRecord, SaleProperty, RentalRoom, Invoice, Config,
     ]),
   ],
   controllers: [DictController, EmployeeController, RoleController, PermissionController, StoreController, StatusController, ApprovalController, PositionController, ConfigController, CityController, LogController],

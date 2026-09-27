@@ -3,33 +3,23 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CommunityController, CommunityAliasController } from './controllers/community.controller';
 import { SaleController } from './controllers/sale.controller';
 import { RentalController } from './controllers/rental.controller';
-import { ReserveController } from './controllers/reserve.controller';
 import { CustomerController } from './controllers/customer.controller';
-import { ReservePropertyController } from './controllers/reserve-property.controller';
-import { ReserveClientController } from './controllers/reserve-client.controller';
 import { PropertyController } from './controllers/property.controller';
-import { ReserveAliasController } from './controllers/reserve-alias.controller';
 import { BlacklistController } from './controllers/blacklist.controller';
 import { CommunityService } from './services/community.service';
 import { SaleService } from './services/sale.service';
 import { RentalService } from './services/rental.service';
-import { ReserveService } from './services/reserve.service';
 import { CustomerService } from './services/customer.service';
-import { ReservePropertyService } from './services/reserve-property.service';
-import { ReserveClientService } from './services/reserve-client.service';
 import { BlacklistService } from './services/blacklist.service';
 import { Community } from './entities/community.entity';
 import { Building, Unit, Floor, RoomCode } from './entities/community-hierarchy.entity';
 import { SaleProperty } from './entities/sale-property.entity';
 import { RentalSet } from './entities/rental-set.entity';
 import { RentalRoom } from './entities/rental-room.entity';
-import { ReserveProperty } from './entities/reserve-property.entity';
-import { ReserveClient } from './entities/reserve-client.entity';
 import { Customer } from './entities/customer.entity';
 import { Blacklist } from './entities/blacklist.entity';
 import { FollowUp } from './entities/follow-up.entity';
-import { FollowUpController, OperationLogController } from './controllers/follow-up.controller';
-import { FollowUpService } from './services/follow-up.service';
+import { OperationLogController } from './controllers/operation-log.controller';
 import { OperationLogService } from './services/operation-log.service';
 import { OperationLog } from '../system/entities/operation-log.entity';
 import { CheckoutController } from './controllers/checkout.controller';
@@ -42,6 +32,16 @@ import { Employee } from '../system/entities/employee.entity';
 import { SystemModule } from '../system/system.module';
 import { PropertyDetailController } from './controllers/property-detail.controller';
 import { PropertyDetailService } from './services/property-detail.service';
+import { RentalAppointment } from './entities/rental-appointment.entity';
+import { RentalAppointmentAction } from './entities/rental-appointment-action.entity';
+import { RentalAppointmentController } from './controllers/rental-appointment.controller';
+import { RentalAppointmentService } from './services/rental-appointment.service';
+import { PropertyManagementController } from './controllers/property-management.controller';
+import { PropertyManagementService } from './services/property-management.service';
+import { Deal } from './entities/deal.entity';
+import { SaleAppointment } from './entities/sale-appointment.entity';
+import { CustomerWorkflowService } from './services/customer-workflow.service';
+import { CustomerWorkflowController, DealsController } from './controllers/customer-workflow.controller';
 
 @Module({
   imports: [
@@ -49,12 +49,13 @@ import { PropertyDetailService } from './services/property-detail.service';
     TypeOrmModule.forFeature([
       Community, Building, Unit, Floor, RoomCode,
       SaleProperty, RentalSet, RentalRoom,
-      ReserveProperty, ReserveClient, Customer, Blacklist, FollowUp,
-      OperationLog, Checkout, Deposit, Employee,
+      Customer, Blacklist, FollowUp,
+      OperationLog, Checkout, Deposit, Employee, RentalAppointment, RentalAppointmentAction,
+      Deal, SaleAppointment,
     ]),
   ],
-  controllers: [PropertyDetailController, CommunityController, CommunityAliasController, SaleController, RentalController, ReserveController, ReservePropertyController, ReserveClientController, CustomerController, BlacklistController, FollowUpController, OperationLogController, PropertyController, ReserveAliasController, CheckoutController, DepositController],
-  providers: [PropertyDetailService, CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService, CheckoutService, DepositService],
-  exports: [CommunityService, SaleService, RentalService, ReserveService, ReservePropertyService, ReserveClientService, CustomerService, BlacklistService, FollowUpService, OperationLogService, CheckoutService, DepositService],
+  controllers: [CustomerWorkflowController, DealsController, PropertyManagementController, PropertyDetailController, CommunityController, CommunityAliasController, SaleController, RentalController, RentalAppointmentController, CustomerController, BlacklistController, OperationLogController, PropertyController, CheckoutController, DepositController],
+  providers: [CustomerWorkflowService, PropertyManagementService, PropertyDetailService, CommunityService, SaleService, RentalService, RentalAppointmentService, CustomerService, BlacklistService, OperationLogService, CheckoutService, DepositService],
+  exports: [CommunityService, SaleService, RentalService, RentalAppointmentService, CustomerService, BlacklistService, OperationLogService, CheckoutService, DepositService],
 })
 export class HouseModule {}

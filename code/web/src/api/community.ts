@@ -11,6 +11,9 @@ export interface Community {
   cityId?: number;
   districtId?: number;
   businessCircle?: string;
+  propertyType?: string;
+  supplement?: string;
+  photos?: string[];
   longitude?: number;
   latitude?: number;
   buildingCount?: number;
@@ -27,7 +30,17 @@ export interface Building {
   units: { id: number; name: string }[];
 }
 
-export function getCommunities(params?: { keyword?: string; cityId?: number; businessCircle?: string; page?: number; pageSize?: number }) {
+export interface CommunityQuery {
+  keyword?: string;
+  cityId?: number | '';
+  district?: string;
+  businessCircle?: string;
+  propertyType?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export function getCommunities(params?: CommunityQuery) {
   return get<{ list: Community[]; total: number }>('/community', { params });
 }
 
