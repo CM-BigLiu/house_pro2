@@ -32,8 +32,8 @@ export class CustomerWorkflowService {
   private async customer(id: number, user: CurrentUserPayload, writing = false) {
     const customer = await this.customers.findOne(id, user);
     if (!['tenant', 'buyer'].includes(customer.customerType)) throw new BadRequestException('仅租房客户和买房客户支持此操作');
-    if (writing && (customer.isBlacklist || ['blacklist', 'invalid'].includes(customer.status))) {
-      throw new BadRequestException('黑名单或已失效客户不能约看、签约');
+    if (writing && (customer.status === 'invalid')) {
+      throw new BadRequestException('已失效客户不能约看、签约');
     }
     return customer;
   }
@@ -197,6 +197,7 @@ export class CustomerWorkflowService {
     const stats = await qb.clone().select('COUNT(*)::int', 'total')
       .addSelect("COUNT(*) FILTER (WHERE record.bizType = 'rent')::int", 'rentCount')
       .addSelect("COUNT(*) FILTER (WHERE record.bizType = 'sale')::int", 'saleCount')
+      .addSelect("COUNT(*) FILTER (WHERE record.bizType = 'management')::int", 'managementCount')
       .addSelect("COALESCE(SUM(record.amount) FILTER (WHERE record.bizType = 'rent' AND record.status = 'active'), 0)", 'monthlyRent')
       .addSelect("COALESCE(SUM(record.amount) FILTER (WHERE record.bizType = 'sale' AND record.status = 'active'), 0)", 'saleAmount').getRawOne();
     const page = Math.max(1, Number(query.page) || 1), pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));

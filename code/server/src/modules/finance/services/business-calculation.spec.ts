@@ -1,15 +1,31 @@
 import {
   addMonths,
+  addDays,
+  addCalendarMonths,
   buildContractSchedule,
   leaseAmount,
   validDate,
   validMoney,
+  normalizeFreeRentRanges,
 } from './business-calculation';
 
 describe('合同金额与收付款周期', () => {
+  it('多段免租跨付款周期扣除，交叠区间与年度免租不重复扣减', () => {
+    const rows = buildContractSchedule({ leaseStart: '2026-10-01', leaseEnd: '2026-11-29', paymentDate: '2026-10-01', paymentMethod: 'monthly', amount: 3000,
+      freeDays: [10, 0, 0, 0, 0], freeRentRanges: [{ start: '2026-10-05', end: '2026-10-15' }, { start: '2026-10-29', end: '2026-11-02' }] });
+    expect(rows.map(row => row.amount)).toEqual([1200, 2700]);
+    expect(rows.map(row => row.dueDate)).toEqual(['2026-10-01', '2026-11-01']);
+  });
+  it('指定免租起止日都计算，连续及重叠日期只扣一次', () => {
+    expect(normalizeFreeRentRanges([{ start: '2026-10-10', end: '2026-10-15' }, { start: '2026-10-01', end: '2026-10-10' }])).toEqual([{ start: '2026-10-01', end: '2026-10-15' }]);
+    expect(leaseAmount('2026-10-01', '2026-10-30', 3000, '2026-10-01', '2026-10-31', [], [{ start: '2026-10-15', end: '2026-10-15' }])).toBe(2803.23);
+  });
+  it.each([[{ start: '2026-02-30', end: '2026-03-01' }], [{ start: '2026-10-10', end: '2026-10-01' }], [{ start: '2026-09-30', end: '2026-10-01' }]])('无效或超出租期免租拒绝保存 %j', ranges => {
+    expect(() => normalizeFreeRentRanges(ranges, '2026-10-01', '2026-10-30')).toThrow();
+  });
   const contract = {
     leaseStart: '2026-10-01',
-    leaseEnd: '2027-09-30',
+    leaseEnd: '2027-09-25',
     paymentDate: '2026-09-28',
     paymentMethod: 'monthly',
     amount: 3100,
@@ -31,12 +47,12 @@ describe('合同金额与收付款周期', () => {
     });
     expect(quarterly).toHaveLength(4);
     expect(quarterly.map((row) => row.amount)).toEqual([
-      9300, 9300, 9300, 9300,
+      9300, 9300, 9300, 8783.33,
     ]);
-    expect(quarterly[3].periodEnd).toBe('2027-09-30');
+    expect(quarterly[3].periodEnd).toBe('2027-09-25');
   });
 
-  it('月底付款持续以首期日期为锚点，不把后续各月永久移到28日', () => {
+  it('月底和闰年也按真实日历推算付款日期', () => {
     const rows = buildContractSchedule({
       ...contract,
       paymentDate: '2026-01-31',
@@ -49,28 +65,28 @@ describe('合同金额与收付款周期', () => {
     expect(addMonths('2028-01-31', 1)).toBe('2028-02-29');
   });
 
-  it('首年免租后剩余天数按30天折算，不影响以后完整月份', () => {
+  it('首年免租按月租除以30扣减，不影响以后完整月份', () => {
     const rows = buildContractSchedule({
       ...contract,
       freeDays: [10, 0, 0, 0, 0],
     });
-    expect(rows[0].amount).toBe(2170);
+    expect(rows[0].amount).toBe(2066.67);
     expect(rows[1].amount).toBe(3100);
-    expect(rows.reduce((sum, row) => sum + row.amount, 0)).toBe(36270);
+    expect(rows.reduce((sum, row) => sum + row.amount, 0)).toBe(35650);
   });
 
-  it('第二合同年按周年起点扣免租，非自然年1月重新扣', () => {
+  it('第二合同年从周年日期开始扣免租', () => {
     const rows = buildContractSchedule({
       ...contract,
-      leaseEnd: '2028-09-30',
+      leaseEnd: '2028-09-19',
       freeDays: [0, 10, 0, 0, 0],
     });
     expect(rows[11].amount).toBe(3100);
-    expect(rows[12].amount).toBe(2170);
+    expect(rows[12].amount).toBe(2066.67);
     expect(rows[13].amount).toBe(3100);
   });
 
-  it('最后不足一个合同月和解约截断按实际天数除以30折算', () => {
+  it('最后不足一个合同月和解约截断按合同月实际天数折算', () => {
     const rows = buildContractSchedule({
       ...contract,
       leaseEnd: '2026-11-15',
@@ -80,10 +96,10 @@ describe('合同金额与收付款周期', () => {
     expect(rows[0].amount).toBe(4650);
     expect(
       leaseAmount('2026-10-01', '2026-10-15', 3100, '2026-10-01', '2026-11-01'),
-    ).toBe(1550);
+    ).toBe(1500);
   });
 
-  it('月租4000、季付且免租45天时首期为16/30个月加1整月', () => {
+  it('月租4000、季付且免租45天时首期应付6000元', () => {
     const rows = buildContractSchedule({
       leaseStart: '2026-09-28',
       leaseEnd: '2028-09-27',
@@ -95,24 +111,29 @@ describe('合同金额与收付款周期', () => {
     expect(rows[0]).toMatchObject({
       periodStart: '2026-09-28',
       periodEnd: '2026-12-27',
-      amount: 6133.33,
+      amount: 6000,
     });
     expect(rows[1].amount).toBe(12000);
   });
 
   it.each([
-    ['2026-02-01', '2026-02-28'],
-    ['2028-02-01', '2028-02-29'],
-    ['2026-04-01', '2026-04-30'],
-    ['2026-05-01', '2026-05-31'],
-  ])('整月%s至%s仍收一个月租金，零散15天统一按30天折算', (start, end) => {
-    const until = addMonths(start, 1);
-    expect(leaseAmount(start, end, 3000, start, until)).toBe(3000);
-    expect(leaseAmount(start, end, 3000, start, `${start.slice(0, 8)}16`)).toBe(1500);
+    ['2026-02-01', '2026-02-28', 1607.14],
+    ['2028-02-01', '2028-02-29', 1551.72],
+    ['2026-04-01', '2026-04-30', 1500],
+    ['2026-05-01', '2026-05-31', 1451.61],
+  ])('指定起止日期%s至%s按合同月实际天数折算', (start, end, expected) => {
+    expect(leaseAmount(start, end, 3000, start, addDays(end, 1))).toBe(3000);
+    expect(leaseAmount(start, end, 3000, start, start.slice(0, 8) + '16')).toBe(expected);
+  });
+
+  it('合同与报表按真实日历计算，二月和31号数据不会漏报', () => {
+    expect(addMonths('2026-02-01', 1)).toBe('2026-03-01');
+    expect(addCalendarMonths('2026-02-01', 1)).toBe('2026-03-01');
+    expect(addCalendarMonths('2026-10-01', 1)).toBe('2026-11-01');
   });
 
   it('日租不提前舍入，按每期合计保留两位小数', () => {
-    expect(leaseAmount('2026-05-01', '2026-05-31', 100, '2026-05-01', '2026-05-08')).toBe(23.33);
+    expect(leaseAmount('2026-05-01', '2026-05-31', 100, '2026-05-01', '2026-05-08')).toBe(22.58);
   });
 
   it('跨闰年及月底的合同月折算不会漏掉月底天数', () => {
@@ -121,12 +142,11 @@ describe('合同金额与收付款周期', () => {
     ).toBe(5800);
   });
 
-  it('免租覆盖整期时生成已清零金额，没有负数应付款', () => {
-    expect(
-      buildContractSchedule({ ...contract, freeDays: [365, 0, 0, 0, 0] }).every(
-        (row) => row.amount === 0,
-      ),
-    ).toBe(true);
+  it('免租扣款上限为本期租金，二月按实际免租天数除以30计算', () => {
+    const rows = buildContractSchedule({ ...contract, freeDays: [365, 0, 0, 0, 0] });
+    expect(rows.every(row => row.amount >= 0)).toBe(true);
+    expect(rows[0].amount).toBe(0);
+    expect(rows.find(row => row.periodStart === '2027-02-01').amount).toBe(206.67);
   });
 
   it.each([

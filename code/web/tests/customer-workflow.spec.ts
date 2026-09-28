@@ -49,7 +49,7 @@ async function select(root: Element, label: string, value: string) {
 describe('客户分类和约看、签约、解约', () => {
   it('租房和买房分类分别位于第二、第三位置，按类型查询且保留其他状态分类', async () => {
     const root = await mount(CustomerView);
-    expect([...root.querySelectorAll('.status-tab')].map(el => el.textContent)).toEqual(['全部客户', '租房客户', '买房客户', '有效客户', '已成交', '已失效', '黑名单']);
+    expect([...root.querySelectorAll('.status-tab')].map(el => el.textContent)).toEqual(['全部客户', '租房客户', '买房客户', '有效客户', '已成交', '已失效']);
     button(root, '租房客户').click(); await flush(); expect(getCustomers).toHaveBeenLastCalledWith(expect.objectContaining({ customerType: 'tenant', status: '', page: 1 }));
     expect(root.querySelectorAll('tbody tr')).toHaveLength(1); expect(root.textContent).not.toContain(buyer.name);
     button(root, '买房客户').click(); await flush(); expect(getCustomers).toHaveBeenLastCalledWith(expect.objectContaining({ customerType: 'buyer', status: '' }));

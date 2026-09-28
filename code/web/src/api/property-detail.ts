@@ -3,6 +3,7 @@ import type { Checkout } from './checkout';
 
 export interface PropertyDetail {
   property: Record<string, any>;
+  landlordContract?: { id: number; contractCode: string; paymentMethod: string; leaseStart: string; leaseEnd: string; amount: number; freeRentRanges: import('@/utils/free-rent').FreeRentRange[] };
   roomId: number | null;
   approvals: { id: number; entityType: string; entityId: number; action: string; fromStatus: string; toStatus: string; result: string; operatorId: number; approverId?: number; remark?: string; createdAt: string }[];
   checkouts: Checkout[];

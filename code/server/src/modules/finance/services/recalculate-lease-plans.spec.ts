@@ -5,7 +5,7 @@ function setup(overrides = {}) {
   const rows = [{
     id: 1, dealId: 2, direction: 'pay', status: 'pending',
     periodStart: '2026-09-28', periodEnd: '2026-12-27',
-    amount: 6064.52, settledAmount: 6000, ...overrides,
+    amount: 6133.33, settledAmount: 6000, ...overrides,
   }];
   const query: any = { getMany: jest.fn(async () => rows) };
   for (const name of ['innerJoin', 'where', 'andWhere', 'orderBy', 'setLock'])
@@ -24,12 +24,12 @@ function setup(overrides = {}) {
   return { ds, rows, deals, query, update };
 }
 
-describe('30天口径存量计划重算', () => {
-  it('默认只预览6133.33与133.33差额，不写入数据库', async () => {
+describe('真实日历口径存量计划重算', () => {
+  it('默认只预览6000与0差额，不写入数据库', async () => {
     const { ds, update, query } = setup();
     expect(await recalculatePendingLeasePlans(ds)).toEqual([{
-      id: 1, dealId: 2, previousAmount: 6064.52, nextAmount: 6133.33,
-      settledAmount: 6000, remaining: 133.33,
+      id: 1, dealId: 2, previousAmount: 6133.33, nextAmount: 6000,
+      settledAmount: 6000, remaining: 0,
     }]);
     expect(update).not.toHaveBeenCalled();
     expect(query.where).toHaveBeenCalledWith('schedule.status = :status', { status: 'pending' });
@@ -40,16 +40,16 @@ describe('30天口径存量计划重算', () => {
   it('更新应付金额且保留实付金额，再次运行没有差额', async () => {
     const { ds, update, rows } = setup();
     await recalculatePendingLeasePlans(ds, true);
-    expect(update).toHaveBeenCalledWith(1, { amount: 6133.33, status: 'pending' });
+    expect(update).toHaveBeenCalledWith(1, { amount: 6000, status: 'paid' });
     expect(rows[0].settledAmount).toBe(6000);
     expect(await recalculatePendingLeasePlans(ds, true)).toEqual([]);
     expect(update).toHaveBeenCalledTimes(1);
   });
 
   it('新金额等于已结金额时同步结清状态', async () => {
-    const { ds, update } = setup({ amount: 6200, settledAmount: 6133.33 });
+    const { ds, update } = setup({ amount: 6200, settledAmount: 6000 });
     await recalculatePendingLeasePlans(ds, true);
-    expect(update).toHaveBeenCalledWith(1, { amount: 6133.33, status: 'paid' });
+    expect(update).toHaveBeenCalledWith(1, { amount: 6000, status: 'paid' });
   });
 
   it('任意计划已结金额超过新金额时，整批拒绝且不改实付', async () => {
@@ -68,7 +68,7 @@ describe('30天口径存量计划重算', () => {
   });
 
   it('应收计划不扣除业主免租期', async () => {
-    const { ds } = setup({ direction: 'receive', amount: 12000, settledAmount: 0 });
-    expect(await recalculatePendingLeasePlans(ds)).toEqual([]);
+    const { ds } = setup({ direction: 'receive', amount: 12133.33, settledAmount: 0 });
+    expect(await recalculatePendingLeasePlans(ds)).toEqual([expect.objectContaining({ nextAmount: 12000 })]);
   });
 });

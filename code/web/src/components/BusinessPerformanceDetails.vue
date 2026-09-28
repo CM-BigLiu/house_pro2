@@ -36,7 +36,7 @@ const configNames: Record<string, string> = {
             ><template #default="{ row: detail }"
               ><div v-for="(days, year) in detail.freeDays" :key="year">
                 第{{ Number(year) + 1 }}年：{{ days }}天
-              </div></template
+              </div><div v-for="range in detail.freeRentRanges" :key="range.start + range.end">{{ range.start }} 至 {{ range.end }}</div></template
             ></el-table-column
           >
           <el-table-column label="本月免租收益"

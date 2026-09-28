@@ -9,7 +9,6 @@ import { RentalRoom } from '../../modules/house/entities/rental-room.entity';
 import { Checkout } from '../../modules/house/entities/checkout.entity';
 import { Deposit } from '../../modules/house/entities/deposit.entity';
 import { Customer } from '../../modules/house/entities/customer.entity';
-import { Blacklist } from '../../modules/house/entities/blacklist.entity';
 import { Employee } from '../../modules/system/entities/employee.entity';
 import { Store } from '../../modules/system/entities/store.entity';
 import { OperationLog } from '../../modules/system/entities/operation-log.entity';
@@ -31,7 +30,6 @@ export class BizSeedService {
     @InjectRepository(OperationLog) private operationLogRepo: Repository<OperationLog>,
     @InjectRepository(Config) private configRepo: Repository<Config>,
     @InjectRepository(Customer) private customerRepo: Repository<Customer>,
-    @InjectRepository(Blacklist) private blacklistRepo: Repository<Blacklist>,
     @InjectRepository(Employee) private employeeRepo: Repository<Employee>,
     @InjectRepository(Store) private storeRepo: Repository<Store>,
   ) {}
@@ -87,10 +85,6 @@ export class BizSeedService {
       { floorId: floor4.id, name: '1201' },
     ]);
 
-    await this.blacklistRepo.save([
-      { name: '王老赖', mobile: '13800138001', idCard: '310101199001011111', type: 'tenant', reason: '恶意拖欠租金 3 个月', source: '系统录入', status: 'active', storeId: storeZhangjiang.id, createdBy: admin.id },
-      { name: '李违约', mobile: '13900139002', idCard: '310101199002022222', type: 'landlord', reason: '签约后恶意毁约', source: '同行共享', status: 'active', storeId: storePudong.id, createdBy: admin.id },
-    ]);
 
     const saleBase = {
       communityId: community.id,
@@ -169,13 +163,12 @@ export class BizSeedService {
     await this.customerRepo.save([
       { name: '陈租客', mobile: '13500135001', customerType: 'tenant', sourceChannel: 'online', relatedPropertyCode: 'RENT2026080001-A', contractEndDate: '2026-12-31', status: 'active', salesmanId: salesman.id, storeId: storeZhangjiang.id, creatorId: salesman.id },
       { name: '张业主', mobile: '13700137001', customerType: 'landlord', sourceChannel: 'walk_in', status: 'active', salesmanId: salesman.id, storeId: storeZhangjiang.id, creatorId: salesman.id },
-      { name: '李违约', mobile: '13900139002', customerType: 'landlord', sourceChannel: 'peer', status: 'blacklist', isBlacklist: true, salesmanId: agent1.id, storeId: storePudong.id, creatorId: agent1.id },
+      { name: '李违约', mobile: '13900139002', customerType: 'landlord', sourceChannel: 'peer', status: 'active', salesmanId: agent1.id, storeId: storePudong.id, creatorId: agent1.id },
     ]);
 
     await this.configRepo.save([
       { configKey: 'system.company_name', configValue: '优居科技', description: '公司名称', group: 'system', sort: 1 },
       { configKey: 'system.page_size', configValue: '20', description: '默认分页大小', group: 'system', sort: 2 },
-      { configKey: 'business.blacklist_check', configValue: 'true', description: '签约前黑名单校验开关', group: 'business', sort: 1 },
       { configKey: 'business.sale_approval', configValue: 'false', description: '售房成交是否需要审批', group: 'business', sort: 2 },
       { configKey: 'finance.deposit_months', configValue: '1', description: '默认押金月数', group: 'finance', sort: 1 },
       { configKey: 'finance.overdue_rate', configValue: '0.05', description: '逾期罚金日利率', group: 'finance', sort: 2 },

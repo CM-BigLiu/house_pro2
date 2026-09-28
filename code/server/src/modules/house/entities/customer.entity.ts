@@ -48,9 +48,6 @@ export class Customer {
   @Column({ length: 30, default: 'active' })
   status: string;
 
-  @Column({ default: false })
-  isBlacklist: boolean;
-
   @Column({ name: 'salesman_id', nullable: true })
   salesmanId: number;
 

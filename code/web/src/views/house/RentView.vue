@@ -15,6 +15,8 @@ import {
   RotateCcw,
   Search,
   Settings2,
+  Table2,
+  LayoutGrid,
 } from 'lucide-vue-next';
 import { createCheckout } from '@/api/checkout';
 import { getCustomers, type Customer } from '@/api/customer';
@@ -44,6 +46,8 @@ import { formatMoney } from '@/utils/format';
 import { formatDate } from '@/utils/rental-schedule';
 import ContractBusinessFields from '@/components/ContractBusinessFields.vue';
 import PropertyDelegationDialog from '@/components/PropertyDelegationDialog.vue';
+import RentalCards from '@/components/RentalCards.vue';
+import PropertyConfigurationDialog from '@/components/PropertyConfigurationDialog.vue';
 import { emptyContractDetails, validateContractDetails } from '@/api/business';
 
 type SortValue = 'created_desc' | 'rent_desc' | 'rent_asc' | 'lease_end';
@@ -58,6 +62,8 @@ const loading = ref(false);
 const deletingId = ref<number>();
 const checkoutSubmitting = ref(new Set<string>());
 const sortBy = ref<SortValue>('created_desc');
+const viewMode = ref<'table' | 'card'>('table');
+const configurationProperty = ref<RentalSet | null>(null), configurationVisible = ref(false);
 const storeOptions = ref<Store[]>([]);
 const employeeOptions = ref<Employee[]>([]);
 const moreFiltersOpen = ref(true);
@@ -191,7 +197,7 @@ async function load() {
   loading.value = true;
   try {
     const [res, overview] = await Promise.all([
-      getRentalSets({ ...query, sortBy: sortBy.value }),
+      getRentalSets({ ...query, sortBy: sortBy.value, withFinancialSummary: true }),
       getRentalSets({ ...query, scope: 'all', status: '', sortBy: 'created_desc', page: 1, pageSize: 200 }),
     ]);
     list.value = res.list;
@@ -241,13 +247,17 @@ function openCreate() {
   router.push('/house/rent/create');
 }
 
-function editSet(item: RentalSet) {
-  router.push(`/house/rent/edit/${item.id}`);
+function editSet(item: RentalSet, room?: RentalRoom) {
+  router.push(room ? { path: `/house/rent/edit/${item.id}`, query: { roomId: room.id } } : `/house/rent/edit/${item.id}`);
 }
 
-function openDetail(item: RentalSet) {
-  router.push(`/house/rent/detail/${item.id}`);
+function openDetail(item: RentalSet, room?: RentalRoom) {
+  router.push(room ? { path: `/house/rent/detail/${item.id}`, query: { roomId: room.id } } : `/house/rent/detail/${item.id}`);
 }
+function openBills(item: RentalSet, room?: RentalRoom) {
+  router.push({ path: '/finance/arrears', query: { propertyId: item.id, ...(room ? { roomId: room.id } : {}) } });
+}
+function openConfiguration(item: RentalSet) { configurationProperty.value = item; configurationVisible.value = true; }
 
 function handleRowDoubleClick(item: RentalSet, event: MouseEvent) {
   const target = event.target as HTMLElement;
@@ -664,7 +674,7 @@ function exportCurrent() {
   <div class="rental-page">
     <div class="prototype-note">
       <HelpCircle :size="15" />
-      <span>租房房源使用统一列表视图，支持房态、租赁方式、北京区域和综合条件筛选。</span>
+      <span>支持表格与卡片显示，可按房态、租赁方式、北京区域和综合条件筛选。</span>
     </div>
 
     <section class="page-header-panel">
@@ -790,10 +800,10 @@ function exportCurrent() {
 
     <section class="list-toolbar">
       <div><Building2 :size="15" /><span>符合条件 <strong>{{ total }}</strong> 套</span></div>
-      <label>排序：<select v-model="sortBy" aria-label="列表排序" @change="search"><option value="created_desc">新增时间</option><option value="rent_desc">租金从高到低</option><option value="rent_asc">租金从低到高</option><option value="lease_end">租约到期优先</option></select></label>
+      <div class="toolbar-display"><label>排序：<select v-model="sortBy" aria-label="列表排序" @change="search"><option value="created_desc">新增时间</option><option value="rent_desc">租金从高到低</option><option value="rent_asc">租金从低到高</option><option value="lease_end">租约到期优先</option></select></label><div class="display-switch" role="group" aria-label="列表显示方式"><button :class="{ active: viewMode === 'table' }" :aria-pressed="viewMode === 'table'" aria-label="表格显示" title="表格显示" @click="viewMode = 'table'"><Table2 :size="17" /></button><button :class="{ active: viewMode === 'card' }" :aria-pressed="viewMode === 'card'" aria-label="卡片显示" title="卡片显示" @click="viewMode = 'card'"><LayoutGrid :size="17" /></button></div></div>
     </section>
 
-    <div class="resource-table-shell" v-loading="loading">
+    <div v-if="viewMode === 'table'" class="resource-table-shell" v-loading="loading">
       <div class="resource-table">
         <div class="resource-head resource-grid">
           <span>基本信息</span><span>房屋用途</span><span>房源状态</span><span>跟进</span><span>发布时间</span><span>维护人</span><span>操作</span>
@@ -835,6 +845,9 @@ function exportCurrent() {
         </div>
       </div>
     </div>
+
+    <RentalCards v-else :items="sortedList" :deleting-id="deletingId" :checkout-submitting="checkoutSubmitting" :store-name="storeName" v-loading="loading" @detail="openDetail" @edit="editSet" @sign="openPropertySign" @checkout="checkout" @delegation="(item) => { delegationProperty = item; delegationVisible = true; }" @appointment="openAppointment" @remove="removeSet" @bills="openBills" @configure="openConfiguration" />
+    <PropertyConfigurationDialog v-model:visible="configurationVisible" :property-id="configurationProperty?.id || null" :property-name="configurationProperty ? formatPropertyName(configurationProperty) : ''" @completed="load" />
 
     <footer v-if="!loading && total > 0" class="pagination-bar">
       <span>当前显示 {{ (query.page - 1) * query.pageSize + 1 }}–{{ Math.min(query.page * query.pageSize, total) }} 条，共 {{ total }} 条</span>
@@ -1076,6 +1089,7 @@ function exportCurrent() {
 .list-toolbar > div, .list-toolbar label { display: flex; align-items: center; gap: 6px; }
 .list-toolbar strong { color: var(--ink-900); font-family: var(--font-num); }
 .list-toolbar select { height: 29px; padding: 0 8px; color: var(--ink-600); background: #fff; border: 1px solid var(--ink-200); border-radius: 6px; outline: 0; font: inherit; }
+.toolbar-display { gap:12px !important; flex-wrap:wrap; }.display-switch { display:flex; border:1px solid var(--ink-200); border-radius:6px; overflow:hidden; }.display-switch button { display:grid; place-items:center; width:34px; height:29px; color:var(--ink-500); background:white; }.display-switch button.active { color:var(--primary); background:var(--primary-soft); }
 .resource-table-shell { overflow-x: auto; background: #fff; border: 1px solid var(--ink-200); border-radius: 10px; box-shadow: var(--shadow-sm); }
 .resource-table { min-width: 1080px; }
 .resource-grid { display: grid; grid-template-columns: minmax(430px, 3fr) minmax(95px, .72fr) minmax(95px, .72fr) minmax(115px, .9fr) minmax(115px, .85fr) minmax(105px, .82fr) minmax(116px, .82fr); }

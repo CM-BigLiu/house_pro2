@@ -20,10 +20,14 @@ const bank = ref('bank_ccb'),
   selectedBank = computed(() =>
     data.value.accounts.find((row) => row.code === bank.value),
   );
+const columns = computed(() => [
+  { code: bank.value, title: '银行', account: selectedBank.value },
+  ...['wechat', 'cash', 'corporate'].map(code => ({ code, title: accountNames[code], account: data.value.accounts.find(row => row.code === code) })),
+].map(column => ({ ...column, history: data.value.history.filter(row => row.accountCode === column.code) })));
 const administrator = computed(
   () =>
     user.permissions.includes('*') ||
-    ['super_admin', 'company_admin'].includes(user.userInfo?.role || ''),
+    [user.userInfo?.role || '', ...(user.userInfo?.roleCodes || [])].some(role => ['super_admin', 'company_admin'].includes(role)),
 );
 async function load() {
   loading.value = true;
@@ -62,7 +66,7 @@ onMounted(load);
   <div class="cash-page">
     <header class="page-header">
       <div>
-        <h1 class="page-title">公司现金流</h1>
+        <h1 class="page-title">收支计划（公司现金流）</h1>
         <p class="page-desc">余额 = 期初余额 + 已登记收款 − 已登记付款</p>
       </div>
       <el-button :loading="loading" @click="load">刷新</el-button>
@@ -79,60 +83,26 @@ onMounted(load);
       type="info"
       :closable="false"
     />
-    <div class="balance-grid" v-loading="loading">
-      <article class="balance-card">
-        <el-select v-model="bank"
-          ><el-option label="建设银行" value="bank_ccb" /><el-option
-            label="农商银行"
-            value="bank_rural" /></el-select
-        ><strong>{{ formatMoney(selectedBank?.balance || 0) }}</strong
-        ><span>银行余额</span
-        ><el-button
-          v-if="administrator"
-          v-permission="['finance:plan:modify']"
-          link
-          @click="opening(bank)"
-          >设置期初余额</el-button
-        >
-      </article>
-      <article
-        v-for="row in data.accounts.filter(
-          (item) => !item.code.startsWith('bank_'),
-        )"
-        :key="row.code"
-        class="balance-card"
-      >
-        <h2>{{ row.name }}</h2>
-        <strong>{{ formatMoney(row.balance) }}</strong
-        ><span>余额</span
-        ><el-button
-          v-if="administrator"
-          v-permission="['finance:plan:modify']"
-          link
-          @click="opening(row.code)"
-          >设置期初余额</el-button
-        >
-      </article>
+    <div class="cash-columns" v-loading="loading">
+      <section v-for="column in columns" :key="column.title" class="cash-column" :aria-label="`${column.title}现金流`">
+        <article class="balance-card">
+          <h2>{{ column.title }}</h2>
+          <div class="account-selector"><el-select v-if="column.title === '银行'" v-model="bank" aria-label="银行账户">
+            <el-option label="建设银行" value="bank_ccb" /><el-option label="农商银行" value="bank_rural" />
+          </el-select></div>
+          <strong>{{ formatMoney(column.account?.balance || 0) }}</strong><span>当前余额（元）</span>
+          <el-button v-if="administrator" v-permission="['finance:plan:modify']" link @click="opening(column.code)">设置期初余额</el-button>
+        </article>
+        <div class="account-history">
+          <div class="entry-heading"><span>日期</span><span>收支金额</span></div>
+          <p v-if="!column.history.length" class="empty-history">暂无收付款记录</p>
+          <article v-for="row in column.history" :key="row.id" class="account-entry">
+            <div class="entry-heading"><time>{{ row.paymentDate }}</time><strong :class="row.direction === 'receive' ? 'positive' : 'negative'">{{ row.direction === 'receive' ? '+' : '−' }}{{ formatMoney(row.amount) }}</strong></div>
+            <p>{{ row.payer }} → {{ row.payee }}</p><small>支付账号：{{ row.payerAccount }}</small><br><small>收款账号：{{ row.payeeAccount }}</small>
+          </article>
+        </div>
+      </section>
     </div>
-    <el-table :data="data.history" empty-text="暂无实际收付款记录"
-      ><el-table-column prop="paymentDate" label="支付日期" /><el-table-column
-        label="公司账户"
-        ><template #default="{ row }">{{
-          accountNames[row.accountCode]
-        }}</template></el-table-column
-      ><el-table-column label="收支"
-        ><template #default="{ row }"
-          ><span :class="row.direction === 'receive' ? 'positive' : 'negative'"
-            >{{ row.direction === 'receive' ? '+' : '−'
-            }}{{ formatMoney(row.amount) }}</span
-          ></template
-        ></el-table-column
-      ><el-table-column prop="payer" label="付款人" /><el-table-column
-        prop="payerAccount"
-        label="支付账号" /><el-table-column
-        prop="payee"
-        label="收款人" /><el-table-column prop="payeeAccount" label="收款账号"
-    /></el-table>
   </div>
 </template>
 <style scoped>
@@ -140,15 +110,24 @@ onMounted(load);
   display: grid;
   gap: 22px;
 }
-.balance-grid {
+.cash-columns {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
   gap: 18px;
+  overflow-x: auto;
+  padding-bottom: 8px;
 }
+.cash-column { border: 1px solid #dce6f5; border-radius: 12px; overflow: hidden; }
+.account-history small { color: var(--ink-500); }
+.account-selector { min-height:32px; }
+.entry-heading { display:flex; justify-content:space-between; gap:8px; font-size:12px; }
+.account-history > .entry-heading { padding:12px 16px; color:var(--ink-500); border-bottom:1px solid #e5eaf2; }
+.account-entry { padding:16px; border-bottom:1px solid #e5eaf2; overflow-wrap:anywhere; font-size:13px; }
+.account-entry p { margin:12px 0 8px; }
+.account-entry strong { font-size:14px; }
+.empty-history { margin:0; padding:28px 16px; text-align:center; font-size:13px; color:var(--ink-500); }
 .balance-card {
   padding: 24px;
-  border: 1px solid #dce6f5;
-  border-radius: 12px;
   background: #f8faff;
   display: grid;
   gap: 14px;
@@ -166,10 +145,5 @@ onMounted(load);
 }
 .negative {
   color: #dc2626;
-}
-@media (max-width: 900px) {
-  .balance-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 </style>

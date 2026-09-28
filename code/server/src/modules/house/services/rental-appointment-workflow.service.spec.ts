@@ -16,13 +16,14 @@ function setup(input: { appointment?: any; rental?: any; room?: any } = {}) {
   const setRepo = { createQueryBuilder: () => rentalQb, save: jest.fn(async (value) => value) };
   const actionRepo = { create: (value) => value, save: jest.fn(async (value) => value) };
   const roomRepo = { findOne: jest.fn().mockResolvedValue(input.room || { id: 30, setId: 4, status: 'vacant' }), save: jest.fn() };
+  const chargeRepo = { findOne: jest.fn().mockResolvedValue(null), create: value => value, save: jest.fn(async value => ({ id: 77, ...value })) };
   const manager: any = { getRepository: (entity) => ({ RentalAppointment: repo, RentalSet: setRepo,
     RentalAppointmentAction: actionRepo, RentalRoom: roomRepo,
-    Deal: { create: (value) => value, save: jest.fn(async value => value) }, Customer: { update: jest.fn() } }[entity.name]) };
+    Deal: { create: (value) => value, save: jest.fn(async value => ({ id: 99, ...value })) }, Deposit: { findOne: jest.fn().mockResolvedValue(null) }, BusinessCharge: chargeRepo, Customer: { update: jest.fn() } }[entity.name]) };
   repo.manager.transaction = jest.fn(async (callback) => callback(manager));
   const findOne = jest.fn().mockResolvedValue({ id: 42, name: '真实客户', mobile: '13800001234', customerType: 'tenant' });
   const service = new RentalAppointmentService(repo as any, setRepo as any, { findOne } as any);
-  return { service, repo, setRepo, actionRepo, roomRepo, appointmentQb, rentalQb, findOne };
+  return { service, repo, setRepo, actionRepo, roomRepo, appointmentQb, rentalQb, findOne, chargeRepo };
 }
 
 const user: any = { employeeId: 7, name: '当前经纪人', dataScope: 'self', storeIds: [3], groupIds: [], permissions: [] };
@@ -34,6 +35,7 @@ describe('Rental appointment workflow', () => {
     const input = { ...contract, tenantName: '直接成交客户', tenantPhone: '13800001234' };
     const deal = await test.service.signProperty(4, input, user);
     expect(deal).toMatchObject({ propertyId: 4, rentalAppointmentId: null, workflowType: 'regular', responsibleEmployeeId: 7, amount: 4500 });
+    expect(test.chargeRepo.save).toHaveBeenCalledWith(expect.objectContaining({ category: 'tenant_deposit', amount: 4500, sourceKey: 'deal:99:deposit', dueDate: '2026-10-01' }));
     expect(test.repo.save).not.toHaveBeenCalled();
     expect(test.actionRepo.save).not.toHaveBeenCalled();
     expect(test.rentalQb.setLock).toHaveBeenCalledWith('pessimistic_write');

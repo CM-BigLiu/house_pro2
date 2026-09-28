@@ -1,6 +1,7 @@
 import { del, get, post, put } from '@/utils/request';
 
 export interface RentalSet {
+  financialSummary?: RentalFinancialSummary;
   id: number;
   creatorId?: number;
   isManaged?: boolean;
@@ -40,6 +41,7 @@ export interface RentalSet {
   landlordPaymentMethod?: string;
   leaseTerm?: string;
   rentFreePeriod?: string;
+  freeRentRanges?: import('@/utils/free-rent').FreeRentRange[];
   rent?: number;           // 客租价（对房客，整租时使用）
   deposit?: number;        // 租客押金（整租时使用）
   status: string;
@@ -79,10 +81,18 @@ export interface RentalSet {
 }
 
 export interface RentalRoom {
+  financialSummary?: RentalFinancialSummary;
   id: number;
   setId: number;
   roomNo: string;
   roomType?: string;
+  privateBathroom?: boolean | null;
+  balcony?: boolean | null;
+  airConditioner?: boolean | null;
+  interiorArea?: number;
+  orientation?: string;
+  facilities?: string[];
+  sortOrder?: number;
   rentPrice?: number;
   listedPrice?: number;
   status: string;
@@ -104,6 +114,7 @@ export interface RentalRoom {
 }
 
 export interface RentalSetQuery {
+  withFinancialSummary?: boolean;
   keyword?: string;
   status?: string;
   bizType?: string;
@@ -242,4 +253,9 @@ export function getRentalPropertyPage(params?: { keyword?: string; status?: stri
 
 export function createRentalProperty(data: Partial<RentalSet>) {
   return post<RentalSet>('/property/add', { ...data, transType: 1 });
+}
+
+export interface RentalFinancialSummary {
+  period: string; pendingIncome: number; pendingExpense?: number; received: number; paid?: number;
+  vacantDays?: number; vacantSince?: string; vacancySource?: "checkout" | "registered";
 }

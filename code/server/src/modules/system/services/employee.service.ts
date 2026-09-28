@@ -28,11 +28,14 @@ export class EmployeeService {
     if (query.statusFilter) qb.andWhere('e.status = :status', { status: query.statusFilter });
     if (query.storeId) qb.andWhere('stores.id = :storeId', { storeId: Number(query.storeId) });
     if (query.positionId) qb.andWhere('positions.id = :positionId', { positionId: Number(query.positionId) });
+    if (query.roleCode) qb.andWhere('roles.code = :roleCode', { roleCode: query.roleCode });
+    if (query.managerId) qb.andWhere('e.managerId = :managerId', { managerId: Number(query.managerId) });
     const [list, total] = await qb
       .skip((query.page - 1 || 0) * (query.pageSize || 20))
       .take(query.pageSize || 20)
       .getManyAndCount();
-    return { list, total };
+    const managers = list.some(employee => employee.managerId) ? await this.managerOptions() : [];
+    return { list: list.map(employee => ({ ...employee, managerName: managers.find(manager => manager.id === employee.managerId)?.name || '' })), total };
   }
 
   async findOne(id: number) {
@@ -40,6 +43,19 @@ export class EmployeeService {
     if (!employee) throw new NotFoundException('员工不存在');
     const { password: _password, ...safe } = employee;
     return safe;
+  }
+
+  async managerOptions() {
+    const managers = await this.employeeRepo.createQueryBuilder('manager').innerJoin('manager.roles', 'role', 'role.code = :code', { code: 'store_manager' }).leftJoinAndSelect('manager.stores', 'stores').where('manager.status = :status', { status: 'normal' }).orderBy('manager.id', 'ASC').getMany();
+    return managers.map(manager => ({ id: manager.id, name: manager.name, storeIds: (manager.stores || []).map(store => store.id) }));
+  }
+
+  private async validateManager(employee: Partial<Employee>) {
+    if (employee.managerId == null) return;
+    if (!Number.isInteger(employee.managerId) || employee.managerId <= 0 || employee.managerId === employee.id) throw new BadRequestException('请选择有效的归属店长');
+    if (!(employee.roles || []).some(role => ['salesman', 'agent'].includes(role.code))) throw new BadRequestException('归属店长适用于业务员或综合经纪人');
+    const manager = (await this.managerOptions()).find(manager => manager.id === employee.managerId);
+    if (!manager || !manager.storeIds.some(id => (employee.stores || []).some(store => store.id === id))) throw new BadRequestException('归属店长须为同一门店的在职店长');
   }
 
   async create(data: Partial<Employee> & { password?: string; roleIds?: number[]; storeIds?: number[]; positionIds?: number[] }) {
@@ -52,6 +68,7 @@ export class EmployeeService {
       stores: storeIds?.length ? await this.storeRepo.find({ where: { id: In(storeIds) } }) : [],
       positions: positionIds?.length ? await this.positionRepo.find({ where: { id: In(positionIds) } }) : [],
     });
+    await this.validateManager(employee);
     return this.employeeRepo.save(employee);
   }
 
@@ -61,14 +78,16 @@ export class EmployeeService {
     if (!existing) throw new NotFoundException('员工不存在');
     if (fields.password) fields.password = await bcrypt.hash(fields.password, 10);
     else delete fields.password;
-    const updated = await this.employeeRepo.save({
+    const employee = {
       ...existing,
       ...fields,
       id,
       roles: roleIds === undefined ? existing.roles : roleIds.length ? await this.roleRepo.find({ where: { id: In(roleIds) } }) : [],
       stores: storeIds === undefined ? existing.stores : storeIds.length ? await this.storeRepo.find({ where: { id: In(storeIds) } }) : [],
       positions: positionIds === undefined ? existing.positions : positionIds.length ? await this.positionRepo.find({ where: { id: In(positionIds) } }) : [],
-    });
+    };
+    await this.validateManager(employee);
+    const updated = await this.employeeRepo.save(employee);
     const { password: _password, ...safe } = updated;
     return safe;
   }

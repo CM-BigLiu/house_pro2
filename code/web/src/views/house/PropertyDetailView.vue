@@ -7,6 +7,7 @@ import { formatMoney } from '@/utils/format';
 import { formatHouseAddress } from '@/utils/address';
 import { readSaleTaxFees, saleTaxLabel, SALE_TAX_OPTIONS } from '@/utils/sale-tax';
 import { rentalListPath } from '@/router/rental-origin';
+import { freeRentDays, type FreeRentRange } from '@/utils/free-rent';
 
 const route = useRoute(), router = useRouter(), dict = useDictStore();
 const kind = computed(() => route.name === 'SaleDetail' ? 'sale' : 'rent');
@@ -23,7 +24,7 @@ async function load() {
   try {
     const result = await getHouseDetail(kind.value, Number(route.params.id), route.query.roomId ? Number(route.query.roomId) : undefined);
     if (current === version) data.value = result;
-    await dict.ensureLoaded(['property_type', 'decoration_level', 'orientation', 'source_channel', 'tax_type', 'certificate_type', 'payment_method']);
+    await dict.ensureLoaded(['property_type', 'decoration_level', 'orientation', 'source_channel', 'tax_type', 'certificate_type', 'payment_method', 'room_type', 'house_tag']);
   } catch {
     if (current === version) error.value = '详情加载失败，请确认记录存在且有查看权限后重试。';
   } finally { if (current === version) loading.value = false; }
@@ -38,6 +39,8 @@ function value(item: unknown) { return item === null || item === undefined || it
 function money(item: any) { return item == null || item === '' ? '—' : formatMoney(item); }
 function date(item: any) { return item ? String(item).replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : '未记录'; }
 function period(start: any, end: any) { return `${value(start)} 至 ${value(end)}`; }
+function ranges(value: FreeRentRange[] = []) { return value.length ? `${value.map(range => `${range.start} 至 ${range.end}`).join('\n')}\n共 ${freeRentDays(value)} 天` : '未选择免租日期'; }
+function facility(item: any) { return item == null ? '待确认' : item ? '有' : '无'; }
 type Field = [string, unknown];
 const groups = computed<{ title: string; fields: Field[] }[]>(() => {
   const p = property.value;
@@ -51,9 +54,9 @@ const groups = computed<{ title: string; fields: Field[] }[]>(() => {
     { title: '业主与来源', fields: [['业主姓名', p.ownerName], ['业主电话', p.ownerPhone], ['备用电话', p.ownerPhoneBackup], ['来源渠道', dict.getLabel('source_channel', p.sourceChannel)], ['门店编号', p.storeId], ['维护人编号', p.maintainerId], ['标签', (p.tags || []).join('、')], ['房源描述', p.description]] },
   ];
   return [
-    { title: '房源信息', fields: [...basics, ['出租方式', p.bizType === 'shared' ? '合租' : '整租'], ['户型', p.layout], ['商圈', p.businessCircle], ['门店编号', p.storeId], ['业务员编号', p.salesmanId], ['管家编号', p.housekeeperId]] },
-    ...(p.canViewLandlordInfo === true ? [{ title: '业主与收房信息', fields: [['业主姓名', p.landlordName], ['业主电话', p.landlordPhone], ['收房租金（元）', money(p.landlordRent)], ['房东押金（元）', money(p.landlordDeposit)], ['收房租期', period(p.leaseStart, p.leaseEnd)], ['免租期', p.rentFreePeriod]] as Field[] }] : []),
-    ...(p.bizType === 'shared' ? [] : [{ title: '租客与出租信息', fields: [['租客姓名', p.tenantName], ['租客电话', p.tenantPhone], ['出租租金（元）', money(p.rent)], ['租客押金（元）', money(p.deposit)], ['出租租期', period(p.tenantLeaseStart, p.tenantLeaseEnd)], ['付款方式', dict.getLabel('payment_method', p.tenantPaymentMethod)]] as Field[] }]),
+    { title: '房源信息', fields: [...basics, ['出租方式', p.bizType === 'shared' ? '合租' : '整租'], ['户型', p.layout], ['区域', p.district], ['商圈', p.businessCircle], ['楼层 / 总楼层', `${value(p.floor)} / ${value(p.totalFloor)}`], ['房源类型', dict.getLabel('property_type', p.propertyType)], ['朝向', dict.getLabel('orientation', p.orientation)], ['电梯', ({ yes: '有', no: '无' } as Record<string, string>)[p.elevator] || value(p.elevator)], ['门店编号', p.storeId], ['业务员编号', p.salesmanId], ['管家编号', p.housekeeperId], ['来源渠道', dict.getLabel('source_channel', p.sourceChannel)], ['房源标签', (p.tags || []).map((tag: string) => dict.getLabel('house_tag', tag)).join('、')], ['房屋设施', (p.facilities || []).join('、')], ['标题', p.title], ['房源介绍', p.description], ['小区介绍', p.communityIntro], ['附近学校', p.nearbySchool], ['税费介绍', p.taxDescription], ['房源优势', p.advantages]] },
+    ...(p.canViewLandlordInfo === true ? [{ title: '业主与收房信息', fields: [['业主姓名', p.landlordName], ['业主电话', p.landlordPhone], ['备用电话', p.landlordPhoneBackup], ['业主身份证', p.landlordIdCard], ['开户行', p.landlordBankName], ['收款银行卡', p.landlordBankCard], ['收房租金（元）', money(p.landlordRent)], ['房东押金（元）', money(p.landlordDeposit)], ['收房租期', period(p.leaseStart, p.leaseEnd)], ['房东缴费', dict.getLabel('payment_method', p.landlordPaymentMethod)], ['免租期', ranges(p.freeRentRanges?.length ? p.freeRentRanges : data.value?.landlordContract?.freeRentRanges)], ...(p.rentFreePeriod ? [['历史免租备注', p.rentFreePeriod] as Field] : []), ['首选带看时间', p.viewingTime], ['备选带看时间', p.viewingTimeAlt], ['房东备注', p.landlordRemark], ['紧急联系人', (p.emergencyContacts || []).map((contact: any) => `${contact.name || '未登记姓名'} · ${contact.phone || '未登记电话'}${contact.relation ? ` · ${contact.relation}` : ''}`).join('\n')], ['首次跟进', p.followUpContent], ['托管状态', p.isManaged ? '已托管' : '未托管'], ...(data.value?.landlordContract ? [['委托合同编号', data.value.landlordContract.contractCode], ['合同付款方式', dict.getLabel('payment_method', data.value.landlordContract.paymentMethod)], ['合同免租日期', ranges(data.value.landlordContract.freeRentRanges)]] as Field[] : [])] as Field[] }] : []),
+    ...(p.bizType === 'shared' ? [] : [{ title: '租客与出租信息', fields: [['租客姓名', p.tenantName], ['租客电话', p.tenantPhone], ['租客身份证', p.tenantIdCard], ['出租租金（元）', money(p.rent)], ['租客押金（元）', money(p.deposit)], ['出租租期', period(p.tenantLeaseStart, p.tenantLeaseEnd)], ['付款方式', dict.getLabel('payment_method', p.tenantPaymentMethod)]] as Field[] }]),
   ];
 });
 function action(value: string) {
@@ -78,16 +81,21 @@ function action(value: string) {
         <h3>房间与租客信息（{{ rooms.length }} 间）</h3>
         <el-empty v-if="!rooms.length" description="暂无房间信息" />
         <article v-for="room in rooms" :key="room.id" class="room-detail">
-          <h4>{{ room.roomNo }} 室 · {{ room.roomType || '未填写房型' }} <span class="pill pill-blue">{{ status(room.status) }}</span></h4>
+          <h4>{{ room.roomNo }} 室 · {{ dict.getLabel('room_type', room.roomType) || room.roomType || '未填写房型' }} <span class="pill pill-blue">{{ status(room.status) }}</span></h4>
           <dl class="detail-grid">
             <div><dt>租金 / 挂牌价（元）</dt><dd>{{ money(room.rentPrice) }} / {{ money(room.listedPrice) }}</dd></div>
             <div><dt>押金（元）</dt><dd>{{ money(room.depositAmount) }}</dd></div>
             <div><dt>租客</dt><dd>{{ value(room.tenantName) }}</dd></div><div><dt>租客电话</dt><dd>{{ value(room.tenantPhone) }}</dd></div>
+            <div><dt>租客身份证</dt><dd>{{ value(room.tenantIdCard) }}</dd></div>
+            <div><dt>独卫 / 阳台 / 空调</dt><dd>{{ facility(room.privateBathroom) }} / {{ facility(room.balcony) }} / {{ facility(room.airConditioner) }}</dd></div>
+            <div><dt>套内面积（㎡）</dt><dd>{{ value(room.interiorArea) }}</dd></div><div><dt>朝向</dt><dd>{{ dict.getLabel('orientation', room.orientation) }}</dd></div>
+            <div><dt>房间配置</dt><dd>{{ (room.facilities || []).join('、') || '未配置' }}</dd></div><div><dt>装修进度</dt><dd>{{ value(room.renovationProgress) }}</dd></div>
             <div><dt>租期</dt><dd>{{ period(room.leaseStart, room.leaseEnd) }}</dd></div><div><dt>付款方式</dt><dd>{{ dict.getLabel('payment_method', room.paymentMethod) }}</dd></div>
           </dl>
           <router-link v-if="!data.roomId" :to="{ path: `/house/rent/detail/${property.id}`, query: { roomId: room.id, source: route.query.source } }">查看该房间流程</router-link>
         </article>
       </section>
+      <section v-if="kind === 'rent'" class="card detail-section"><h3>房源图片（{{ property.images?.length || 0 }}）</h3><div v-if="property.images?.length" class="detail-images"><el-image v-for="(src, index) in property.images" :key="src" :src="src" :alt="`房源图片${index + 1}`" :preview-src-list="property.images" :initial-index="index" fit="cover" /></div><p v-else class="muted">暂无房源图片</p></section>
       <section class="card detail-section">
         <h3>房源流程信息</h3>
         <p class="muted">仅展示系统中已记录的流程。历史未关联房源的退租单不会自动归入；未记录的处理时间不作推测。</p>
@@ -128,5 +136,6 @@ p { margin: 8px 0; line-height: 1.7; overflow-wrap: anywhere; }
 dd { margin: 7px 0 0; font-size: 14px; color: var(--ink-800); overflow-wrap: anywhere; white-space: pre-wrap; }
 .room-detail, .flow-record { border: 1px solid var(--ink-200); border-radius: 8px; padding: 16px; margin: 12px 0; }
 .room-detail h4 { margin-top: 0; }.room-detail a { display: inline-block; margin-top: 16px; }
+.detail-images { display:flex; gap:12px; flex-wrap:wrap; }.detail-images :deep(.el-image) { width:180px; height:130px; border-radius:8px; }
 @media (max-width: 700px) { .detail-grid { grid-template-columns: 1fr; } .property-banner, .detail-section { padding: 16px; } .page-header { align-items: flex-start; flex-direction: column; gap: 12px; } }
 </style>

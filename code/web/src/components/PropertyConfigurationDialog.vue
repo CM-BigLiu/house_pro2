@@ -27,6 +27,7 @@ const labels: Record<string, string> = {
   rental_bonus: '出房奖',
 };
 const items = reactive<ConfigurationItem[]>([]);
+const rooms = ref<{ id: number; roomNo: string }[]>([]);
 const employees = ref<Awaited<ReturnType<typeof getConfigurationEmployees>>>([]);
 let generation = 0;
 watch(
@@ -45,12 +46,15 @@ watch(
         recipient: '',
         channel: 'cash',
         remark: '',
+        dueDate: new Date().toLocaleDateString('sv-SE'),
+        roomId: null,
       })),
     );
     try {
       const [result, options] = await Promise.all([getPropertyConfiguration(props.propertyId), getConfigurationEmployees(props.propertyId)]);
       if (current === generation) {
         employees.value = options;
+        rooms.value = result.rooms || [];
         result.items.forEach((item) =>
           Object.assign(
             items.find((row) => row.type === item.type) || {},
@@ -84,7 +88,7 @@ async function submit() {
   busy.value = true;
   try {
     await savePropertyConfiguration(props.propertyId, items);
-    ElMessage.success('配置已同步到房管房与业绩核算');
+    ElMessage.success('费用已生成待付账单，并同步收支成本与业绩核算');
     emit('completed');
     emit('update:visible', false);
   } catch {
@@ -126,6 +130,9 @@ async function submit() {
                 v-model="item.amount"
                 :aria-label="`${labels[item.type]}金额`" /></el-form-item
           ></el-col>
+          <el-col :xs="24" :sm="8"><el-form-item label="付款日期"><el-date-picker v-model="item.dueDate" value-format="YYYY-MM-DD" type="date" :clearable="false" :aria-label="`${labels[item.type]}付款日期`" /></el-form-item></el-col>
+          <el-col :xs="24" :sm="8"><el-form-item label="费用归属"><el-select v-model="item.roomId" :aria-label="`${labels[item.type]}费用归属`"><el-option :value="null" label="整套房源"/><el-option v-for="room in rooms" :key="room.id" :value="room.id" :label="`${room.roomNo}号房`"/></el-select></el-form-item></el-col>
+          <el-col v-if="!item.type.endsWith('_bonus')" :span="24"><el-form-item label="收款人"><el-input v-model="item.recipient" maxlength="100" placeholder="供应商或服务人员姓名" :aria-label="`${labels[item.type]}收款人`" /></el-form-item></el-col>
           <template v-if="item.type.endsWith('_bonus')"
             ><el-col :xs="24" :sm="8"
               ><el-form-item label="员工"
@@ -148,7 +155,7 @@ async function submit() {
         </el-row>
       </section>
     </el-form>
-    <p>费用计入配置保存月份的房管房收益；配置提交不代表资金已经支付。</p>
+    <p>保存后按付款日期生成待付账单；费用自动计入收支成本，登记实际支付后更新现金余额。</p>
     <template #footer
       ><el-button :disabled="busy" @click="emit('update:visible', false)"
         >取消</el-button

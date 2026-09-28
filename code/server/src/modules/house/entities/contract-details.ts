@@ -18,6 +18,7 @@ export interface ContractDetails {
   performanceRatio?: number;
   commissionRatio?: number;
   freeDays?: number[];
+  freeRentRanges?: { start: string; end: string }[];
   entryEmployeeId?: number;
   entryEmployeeName?: string;
   entryRatio?: number;

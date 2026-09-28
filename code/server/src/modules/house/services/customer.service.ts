@@ -89,7 +89,7 @@ export class CustomerService {
     const existing = await this.findScoped(id, user);
     const allowed: (keyof Customer)[] = [
       'name', 'mobile', 'idCard', 'customerType', 'sourceChannel', 'relatedPropertyCode',
-      'contractEndDate', 'salesmanId', 'isBlacklist', 'desiredDistrict', 'budgetMin',
+      'contractEndDate', 'salesmanId', 'desiredDistrict', 'budgetMin',
       'budgetMax', 'remark', 'status',
     ];
     const changes: Partial<Customer> = {};

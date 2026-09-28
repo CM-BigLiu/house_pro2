@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Put, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
-import { IsString, IsNotEmpty, IsOptional, IsArray, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, IsNumber, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { EmployeeService } from '../services/employee.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -8,6 +8,7 @@ import { RequirePermission } from '../../../common/decorators/require-permission
 import { SkipMasking } from '../../../common/decorators/skip-masking.decorator';
 
 class CreateEmployeeDto {
+  @IsOptional() @IsInt() @Min(1) managerId?: number | null;
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -48,6 +49,7 @@ class CreateEmployeeDto {
 }
 
 class UpdateEmployeeDto {
+  @IsOptional() @IsInt() @Min(1) managerId?: number | null;
   @IsString()
   @IsOptional()
   name?: string;
@@ -96,6 +98,10 @@ export class EmployeeController {
   async findAll(@Query() query: any) {
     return this.employeeService.findAll(query);
   }
+
+  @Get('managers')
+  @RequirePermission('system:employee:edit')
+  async managers() { return this.employeeService.managerOptions(); }
 
   @Get(':id/edit')
   @RequirePermission('system:employee:edit')

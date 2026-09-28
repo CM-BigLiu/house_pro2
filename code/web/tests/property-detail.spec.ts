@@ -14,11 +14,25 @@ async function mount() {
   app = createApp(PropertyDetailView); app.directive('loading', {});
   app.component('ElEmpty', { props: ['description'], template: '<p>{{ description }}</p>' });
   app.component('RouterLink', { template: '<a><slot /></a>' });
+  app.component('ElImage', { props: ['src', 'alt'], template: '<img :src="src" :alt="alt" />' });
   app.mount(root); await new Promise(resolve => setTimeout(resolve, 0)); return root;
 }
 beforeEach(() => { route.name = 'RentDetail'; route.query = {}; vi.clearAllMocks(); });
 afterEach(() => { app?.unmount(); document.body.innerHTML = ''; });
 describe('read-only property details', () => {
+  it('免租期显示日期及去重总天数，房东、房源和房间字段完整展示', async () => {
+    vi.mocked(getHouseDetail).mockResolvedValue({ ...fixture(), property: { ...fixture().property, canViewLandlordInfo: true,
+      landlordName: '房东', landlordPhoneBackup: '139****1111', landlordIdCard: '证件脱敏', landlordBankName: '开户网点', landlordBankCard: '银行卡脱敏',
+      landlordPaymentMethod: 'quarterly', rentFreePeriod: '90', freeRentRanges: [{ start: '2026-07-01', end: '2026-07-15' }, { start: '2026-07-10', end: '2026-07-20' }],
+      viewingTime: '周末', viewingTimeAlt: '工作日', landlordRemark: '房东备注内容', emergencyContacts: [{ name: '联系人', phone: '138****1111', relation: '家人' }], followUpContent: '跟进内容', isManaged: true,
+      title: '房源标题', district: '海淀区', advantages: '房源优势内容', rooms: [{ id: 101, roomNo: 'A', privateBathroom: true, balcony: false, airConditioner: null, facilities: ['床', '空调'], orientation: 'south', interiorArea: 12.5, tenantIdCard: '租客证件脱敏' }],
+    } });
+    const root = await mount();
+    const owner = [...root.querySelectorAll('.detail-section')].find(section => section.textContent?.includes('业主与收房信息'))!;
+    expect(owner.textContent).toContain('2026-07-01 至 2026-07-15'); expect(owner.textContent).toContain('共 20 天');
+    for (const text of ['备用电话', '开户网点', '银行卡脱敏', '首选带看时间', '备选带看时间', '房东备注内容', '联系人', '跟进内容', '已托管']) expect(owner.textContent).toContain(text);
+    expect(root.textContent).toContain('有 / 无 / 待确认'); expect(root.textContent).toContain('床、空调'); expect(root.textContent).toContain('房源优势内容');
+  });
   it.each([true, false])('房东详情只在服务端授权时显示：%s', async allowed => {
     vi.mocked(getHouseDetail).mockResolvedValue({ ...fixture(), property: {
       ...fixture().property, canViewLandlordInfo: allowed, landlordName: '私有房东', landlordRent: 1000,

@@ -10,6 +10,7 @@ import { CustomerService } from './customer.service';
 import { RentalAppointmentAction } from '../entities/rental-appointment-action.entity';
 import { RentalRoom } from '../entities/rental-room.entity';
 import { Deal } from '../entities/deal.entity';
+import { syncContractCharges } from '../../finance/services/business-charges';
 import { Customer } from '../entities/customer.entity';
 import { ContractDetails } from '../entities/contract-details';
 import { BusinessWorkflowService } from '../../finance/services/business-workflow.service';
@@ -240,7 +241,7 @@ export class RentalAppointmentService {
         if (appointment.status === 'signed') throw new ConflictException('该约看已签约，请勿重复提交');
         if (appointment.status === 'cancelled') throw new BadRequestException('已取消的约看不能签约');
         const customer = appointment.customerId ? await this.customerService.findOne(appointment.customerId, user) : null;
-        if (customer && (customer.customerType !== 'tenant' || customer.isBlacklist || ['blacklist', 'invalid'].includes(customer.status))) {
+        if (customer && (customer.customerType !== 'tenant' || customer.status === 'invalid')) {
           throw new BadRequestException('请选择有效的租房客户签约');
         }
         const tenantName = (customer?.name ?? input.tenantName)?.trim();
@@ -305,6 +306,7 @@ export class RentalAppointmentService {
           if (!management || input.leaseStart < management.leaseStart || input.leaseEnd > management.leaseEnd) throw new BadRequestException('承租期限须在生效委托合同的租期内，请先登记房管房委托合同');
           await this.business.createSchedules(manager, deal, 'receive');
         }
+        await syncContractCharges(manager, deal);
         if (appointment.customerId) await manager.getRepository(Customer).update(appointment.customerId,
           { status: 'done', relatedPropertyCode: appointment.propertyCode, contractEndDate: input.leaseEnd });
         return id == null ? deal : appointment;

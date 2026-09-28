@@ -1,6 +1,6 @@
 import { Controller, Delete, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { PartialType } from '@nestjs/swagger';
-import { ArrayMaxSize, IsBoolean, IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, IsIn, IsInt, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsBoolean, IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, IsIn, IsInt, Min, ValidateNested, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 import { RentalService } from '../services/rental.service';
 import { BEIJING_DISTRICTS } from '../../../common/constants/beijing-districts';
@@ -21,8 +21,29 @@ export class CreateRentalRoomDto {
   roomNo: string;
 
   @IsString()
-  @IsOptional()
-  roomType?: string;
+  @IsNotEmpty()
+  roomType: string;
+
+  @IsBoolean()
+  privateBathroom: boolean;
+
+  @IsBoolean()
+  balcony: boolean;
+
+  @IsBoolean() @IsOptional()
+  airConditioner?: boolean;
+
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @IsOptional() @Type(() => Number)
+  interiorArea?: number;
+
+  @IsString() @IsOptional()
+  orientation?: string;
+
+  @IsArray() @ArrayMaxSize(50) @IsString({ each: true }) @IsOptional()
+  facilities?: string[];
+
+  @IsInt() @Min(0) @IsOptional() @Type(() => Number)
+  sortOrder?: number;
 
   @IsNumber()
   @Min(0)
@@ -117,7 +138,14 @@ export class RentalEmergencyContactDto {
   relation?: string;
 }
 
+export class FreeRentRangeDto {
+  @IsString() @Matches(/^\d{4}-\d{2}-\d{2}$/) start: string;
+  @IsString() @Matches(/^\d{4}-\d{2}-\d{2}$/) end: string;
+}
+
 export class CreateRentalSetDto {
+  @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => FreeRentRangeDto) @IsOptional()
+  freeRentRanges?: FreeRentRangeDto[];
   @IsOptional()
   @IsBoolean()
   isManaged?: boolean;

@@ -1,3 +1,5 @@
+import { BusinessCharge } from '../entities/business-charge.entity';
+import { Deposit } from '../../house/entities/deposit.entity';
 import { BusinessWorkflowService } from './business-workflow.service';
 import {
   BusinessSubmission,
@@ -19,6 +21,7 @@ function queryBuilder() {
     'select',
     'addSelect',
     'innerJoin',
+    'leftJoin',
     'setLock',
     'orderBy',
     'addOrderBy',
@@ -27,6 +30,7 @@ function queryBuilder() {
     'insert',
     'values',
     'orIgnore',
+    'leftJoinAndSelect',
   ])
     qb[key] = jest.fn().mockReturnValue(qb);
   qb.getOne = jest.fn().mockResolvedValue(null);
@@ -40,6 +44,8 @@ function setup() {
   const repos = new Map<any, any>();
   for (const type of [
     BusinessSubmission,
+    BusinessCharge,
+    Deposit,
     CashAccount,
     CashEntry,
     ContractSchedule,
@@ -79,6 +85,32 @@ const user = {
   storeIds: [1],
   groupIds: [2],
 } as any;
+describe('合同账单日历', () => {
+  it('租金按免租天数除以30扣除，费用独立列项，标题汇总各项未结金额', async () => {
+    const ctx = setup();
+    ctx.repos.get(ContractSchedule).qb.getMany.mockResolvedValueOnce([{ id: 1, dealId: 9, propertyId: 8, direction: 'pay', sequence: 1, dueDate: '2026-10-01', periodStart: '2026-10-01', periodEnd: '2026-12-31', amount: 8000, settledAmount: 1000 }]).mockResolvedValueOnce([]);
+    ctx.repos.get(Deal).find.mockResolvedValue([{ id: 9, amount: 3000, leaseStart: '2026-10-01', leaseEnd: '2027-09-30', details: { freeDays: [10, 0, 0, 0, 0] } }]);
+    ctx.repos.get(BusinessCharge).qb.getMany.mockResolvedValue([{ id: 1, propertyId: 8, direction: 'pay', category: 'repair', dueDate: '2026-10-01', amount: 500, settledAmount: 200, counterparty: '维修师傅' }, { id: 2, propertyId: 8, direction: 'receive', category: 'tenant_deposit', dueDate: '2026-10-01', amount: 2000, settledAmount: 500 }]);
+    const result = await ctx.service.calendar('2026-10', user);
+    const pay = result.buckets.find(bucket => bucket.direction === 'pay' && bucket.period === '2026-10');
+    expect(pay.amount).toBe(7300);
+    expect(pay.list[0]).toMatchObject({ grossRent: 9000, freeRentDays: 10, freeRentAmount: 1000, amount: 8000, remaining: 7000 });
+    expect(pay.list[1]).toMatchObject({ billType: 'charge', categoryLabel: '维修', remaining: 300, counterparty: '维修师傅' });
+    expect(result.buckets.find(bucket => bucket.direction === 'receive' && bucket.period === '2026-10').amount).toBe(1500);
+  });
+  it('按合同每期账单取金额，部分已付从汇总中扣除，并关联季付周期及房间范围', async () => {
+    const ctx = setup(), repo = ctx.repos.get(ContractSchedule);
+    repo.qb.getMany.mockResolvedValueOnce([{ id: 3, dealId: 6, propertyId: 5, direction: 'pay', sequence: 2, dueDate: '2026-10-01', periodStart: '2026-10-01', periodEnd: '2026-12-31', amount: '21900.00', settledAmount: '1000.00' }]).mockResolvedValueOnce([]);
+    ctx.repos.get(Deal).find.mockResolvedValue([{ id: 6, contractCode: 'WT6', paymentMethod: 'quarterly', amount: '7300.00', roomId: 21 }]);
+    const result = await ctx.service.calendar('2026-10', user, { propertyId: 5, roomId: 21 });
+    const bucket = result.buckets.find(row => row.direction === 'pay' && row.period === '2026-10');
+    expect(bucket.amount).toBe(20900); expect(bucket.list[0]).toMatchObject({ amount: 21900, settledAmount: 1000, remaining: 20900, paymentMethod: 'quarterly', contractCode: 'WT6', roomId: 21 });
+    expect(repo.qb.andWhere).toHaveBeenCalledWith('record.propertyId = :propertyId', { propertyId: 5 });
+    expect(repo.qb.andWhere).toHaveBeenCalledWith('deal.roomId = :roomId', { roomId: 21 });
+    expect(repo.qb.andWhere).toHaveBeenCalledWith('record.employeeId = :employeeId', { employeeId: 7 });
+  });
+  it('拒绝无效房源编号', async () => { const ctx = setup(); await expect(ctx.service.calendar('2026-10', user, { propertyId: -1 })).rejects.toThrow('编号无效'); });
+});
 const details = {
   ownerName: '业主',
   ownerIdCard: '110101199001011234',
@@ -102,6 +134,32 @@ const payment = {
 };
 
 describe('业务工作流校验与记账', () => {
+  it('费用可部分支付、幂等重试且超额和越权支付会被拒绝', async () => {
+    const { service, repos } = setup();
+    const charge = { id: 10, category: 'repair', amount: 150, settledAmount: 0, status: 'pending', direction: 'pay', employeeId: 7, storeId: 1 };
+    repos.get(BusinessCharge).qb.getOne.mockResolvedValue(charge);
+    const entry = await service.settleCharge(10, payment, user);
+    expect(entry).toMatchObject({ chargeId: 10, scheduleId: null, amount: 100 });
+    expect(charge).toMatchObject({ settledAmount: 100, status: 'pending' });
+    repos.get(CashEntry).findOne.mockResolvedValue(entry);
+    expect(await service.settleCharge(10, payment, user)).toBe(entry);
+    await expect(service.settleCharge(10, { ...payment, amount: 99 }, user)).rejects.toThrow('不同付款内容');
+    repos.get(CashEntry).findOne.mockResolvedValue(null);
+    await expect(service.settleCharge(10, { ...payment, requestKey: 'different' }, user)).rejects.toThrow('不能超过');
+    repos.get(BusinessCharge).qb.getOne.mockResolvedValue(null);
+    await expect(service.settleCharge(10, payment, user)).rejects.toThrow('无权操作');
+  });
+  it('收入成本自动扣除免租，合同与房间记录不会重复计入租金', async () => {
+    const t = setup();
+    t.repos.get(RentalSet).qb.getMany.mockResolvedValue([{ id: 8, code: 'ZJ-8', address: '测试房源', bizType: 'shared', rooms: [{ id: 5, status: 'rented', rentPrice: 9999, leaseStart: '2026-10-01', leaseEnd: '2026-10-31' }, { id: 6, status: 'vacant', listedPrice: 5000 }], landlordRent: 3000 }]);
+    t.repos.get(Deal).qb.getMany.mockResolvedValue([
+      { propertyId: 8, workflowType: 'management', leaseStart: '2026-10-01', leaseEnd: '2026-10-31', amount: 3000, details: { freeRentRanges: [{ start: '2026-10-01', end: '2026-10-10' }] } },
+      { propertyId: 8, roomId: 5, workflowType: 'tenant', leaseStart: '2026-10-01', leaseEnd: '2026-10-31', amount: 3600 },
+    ]);
+    const result = await t.service.rentalCosts('2026-10', user);
+    expect(result).toMatchObject({ totalIncome: 3600, totalCost: 2000, freeAmount: 1000, net: 1600, list: [{ rentIncome: 3600, originalRent: 3000, rentCost: 2000 }] });
+    expect(t.repos.get(RentalSet).qb.andWhere).toHaveBeenCalledWith(expect.stringContaining('creatorId'), expect.any(Object));
+  });
   const configurationItems = () => ['cleaning', 'repair', 'renovation', 'furniture', 'appliance', 'collection_bonus', 'rental_bonus'].map(type => ({ type, amount: type === 'collection_bonus' ? 100.25 : 0, recipientEmployeeId: type === 'collection_bonus' ? 7 : undefined, recipient: '伪造姓名', channel: 'cash', remark: '' }));
   it('奖励使用员工主键校验并保存真实姓名', async () => {
     const { service, repos } = setup();
@@ -327,11 +385,11 @@ describe('业务工作流校验与记账', () => {
     expect(list[0]).toMatchObject({
       employeeId: 7,
       employeeCode: '000007',
-      management: { amount: 1730 },
+      management: { amount: 1833.33 },
     });
     expect(list[0].management.details[0]).toMatchObject({
       premium: 1000,
-      freeAmount: 930,
+      freeAmount: 1033.33,
       costs: 200,
     });
   });

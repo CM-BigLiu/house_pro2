@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, UseGuards, Query, Param } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -11,6 +11,11 @@ export class DashboardController {
   @Get('overview')
   async overview(@CurrentUser() user: any) {
     return this.dashboardService.getOverview(user);
+  }
+
+  @Get('details/:key')
+  details(@Param('key') key: string, @Query() query: any, @CurrentUser() user: any) {
+    return this.dashboardService.getKpiDetails(key, query, user);
   }
 
   @Get('warnings')

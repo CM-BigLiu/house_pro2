@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { ContractDetails } from '@/api/business';
 import MoneyInput from './MoneyInput.vue';
+import FreeRentPeriod from './FreeRentPeriod.vue';
 defineProps<{
   details: ContractDetails;
+  leaseStart?: string;
   mode: 'regular' | 'tenant' | 'management';
 }>();
 </script>
@@ -98,14 +100,7 @@ defineProps<{
             v-model="details.payeeAccount"
             maxlength="100" /></el-form-item
       ></el-col>
-      <el-col v-for="(_, year) in details.freeDays" :key="year" :xs="12" :sm="8"
-        ><el-form-item :label="`第${year + 1}年免租期（天）`"
-          ><el-input-number
-            v-model="details.freeDays[year]"
-            :min="0"
-            :max="365"
-            :precision="0" /></el-form-item
-      ></el-col>
+      <el-col :span="24"><FreeRentPeriod v-model="details.freeDays" :start="leaseStart" /></el-col>
     </template>
     <template v-else>
       <el-col :xs="24" :sm="8"

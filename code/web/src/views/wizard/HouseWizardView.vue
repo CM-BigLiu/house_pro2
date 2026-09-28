@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { ArrowLeft, ArrowRight, Check, MapPin, Home, User, FileText } from 'lucide-vue-next';
 import { getCommunities, getCommunityBuildings, getCommunityUnits, getCommunityFloors, getCommunityRooms, type Community } from '@/api/community';
 import { createRentalSet, createSaleProperty, uploadImage } from '@/api/wizard';
-import { checkBlacklist } from '@/api/blacklist';
 import { generateHouseCode } from '@/utils/code';
 import { useDictStore } from '@/stores/dict';
 import { useUserStore } from '@/stores/user';
@@ -229,24 +228,6 @@ function toggleTag(value: string) {
   }
 }
 
-async function checkOwnerBlacklist() {
-  if (!form.ownerPhone || form.ownerPhone.length < 7) return;
-  const hits = (await checkBlacklist(form.ownerPhone, form.ownerIdCard || undefined)) || [];
-  const hit = hits[0];
-  if (hit) {
-    ElMessageBox.confirm(
-      `该业主/客户命中黑名单：${hit.name}\n原因：${hit.reason}\n来源：${hit.source || '系统录入'}`,
-      '黑名单预警',
-      {
-        confirmButtonText: '继续录入（需特批）',
-        cancelButtonText: '取消',
-        type: 'warning',
-      },
-    ).catch(() => {
-      form.ownerPhone = '';
-    });
-  }
-}
 
 async function submit() {
   submitting.value = true;
@@ -555,7 +536,7 @@ function generateCode(prefix: string) {
             <el-row :gutter="16">
               <el-col :span="12">
                 <el-form-item label="业主电话" required>
-                  <el-input v-model="form.ownerPhone" @blur="checkOwnerBlacklist" />
+                  <el-input v-model="form.ownerPhone" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">

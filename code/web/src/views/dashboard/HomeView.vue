@@ -15,12 +15,16 @@ import {
   getRankings,
   getTodos,
   getWarnings,
+  getKpiDetails,
+  type KpiItem,
+  type KpiDetailRow,
   type OverviewData,
   type RankItem,
   type TodoItem,
   type WarningCard,
 } from '@/api/dashboard';
 import { useUserStore } from '@/stores/user';
+import { formatMoney } from '@/utils/format';
 
 use([CanvasRenderer, BarChart, LineChart, GridComponent, LegendComponent, TooltipComponent]);
 
@@ -32,6 +36,25 @@ const overview = ref<OverviewData | null>(null);
 const warnings = ref<WarningCard[]>([]);
 const rankings = ref<Record<string, RankItem[]>>({});
 const todos = ref<TodoItem[]>([]);
+const detailVisible = ref(false), detailLoading = ref(false), detailError = ref(false);
+const detailItem = ref<KpiItem | null>(null), detailRows = ref<KpiDetailRow[]>([]);
+const detailPage = ref(1), detailTotal = ref(0), detailAmount = ref(0);
+let detailGeneration = 0;
+const financialDetail = computed(() => ['receivable', 'received'].includes(detailItem.value?.key || ''));
+async function showDetail(item: KpiItem) { detailItem.value = item; detailPage.value = 1; detailVisible.value = true; await loadDetail(); }
+async function loadDetail() {
+  const key = detailItem.value?.key;
+  if (!key) return;
+  const generation = ++detailGeneration;
+  detailLoading.value = true; detailError.value = false; detailRows.value = [];
+  try {
+    const data = await getKpiDetails(key, detailPage.value);
+    if (generation !== detailGeneration) return;
+    detailRows.value = data.list; detailTotal.value = data.total; detailAmount.value = data.totalAmount;
+  } catch { if (generation === detailGeneration) detailError.value = true; }
+  finally { if (generation === detailGeneration) detailLoading.value = false; }
+}
+const statusName = (status?: string) => ({ vacant: '空置', rented: '已出租', checkout: '退房中', pending: '待缴', paid: '已缴', published: '已发布', sold: '已售', pre_publish: '待发布', received: '已收', partial: '部分缴费' } as Record<string, string>)[status || ''] || status || '—';
 
 const permissions = computed(() => userStore.permissions);
 const can = (code: string) => permissions.value.includes('*') || permissions.value.includes(code);
@@ -62,8 +85,9 @@ const colorMap: Record<string, 'pink' | 'yellow' | 'green' | 'blue' | 'purple'> 
   purple: 'purple',
 };
 
-const kpis = computed(() => (overview.value?.kpis || []).map((item, index) => ({
+const kpis = computed(() => (overview.value?.kpis || []).filter(item => item.label !== '客户总数').map((item, index) => ({
   ...item,
+  key: item.key || ({ 在管房源: 'properties', 在租房间: 'rented', 空房间: 'vacant', 本月应收: 'receivable', 本月实收: 'received' } as Record<string, string>)[item.label],
   color: colorMap[(item as { color?: string }).color || ''] || (['blue', 'green', 'yellow', 'purple', 'blue', 'green'][index] as 'blue'),
 })));
 
@@ -183,6 +207,8 @@ onMounted(loadDashboard);
             :trend="item.trend"
             :trend-label="item.trendLabel"
             :color="item.color"
+            :detail="!!item.key"
+            @detail="showDetail(item)"
           />
         </div>
       </section>
@@ -253,6 +279,34 @@ onMounted(loadDashboard);
         <div v-else class="empty-tip">暂无待办事项</div>
       </section>
     </template>
+    <el-dialog v-if="detailVisible" v-model="detailVisible" :title="`${detailItem?.label || ''}详情`" width="min(960px,94vw)" append-to-body>
+      <div v-loading="detailLoading" class="detail-content">
+        <el-alert v-if="detailError" title="详情加载失败，请重试" type="error" :closable="false" />
+        <p v-else-if="detailLoading" class="detail-note">正在加载详细数据…</p>
+        <template v-else>
+          <p class="detail-note">当前账号数据范围 · 共 {{ detailTotal }} 条<template v-if="financialDetail"> · 合计 {{ formatMoney(detailAmount) }}</template></p>
+          <el-table :data="detailRows" border stripe max-height="420" row-key="id" empty-text="暂无详细数据">
+            <el-table-column v-if="!financialDetail" prop="propertyCode" label="房源编号" min-width="110" />
+            <el-table-column prop="propertyName" label="房源 / 项目" min-width="200" show-overflow-tooltip />
+            <template v-if="financialDetail">
+              <el-table-column prop="date" label="日期" width="115" /><el-table-column prop="source" label="来源" min-width="145" />
+              <el-table-column prop="reference" label="关联单据" min-width="180" show-overflow-tooltip />
+              <el-table-column label="金额" width="125" align="right"><template #default="{ row }">{{ formatMoney(row.amount) }}</template></el-table-column>
+              <el-table-column v-if="detailItem?.key === 'receivable'" label="已缴" width="110" align="right"><template #default="{ row }">{{ formatMoney(row.settledAmount) }}</template></el-table-column>
+            </template>
+            <template v-else-if="detailItem?.key !== 'properties'">
+              <el-table-column prop="roomNo" label="房号" width="85" />
+              <el-table-column label="月租" width="115" align="right"><template #default="{ row }">{{ formatMoney(row.rent) }}</template></el-table-column>
+              <el-table-column prop="leaseEnd" label="租约到期" width="120" />
+            </template>
+            <el-table-column v-else prop="type" label="类型" width="115" />
+            <el-table-column v-if="detailItem?.key !== 'received'" label="状态" width="100"><template #default="{ row }">{{ statusName(row.status) }}</template></el-table-column>
+          </el-table>
+          <el-pagination v-model:current-page="detailPage" :page-size="10" :total="detailTotal" layout="prev, pager, next, total" @current-change="loadDetail" />
+        </template>
+      </div>
+      <template #footer><el-button v-if="detailError" @click="loadDetail">重试</el-button><el-button @click="detailVisible = false">关闭</el-button></template>
+    </el-dialog>
   </div>
 </template>
 
@@ -263,6 +317,9 @@ onMounted(loadDashboard);
   flex-direction: column;
   gap: 16px;
 }
+.detail-content { min-height: 140px; }
+.detail-note { margin: 0 0 14px; color: #64748b; }
+.detail-content :deep(.el-pagination) { margin-top: 16px; justify-content: flex-end; }
 
 .panel,
 .state-card {
@@ -364,7 +421,7 @@ onMounted(loadDashboard);
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
 }
 

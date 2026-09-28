@@ -5,6 +5,7 @@ import CashFlowView from '@/views/finance/CashFlowView.vue';
 import BusinessReviewView from '@/views/finance/BusinessReviewView.vue';
 import BusinessPerformanceView from '@/views/finance/BusinessPerformanceView.vue';
 import PropertyConfigurationDialog from '@/components/PropertyConfigurationDialog.vue';
+import FreeRentPeriod from '@/components/FreeRentPeriod.vue';
 import {
   getBusinessCalendar,
   getBusinessPerformance,
@@ -15,9 +16,13 @@ import {
   reviewBusinessSubmission,
   savePropertyConfiguration,
   settleSchedule,
+  settleCharge,
   submitBusiness,
 } from '@/api/business';
 import { ElMessageBox } from 'element-plus';
+const { billRoute } = vi.hoisted(() => ({ billRoute: { query: {} as Record<string, string> } }));
+vi.mock('vue-router', () => ({ useRoute: () => billRoute, useRouter: () => ({ replace: vi.fn() }) }));
+vi.mock('@/stores/dict', () => ({ useDictStore: () => ({ ensureLoaded: vi.fn().mockResolvedValue(undefined), getLabel: (_: string, value: string) => value || '未登记' }) }));
 
 vi.mock('element-plus', () => ({
   ElMessage: { success: vi.fn(), warning: vi.fn() },
@@ -37,6 +42,7 @@ vi.mock('@/api/business', async (original) => ({
   reviewBusinessSubmission: vi.fn(),
   savePropertyConfiguration: vi.fn(),
   settleSchedule: vi.fn(),
+  settleCharge: vi.fn(),
   submitBusiness: vi.fn(),
 }));
 let app: App | undefined;
@@ -60,6 +66,7 @@ const row = {
 };
 beforeEach(() => {
   vi.resetAllMocks();
+  billRoute.query = {};
   vi.mocked(getBusinessCalendar).mockResolvedValue({
     period: '2026-10',
     buckets: [
@@ -220,6 +227,34 @@ async function fill(root: Element, label: string, value: string) {
 }
 
 describe('房管房支付、现金与财务审核界面', () => {
+  it('显示押金和维修分项，分项支付调用费用接口，月份标题按余额汇总', async () => {
+    vi.mocked(getBusinessCalendar).mockResolvedValue({ period: '2026-10', buckets: [{ direction: 'pay', period: '2026-10', amount: 999, count: 1, list: [{ ...row, billType: 'charge', categoryLabel: '维修', counterparty: '维修师傅', amount: 200, remaining: 150, settledAmount: 50 }] }], overdue: [] });
+    const root = await mount(ManagedBusinessView);
+    expect(root.querySelector('.month-card header')?.textContent).toContain('¥150.00');
+    expect(root.textContent).toContain('维修 · 维修师傅');
+    expect(root.textContent).not.toContain('第0期');
+    button(root, '支付').click(); await flush();
+    const dialog = root.querySelector('section[aria-label="登记支付"]')!;
+    await fill(dialog, '支付账号', '公司账户'); await fill(dialog, '收款账号', '服务账户');
+    button(dialog, '提交').click(); await flush();
+    expect(settleCharge).toHaveBeenCalledWith(row.id, expect.objectContaining({ amount: 150, payee: '维修师傅' }));
+    expect(settleSchedule).not.toHaveBeenCalled();
+  });
+  it('按年月日编辑年度免租，取消不会覆盖原免租天数', async () => {
+    const update = vi.fn();
+    const root = await mount(FreeRentPeriod, { modelValue: [45,30,0,0,0], start: '2026-10-01', 'onUpdate:modelValue': update });
+    expect(root.textContent).toContain('75 天');
+    button(root, '编辑').click(); await flush();
+    const month = root.querySelectorAll<HTMLInputElement>('.free-year input')[1];
+    month.value = '2'; month.dispatchEvent(new Event('input')); await flush();
+    button(root, '取消').click(); await flush(); expect(update).not.toHaveBeenCalled();
+    button(root, '编辑').click(); await flush();
+    const changed = root.querySelectorAll<HTMLInputElement>('.free-year input')[1];
+    changed.value = '2'; changed.dispatchEvent(new Event('input')); await flush();
+    button(root, '保存免租期').click(); await flush();
+    expect(update).toHaveBeenCalledWith([75,30,0,0,0]);
+  });
+
   it('业绩提交后用于下载的列表与财务保存快照一致，不保留提交前旧金额', async () => {
     const empty = () => ({ amount: 0, commission: 0, details: [] });
     const initial = {
@@ -267,6 +302,17 @@ describe('房管房支付、现金与财务审核界面', () => {
       '租客收款信息',
     );
     expect(root.textContent).toContain('共 1 套');
+  });
+  it('标题汇总下面的待付账单，季付金额保留本期金额与部分实付，并传递房间筛选', async () => {
+    billRoute.query = { propertyId: '8', roomId: '21' };
+    vi.mocked(getBusinessCalendar).mockResolvedValue({ period: '2026-10', buckets: [{ direction: 'pay', period: '2026-10', amount: 1, count: 1, list: [{ ...row, monthlyRent: 7300, paymentMethod: 'quarterly', contractCode: 'WT-QUARTER', periodEnd: '2026-12-31', amount: 21900, settledAmount: 1000, remaining: 20900 }] }], overdue: [] });
+    const root = await mount(ManagedBusinessView);
+    expect(getBusinessCalendar).toHaveBeenCalledWith(expect.any(String), { propertyId: 8, roomId: 21 });
+    expect(root.querySelector('.month-card header')?.textContent).toContain('¥20,900.00');
+    expect(root.textContent).toContain('本期应付 ¥21,900.00');
+    expect(root.textContent).toContain('已结 ¥1,000.00');
+    expect(root.textContent).toContain('WT-QUARTER');
+    expect(root.textContent).toContain('2026-12-31');
   });
 
   it('校验付款字段，重试沿用同一幂等编号，成功后刷新下一期', async () => {
@@ -351,7 +397,7 @@ describe('房管房支付、现金与财务审核界面', () => {
     button(root, '直接提交').click(); await flush();
     expect(savePropertyConfiguration).not.toHaveBeenCalled();
     input.value = '123.45'; input.dispatchEvent(new Event('input'));
-    const select = rows[5].querySelector<HTMLSelectElement>('select')!;
+    const select = rows[5].querySelector<HTMLSelectElement>('select[aria-label="收房奖员工"]')!;
     expect(select.textContent).toContain('真实员工');
     select.value = '7'; select.dispatchEvent(new Event('change')); await flush();
     button(root, '直接提交').click(); await flush();

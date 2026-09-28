@@ -21,7 +21,6 @@ const statusTabs = [
   { value: 'all', label: '全部客户' }, { value: 'tenant', label: '租房客户' },
   { value: 'buyer', label: '买房客户' }, { value: 'active', label: '有效客户' },
   { value: 'done', label: '已成交' }, { value: 'invalid', label: '已失效' },
-  { value: 'blacklist', label: '黑名单' },
 ];
 const stats = computed(() => ({
   all: total.value,
@@ -63,7 +62,7 @@ function openWorkflow(item: Customer, action: CustomerWorkflowAction) {
   selectedCustomer.value = item; workflowAction.value = action; workflowVisible.value = true;
 }
 function typeChanged() { activeTab.value = query.status || query.customerType || 'all'; }
-function canStart(item: Customer) { return ['tenant', 'buyer'].includes(item.customerType) && !['blacklist', 'invalid'].includes(item.status); }
+function canStart(item: Customer) { return ['tenant', 'buyer'].includes(item.customerType) && item.status !== 'invalid'; }
 function customerTypeLabel(type: string) {
   return ({ tenant: '租客', buyer: '买家', landlord: '业主' } as Record<string, string>)[type]
     || dictStore.getLabel('identity', type) || type;
@@ -73,10 +72,10 @@ function budgetText(item: Customer) {
   return `${item.budgetMin ?? 0} - ${item.budgetMax ?? '不限'}`;
 }
 function statusClass(status: string) {
-  return ({ active: 'pill-blue', done: 'pill-green', invalid: 'pill-gray', blacklist: 'pill-red' } as Record<string, string>)[status] || 'pill-gray';
+  return ({ active: 'pill-blue', done: 'pill-green', invalid: 'pill-gray' } as Record<string, string>)[status] || 'pill-gray';
 }
 function statusLabel(status: string) {
-  return ({ active: '有效', done: '已成交', invalid: '已失效', blacklist: '黑名单' } as Record<string, string>)[status] || status;
+  return ({ active: '有效', done: '已成交', invalid: '已失效' } as Record<string, string>)[status] || status;
 }
 </script>
 

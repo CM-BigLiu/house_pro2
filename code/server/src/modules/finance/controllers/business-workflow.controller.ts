@@ -31,6 +31,7 @@ import { RequirePermission } from '../../../common/decorators/require-permission
 import { ContractDetails } from '../../house/entities/contract-details';
 import { PropertyConfiguration } from '../entities/business-workflow.entity';
 import { BusinessWorkflowService } from '../services/business-workflow.service';
+import { IncomeCostReportService } from '../services/income-cost-report.service';
 
 class DelegationDto {
   @IsDateString() @Matches(/^\d{4}-\d{2}-\d{2}$/) leaseStart: string;
@@ -88,7 +89,12 @@ class ReviewDto {
 
 @Controller('finance/business')
 export class BusinessWorkflowController {
-  constructor(private service: BusinessWorkflowService) {}
+  constructor(private service: BusinessWorkflowService, private costs: IncomeCostReportService) {}
+  @Get('income-costs')
+  @RequirePermission('finance:income_cost')
+  incomeCosts(@Query('period') period: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.costs.report(period, user);
+  }
   @Get('properties/:id/delegation-context')
   @RequirePermission('renting:edit')
   @SkipMasking()
@@ -115,8 +121,10 @@ export class BusinessWorkflowController {
   calendar(
     @Query('period') period: string,
     @CurrentUser() user: CurrentUserPayload,
+    @Query('propertyId') propertyId?: string,
+    @Query('roomId') roomId?: string,
   ) {
-    return this.service.calendar(period, user);
+    return this.service.calendar(period, user, { ...(propertyId !== undefined ? { propertyId: Number(propertyId) } : {}), ...(roomId !== undefined ? { roomId: Number(roomId) } : {}) });
   }
   @Post('schedules/:id/settle')
   @RequirePermission('finance:arrears:modify')
@@ -128,10 +136,21 @@ export class BusinessWorkflowController {
   ) {
     return this.service.settle(id, input, user);
   }
+  @Post('charges/:id/settle')
+  @RequirePermission('finance:arrears:modify')
+  @Audit('finance', 'business:settle_charge')
+  settleCharge(@Param('id', ParseIntPipe) id: number, @Body() input: SettlementDto, @CurrentUser() user: CurrentUserPayload) {
+    return this.service.settleCharge(id, input, user);
+  }
   @Get('cash-flow')
   @RequirePermission('finance:plan')
   cashFlow(@CurrentUser() user: CurrentUserPayload) {
     return this.service.cashFlow(user);
+  }
+  @Get('rental-costs')
+  @RequirePermission('finance:income_cost')
+  rentalCosts(@Query('period') period: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.service.rentalCosts(period, user);
   }
   @Post('accounts/:code/opening')
   @RequirePermission('finance:plan:modify')

@@ -203,16 +203,6 @@ export const dictSeedData: Record<string, { value: string; label: string; group?
     { value: 'agreement', label: '购房协议' },
     { value: 'other', label: '其他' },
   ],
-  blacklist_type: [
-    { value: 'tenant', label: '租客' },
-    { value: 'landlord', label: '房东' },
-    { value: 'supplier', label: '供应商' },
-    { value: 'other', label: '其他' },
-  ],
-  blacklist_status: [
-    { value: 'active', label: '生效中' },
-    { value: 'revoked', label: '已撤销' },
-  ],
   checkout_status: [
     { value: 'pending', label: '待确认' },
     { value: 'confirmed', label: '已确认' },

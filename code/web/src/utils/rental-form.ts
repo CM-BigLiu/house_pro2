@@ -1,8 +1,9 @@
+import { freeRentError } from './free-rent';
 // 新增、编辑共用校验；空置房源不强制录入租客。
 export const rentalLandlordFields = [
   'landlordId', 'landlordName', 'landlordPhone', 'landlordPhoneBackup', 'landlordIdCard',
   'landlordBankName', 'landlordBankCard', 'landlordRent', 'landlordDeposit', 'leaseStart',
-  'leaseEnd', 'landlordPaymentMethod', 'rentFreePeriod', 'landlordRemark', 'emergencyContacts',
+  'leaseEnd', 'landlordPaymentMethod', 'rentFreePeriod', 'freeRentRanges', 'landlordRemark', 'emergencyContacts',
   'viewingTime', 'viewingTimeAlt', 'followUpContent', 'isManaged',
 ] as const;
 
@@ -44,6 +45,8 @@ export function rentalFormErrors(form: Record<string, any>, landlordRent: unknow
   idCard('landlordIdCard', form.landlordIdCard);
   bankCard('landlordBankCard', form.landlordBankCard);
   dates('leaseDateRange', form.leaseStart, form.leaseEnd);
+  const freeError = freeRentError(form.freeRentRanges || [], form.leaseStart, form.leaseEnd);
+  if (freeError) errors.freeRentRanges = freeError;
   }
   if (form.bizType === 'entire') {
     const occupied = ['rented', 'checkout'].includes(form.status) || !!(form.tenantName || form.tenantPhone);
@@ -60,6 +63,10 @@ export function rentalFormErrors(form: Record<string, any>, landlordRent: unknow
     rooms.forEach((room: Record<string, any>, index: number) => {
       const prefix = `rooms.${index}.`;
       text(prefix + 'roomNo', '房间房号', room.roomNo);
+      text(prefix + 'roomType', '房型', room.roomType);
+      for (const [key, label] of [['privateBathroom', '独卫'], ['balcony', '阳台']]) if (typeof room[key] !== 'boolean') errors[prefix + key] = `请选择${label}`;
+      amount(prefix + 'listedPrice', '定价', room.listedPrice, false, false);
+      amount(prefix + 'interiorArea', '套内面积', room.interiorArea, false, false);
       if (room.roomNo?.trim() && rooms.filter((other: any) => other.roomNo?.trim() === room.roomNo.trim()).length > 1) errors[prefix + 'roomNo'] = '房间房号不能重复';
       const occupied = ['rented', 'checkout'].includes(room.status) || !!(room.tenantName || room.tenantPhone);
       amount(prefix + 'rentPrice', '租金', room.rentPrice, false, occupied);

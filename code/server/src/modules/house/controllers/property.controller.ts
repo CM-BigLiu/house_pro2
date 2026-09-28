@@ -4,7 +4,6 @@ import { UpdateSalePropertyDto } from './sale.controller';
 import { Type } from 'class-transformer';
 import { SaleService } from '../services/sale.service';
 import { RentalService } from '../services/rental.service';
-import { BlacklistService } from '../services/blacklist.service';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
@@ -119,7 +118,6 @@ export class PropertyController {
   constructor(
     private saleService: SaleService,
     private rentalService: RentalService,
-    private blacklistService: BlacklistService,
   ) {}
 
   @Get('page')
@@ -143,16 +141,6 @@ export class PropertyController {
       return this.rentalService.createSet(data, user);
     }
     if (transType === 2) {
-      const hits = await this.blacklistService.check(
-        data.ownerPhone,
-        data.ownerIdCard,
-        data.ownerName,
-      );
-      if (hits.length) {
-        throw new BadRequestException(
-          `命中黑名单：${hits.map((h) => `${h.name}(${h.mobile})`).join(', ')}`,
-        );
-      }
       return this.saleService.create(data, user);
     }
     throw new BadRequestException('不支持的 transType');

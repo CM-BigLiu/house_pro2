@@ -4,7 +4,7 @@ export const RENTAL_LANDLORD_FIELDS = [
   'landlordId', 'landlordName', 'landlordPhone', 'landlordPhoneBackup',
   'landlordIdCard', 'landlordBankName', 'landlordBankCard', 'landlordRent',
   'landlordDeposit', 'leaseStart', 'leaseEnd', 'landlordPaymentMethod',
-  'rentFreePeriod', 'landlordRemark', 'emergencyContacts', 'viewingTime',
+  'rentFreePeriod', 'freeRentRanges', 'landlordRemark', 'emergencyContacts', 'viewingTime',
   'viewingTimeAlt', 'followUpContent', 'isManaged',
 ] as const;
 

@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createApp, nextTick, type App } from 'vue';
+import { createApp, nextTick, computed, provide, inject, type App } from 'vue';
 import HomeView from '@/views/dashboard/HomeView.vue';
-import { getOverview, getRankings, getTodos, getWarnings } from '@/api/dashboard';
+import { getOverview, getRankings, getTodos, getWarnings, getKpiDetails } from '@/api/dashboard';
 
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('element-plus', () => ({ ElMessage: { info: vi.fn() } }));
 vi.mock('vue-echarts', () => ({ default: { template: '<div data-testid="chart" />' } }));
 vi.mock('@/stores/user', () => ({ useUserStore: () => ({ permissions: ['*'], userInfo: { name: '测试管理员' } }) }));
-vi.mock('@/api/dashboard', () => ({ getOverview: vi.fn(), getWarnings: vi.fn(), getRankings: vi.fn(), getTodos: vi.fn() }));
+vi.mock('@/api/dashboard', () => ({ getOverview: vi.fn(), getWarnings: vi.fn(), getRankings: vi.fn(), getTodos: vi.fn(), getKpiDetails: vi.fn() }));
 
 let app: App | undefined;
 afterEach(() => { app?.unmount(); document.body.innerHTML = ''; vi.resetAllMocks(); });
@@ -21,6 +21,12 @@ async function render(overview: unknown) {
   const root = document.createElement('div');
   document.body.append(root);
   app = createApp(HomeView);
+  app.directive('loading', {});
+  app.component('ElDialog', { props: ['modelValue', 'title'], template: '<section v-if="modelValue"><h2>{{ title }}</h2><slot/><slot name="footer"/></section>' });
+  app.component('ElTable', { props: ['data'], setup(props) { provide('rows', computed(() => props.data)); }, template: '<div><slot/></div>' });
+  app.component('ElTableColumn', { props: ['prop', 'label'], setup() { return { rows: inject('rows') }; }, template: '<div>{{ label }}<div v-for="row in rows"><span v-if="prop">{{ row[prop] }}</span><slot v-else :row="row"/></div></div>' });
+  app.component('ElButton', { template: '<button><slot/></button>' });
+  app.component('ElPagination', { props: ['total'], template: '<div>共 {{ total }} 条</div>' });
   app.config.errorHandler = errors;
   app.mount(root);
   await new Promise(resolve => setTimeout(resolve, 0));
@@ -29,6 +35,16 @@ async function render(overview: unknown) {
 }
 
 describe('首页渲染', () => {
+  it('删除客户总数，经营卡片可打开对应详情表格', async () => {
+    vi.mocked(getKpiDetails).mockResolvedValue({ key: 'properties', list: [{ id: 'rent:1', propertyCode: 'CZ001', propertyName: '真实房源', type: '出租房源', status: 'vacant' }], total: 1, totalAmount: 0 });
+    const { root, errors } = await render({ kpis: [{ key: 'properties', label: '在管房源', value: 1, unit: '套' }, { label: '客户总数', value: 9 }] });
+    expect(root.textContent).not.toContain('客户总数');
+    root.querySelector<HTMLButtonElement>('[aria-label="在管房源详情"]')!.click();
+    await new Promise(resolve => setTimeout(resolve, 0)); await nextTick();
+    expect(getKpiDetails).toHaveBeenCalledWith('properties', 1);
+    expect(root.textContent).toContain('真实房源'); expect(root.textContent).toContain('CZ001');
+    expect(errors).not.toHaveBeenCalled();
+  });
   it('缺少旧接口中的图表和大卡片字段时仍显示首页，不整页空白', async () => {
     const { root, errors } = await render({ totalRent: { value: '126.8' } });
     expect(errors).not.toHaveBeenCalled();

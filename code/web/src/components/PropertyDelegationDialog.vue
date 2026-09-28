@@ -9,6 +9,9 @@ import {
 } from '@/api/business';
 import ContractBusinessFields from './ContractBusinessFields.vue';
 import MoneyInput from './MoneyInput.vue';
+import LeaseTermInput from './LeaseTermInput.vue';
+import FreeRentRanges from './FreeRentRanges.vue';
+import { freeRentError } from '@/utils/free-rent';
 import { useDictStore } from '@/stores/dict';
 const props = defineProps<{
   visible: boolean;
@@ -70,6 +73,7 @@ watch(
 async function submit() {
   if (busy.value || loading.value || failed.value || !props.property) return;
   error.value = validateContractDetails(form.details, 'management');
+  if (!error.value) error.value = freeRentError(form.details.freeRentRanges || [], form.leaseStart, form.leaseEnd);
   if (
     !form.leaseStart ||
     !form.leaseEnd ||
@@ -79,6 +83,7 @@ async function submit() {
     error.value = '请填写有效租赁期限及成交月租';
   if (error.value) return;
   busy.value = true;
+  form.details.freeRentRanges = (form.details.freeRentRanges || []).filter(range => range.start || range.end);
   try {
     await delegateProperty(props.property.id, form);
     ElMessage.success('委托合同已提交，房管房与业绩已同步');
@@ -109,7 +114,7 @@ async function submit() {
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
     <el-alert v-if="existingContractCode" :title="`已带入生效委托合同 ${existingContractCode} 的资料；新增合同租期不能与已有合同重叠。`" type="info" :closable="false" />
     <el-form v-loading="loading" :model="form" label-position="top"
-      ><ContractBusinessFields :details="form.details" mode="management" />
+      ><ContractBusinessFields :lease-start="form.leaseStart" :details="form.details" mode="management" />
       <el-form-item label="成交合同号"
         ><el-input disabled placeholder="电子编码提交后自动生成"
       /></el-form-item>
@@ -137,6 +142,8 @@ async function submit() {
               v-model="form.deposit"
                /></el-form-item></el-col
       ></el-row>
+      <LeaseTermInput :start="form.leaseStart" v-model:end="form.leaseEnd" />
+      <FreeRentRanges v-model="form.details.freeRentRanges" :start="form.leaseStart" :end="form.leaseEnd" :rent="form.amount" label="指定免租日期" form-prop="details.freeRentRanges" />
       <el-form-item label="付款方式" required
         ><el-select v-model="form.paymentMethod"
           ><el-option
@@ -146,7 +153,7 @@ async function submit() {
             :label="item.label" /></el-select
       ></el-form-item>
       <p class="hint">
-        免租从各合同年度开始日计算；整月按月租，免租后或不足整月的零散天数按月租÷30折算。提交后自动生成各期应付计划。
+        租期与付款周期按真实日历计算，零散及免租日按对应合同月的实际天数分摊。提交后自动生成各期应付计划。
       </p>
     </el-form>
     <template #footer

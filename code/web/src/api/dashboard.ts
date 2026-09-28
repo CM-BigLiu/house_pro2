@@ -1,12 +1,22 @@
 import { get } from '@/utils/request';
 
 export interface KpiItem {
+  key?: string;
   label: string;
   value: number | string;
   unit?: string;
   trend?: number;
   trendLabel?: string;
   color?: string;
+}
+
+export interface KpiDetailRow {
+  id: string | number; propertyName?: string; propertyCode?: string; roomNo?: string;
+  type?: string; status?: string; rent?: number; leaseStart?: string; leaseEnd?: string;
+  date?: string; source?: string; category?: string; reference?: string; amount?: number; settledAmount?: number;
+}
+export function getKpiDetails(key: string, page = 1, pageSize = 10) {
+  return get<{ key: string; list: KpiDetailRow[]; total: number; totalAmount: number }>(`/dashboard/details/${key}`, { params: { page, pageSize } });
 }
 
 export interface WarningCard {

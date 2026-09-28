@@ -40,7 +40,7 @@ describe('客户约看 / 成交 / 解约 PostgreSQL 集成', () => {
     await runner.query(`INSERT INTO house_community (id, name, "cityId") VALUES (191000001, $1, 1)`, [key]);
     await runner.query(`INSERT INTO house_customer (id, name, mobile, "customerType", status, creator_id, store_id)
       VALUES (191000001, $1, '13800001234', 'tenant', 'active', 1, 1), (191000002, $2, '13900001234', 'buyer', 'active', 1, 1),
-      (191000003, $3, '13700001234', 'buyer', 'blacklist', 1, 1)`, [`${key}-租客`, `${key}-买家`, `${key}-黑名单`]);
+      (191000003, $3, '13700001234', 'buyer', 'invalid', 1, 1)`, [`${key}-租客`, `${key}-买家`, `${key}-失效`]);
     await runner.query(`INSERT INTO house_rental_set (id, code, "bizType", community_id, address, building, unit, "roomNo", layout, status, creator_id, store_id, group_id)
       VALUES (191000001, $1, 'entire', 191000001, '测试地址', '1', '1', '101', '1室1厅', 'vacant', 1, 1, 11)`, [`${key}-rent`]);
     await runner.query(`INSERT INTO house_sale (id, code, "propertyType", community_id, building, unit, floor, "roomNo", "layoutRooms", "layoutHalls", "layoutBathrooms", "layoutBalconies", "buildingArea", orientation, decoration, elevator, "salePrice", "sourceChannel", title, "ownerName", "ownerPhone", creator_id, store_id, status)
@@ -68,8 +68,8 @@ describe('客户约看 / 成交 / 解约 PostgreSQL 集成', () => {
     expect((await workflow.findDeals({ keyword: key, status: 'terminated' }, user)).total).toBe(1);
   });
 
-  it('买房客户约看、签约和解约在事务内同步房态，阻止重复提交和黑名单签约', async () => {
-    await expect(workflow.createAppointment(191000003, { propertyId: 191000001, scheduledAt: later() }, user)).rejects.toThrow('黑名单');
+  it('买房客户约看、签约和解约在事务内同步房态，阻止重复提交和失效签约', async () => {
+    await expect(workflow.createAppointment(191000003, { propertyId: 191000001, scheduledAt: later() }, user)).rejects.toThrow('失效');
     const appointment = await workflow.createAppointment(191000002, { propertyId: 191000001, scheduledAt: later() }, user);
     const deal = await workflow.sign(191000002, { appointmentId: appointment.id, amount: 2200000, contractCode: `${key}-XS` }, user) as Deal;
     expect(deal).toMatchObject({ bizType: 'sale', amount: 2200000, responsibleEmployeeId: 1, status: 'active' });

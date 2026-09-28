@@ -31,6 +31,9 @@ export class Employee {
   @Column({ default: 'normal' })
   status: string;
 
+  @Column({ name: 'manager_id', type: 'integer', nullable: true })
+  managerId: number | null;
+
   @Column({ type: 'date', nullable: true })
   entryDate: string;
 

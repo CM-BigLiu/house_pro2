@@ -165,6 +165,23 @@ async function render() {
 }
 
 describe('租房管理页面', () => {
+  it('切换卡片后合租先展示房源再展示房间，房间操作关联正确记录，切回表格保留筛选', async () => {
+    const root = await render(), calls = vi.mocked(getRentalSets).mock.calls.length;
+    root.querySelector<HTMLButtonElement>('button[aria-label="卡片显示"]')!.click(); await nextTick();
+    expect(root.querySelector('.resource-table')).toBeNull();
+    const group = [...root.querySelectorAll('.card-group')].find(group => group.textContent?.includes('主卧独卫'))!;
+    expect(group.querySelector('.unit-grid')?.firstElementChild?.classList.contains('owner-card')).toBe(true);
+    const room = group.querySelector<HTMLElement>('article[aria-label$="-A房间卡片"]')!;
+    [...room.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '详情')!.click();
+    expect(routerPush).toHaveBeenLastCalledWith({ path: '/house/rent/detail/2', query: { roomId: 21 } });
+    [...room.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '编辑')!.click();
+    expect(routerPush).toHaveBeenLastCalledWith({ path: '/house/rent/edit/2', query: { roomId: 21 } });
+    [...room.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '账单')!.click();
+    expect(routerPush).toHaveBeenLastCalledWith({ path: '/finance/arrears', query: { propertyId: 2, roomId: 21 } });
+    root.querySelector<HTMLButtonElement>('button[aria-label="表格显示"]')!.click(); await nextTick();
+    expect(root.querySelector('.resource-table')).not.toBeNull();
+    expect(getRentalSets).toHaveBeenCalledTimes(calls);
+  });
   it('列表成交预填已有金额，直接提交并禁止已出租房源再次成交', async () => {
     vi.mocked(getRentalSigningContext).mockResolvedValue({ bizType: 'entire', workflowType: 'regular', propertyAddress: '测试房屋地址', rooms: [],
       defaults: { tenantName: '测试客户', tenantPhone: '13800001234', leaseStart: '2026-10-01', leaseEnd: '2027-09-30', rent: 3200.5, deposit: 3200,

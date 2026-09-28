@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 defineOptions({ inheritAttrs: false });
-const props = withDefaults(defineProps<{ modelValue: number; unit?: string }>(), { unit: '元' });
+const props = withDefaults(defineProps<{ modelValue: number | undefined; unit?: string }>(), { unit: '元' });
 const emit = defineEmits<{ 'update:modelValue': [value: number] }>();
 const text = ref('');
 const valid = (value: string) => /^\d+(\.\d{1,2})?$/.test(value) && Number(value) <= 999999999999.99;
 watch(() => props.modelValue, value => {
-  if (Number.isFinite(value) && (!text.value || Number(text.value) !== value)) text.value = value.toFixed(2);
+  if (value === undefined) text.value = '';
+  if (typeof value === 'number' && Number.isFinite(value) && (!text.value || Number(text.value) !== value)) text.value = value.toFixed(2);
 }, { immediate: true });
 // 保留非法输入供表单提示，不能把负数或科学计数法静默改成其他金额。
 function update(value: string) {

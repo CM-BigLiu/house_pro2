@@ -34,9 +34,15 @@ describe('租房新增编辑共用校验', () => {
     expect(result['rooms.0.roomNo']).toBeTruthy(); expect(result['rooms.1.roomNo']).toBeTruthy(); expect(result['rooms.0.rentPrice']).toBeTruthy();
   });
   it('合租空房间可保存，已租房间缺少电话不能保存', () => {
-    const room = { roomNo: 'A', rentPrice: '', depositAmount: '', status: 'vacant' };
+    const room = { roomNo: 'A', roomType: 'master', privateBathroom: false, balcony: false, rentPrice: '', depositAmount: '', status: 'vacant' };
     expect(rentalFormErrors({ ...valid, bizType: 'shared', rooms: [room] }, 1, 1)).toEqual({});
     const occupied = rentalFormErrors({ ...valid, bizType: 'shared', rooms: [{ ...room, status: 'rented' }] }, 1, 1);
     for (const key of ['rentPrice', 'depositAmount', 'tenantPhone']) expect(occupied[`rooms.0.${key}`]).toBeTruthy();
+  });
+  it('独卫、阳台和房型必填，有无选择中的false是有效答案', () => {
+    const room = { roomNo: '1', roomType: 'master', privateBathroom: false, balcony: false, status: 'vacant' };
+    expect(rentalFormErrors({ ...valid, bizType: 'shared', rooms: [room] }, 1000, '')).toEqual({});
+    const errors = rentalFormErrors({ ...valid, bizType: 'shared', rooms: [{ ...room, privateBathroom: null, balcony: undefined, roomType: '' }] }, 1000, '');
+    for (const key of ['privateBathroom', 'balcony', 'roomType']) expect(errors[`rooms.0.${key}`]).toBeTruthy();
   });
 });

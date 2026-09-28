@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { buildLeasePeriod } from '@/utils/rental-schedule';
 import { buildPaymentSchedule, formatDate } from '@/utils/rental-schedule';
 import { ref, reactive, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
@@ -12,6 +13,8 @@ import { generateHouseCode } from '@/utils/code';
 import { useDictStore } from '@/stores/dict';
 import { useUserStore } from '@/stores/user';
 import LayoutSelect from '@/components/LayoutSelect.vue';
+import SharedRoomTable from '@/components/SharedRoomTable.vue';
+import FreeRentRanges from '@/components/FreeRentRanges.vue';
 import { rentalListPath } from '@/router/rental-origin';
 
 const router = useRouter();
@@ -98,6 +101,7 @@ function createEmptyForm(): FormState {
     leaseEnd: '',
     landlordPaymentMethod: '',
     rentFreePeriod: '',
+    freeRentRanges: [],
     rent: 0,
     deposit: 0,
     status: 'vacant',
@@ -137,7 +141,7 @@ const rules = computed<FormRules>(() => {
   const required = ['code', 'bizType', 'communityId', 'address', 'building', 'unit', 'roomNo', 'layout', 'buildingArea', 'landlordRent'];
   const fields = [
     ...required, 'landlordPhone', 'landlordIdCard', 'landlordBankCard',
-    'landlordDeposit', 'leaseDateRange',
+    'landlordDeposit', 'leaseDateRange', 'freeRentRanges',
   ];
   if (form.bizType === 'entire') {
     fields.push('rent', 'deposit', 'tenantName', 'tenantPhone', 'tenantIdCard', 'tenantPaymentMethod', 'tenantLeaseDateRange');
@@ -146,8 +150,8 @@ const rules = computed<FormRules>(() => {
     fields.push('rooms');
     form.rooms.forEach((room, index) => {
       const prefix = `rooms.${index}.`;
-      for (const key of ['roomNo', 'rentPrice', 'depositAmount', 'tenantName', 'tenantPhone', 'tenantIdCard', 'paymentMethod', 'leaseDateRange']) fields.push(prefix + key);
-      required.push(prefix + 'roomNo');
+      for (const key of ['roomNo', 'privateBathroom', 'balcony', 'roomType', 'interiorArea', 'listedPrice', 'rentPrice', 'depositAmount', 'tenantName', 'tenantPhone', 'tenantIdCard', 'paymentMethod', 'leaseDateRange']) fields.push(prefix + key);
+      for (const key of ['roomNo', 'privateBathroom', 'balcony', 'roomType']) required.push(prefix + key);
       if (occupied(room)) for (const key of ['rentPrice', 'depositAmount', 'tenantName', 'tenantPhone', 'paymentMethod', 'leaseDateRange']) required.push(prefix + key);
     });
   }
@@ -238,6 +242,7 @@ async function loadData(id: string) {
       leaseStart: data.leaseStart ?? '',
       leaseEnd: data.leaseEnd ?? '',
       landlordPaymentMethod: data.landlordPaymentMethod ?? '',
+      freeRentRanges: (data.freeRentRanges || []).map(range => ({ ...range })),
       rentFreePeriod: data.rentFreePeriod ?? '',
       rent: data.rent ?? 0,
       deposit: data.deposit ?? 0,
@@ -279,18 +284,22 @@ async function loadData(id: string) {
       const rs = parseDate(r.leaseStart);
       const re = parseDate(r.leaseEnd);
       return {
+        ...r,
+        privateBathroom: r.privateBathroom ?? (r.roomType?.endsWith('_bath') ? true : null),
+        facilities: [...(r.facilities || [])],
+        interiorArea: r.interiorArea == null ? undefined : Number(r.interiorArea),
         id: r.id,
         setId: r.setId,
         roomNo: r.roomNo,
         roomType: r.roomType ?? '',
-        rentPrice: r.rentPrice ?? 0,
-        listedPrice: r.listedPrice ?? 0,
+        rentPrice: Number(r.rentPrice ?? 0),
+        listedPrice: Number(r.listedPrice ?? 0),
         status: r.status,
         paymentMethod: r.paymentMethod ?? '',
         leaseTerm: r.leaseTerm ?? '',
         renovationProgress: r.renovationProgress ?? '',
         paymentStatus: r.paymentStatus ?? '',
-        depositAmount: r.depositAmount ?? 0,
+        depositAmount: Number(r.depositAmount ?? 0),
         tenantName: r.tenantName ?? '',
         tenantPhone: r.tenantPhone ?? '',
         tenantIdCard: r.tenantIdCard ?? '',
@@ -332,7 +341,7 @@ function onBizTypeChange(val: string | number | boolean | undefined) {
   if (val === 'entire') {
     form.rooms = [];
   } else if (val === 'shared' && form.rooms.length === 0) {
-    addRoom();
+    for (const type of ['master', 'second', 'small']) { addRoom(); form.rooms[form.rooms.length - 1].roomType = type; }
   }
 }
 
@@ -346,9 +355,12 @@ function selectElevator(value: 'yes' | 'no') {
   form.elevator = value;
 }
 
-function addRoom() {
-  form.rooms.push({
-    roomNo: '', roomType: '', rentPrice: 0, listedPrice: 0, status: 'vacant',
+function addRoom(after?: number) {
+  let next = 1;
+  while (form.rooms.some(room => room.roomNo === String(next))) next++;
+  form.rooms.splice(after === undefined ? form.rooms.length : after + 1, 0, {
+    roomNo: String(next), roomType: 'master', privateBathroom: true, balcony: true, airConditioner: false,
+    interiorArea: undefined, orientation: '', facilities: [], rentPrice: 0, listedPrice: undefined, status: 'vacant',
     paymentMethod: '', leaseTerm: '', renovationProgress: '', paymentStatus: '',
     depositAmount: 0, tenantIdCard: '', leaseDateRange: null,
   });
@@ -415,8 +427,8 @@ function applyLeasePreset(years: number, event: MouseEvent) {
   // 防止触发 el-form 或 el-date-picker 的刷新
   const start = form.leaseDateRange?.[0] ? new Date(form.leaseDateRange[0]) : new Date();
   const end = new Date(start);
-  end.setFullYear(end.getFullYear() + years);
-  end.setDate(end.getDate() - 1); // 租期结束 = 起始日 + N 年 - 1 天
+  const target = buildLeasePeriod(formatDate(start), years)!;
+  end.setTime(new Date(`${target.end}T00:00:00`).getTime());
   form.leaseDateRange = [start, end];
   form.leaseStart = formatDate(start);
   form.leaseEnd = formatDate(end);
@@ -427,37 +439,11 @@ function applyTenantLeasePreset(years: number, event: MouseEvent) {
   event.stopPropagation();
   const start = form.tenantLeaseDateRange?.[0] ? new Date(form.tenantLeaseDateRange[0]) : new Date();
   const end = new Date(start);
-  end.setFullYear(end.getFullYear() + years);
-  end.setDate(end.getDate() - 1); // 租期结束 = 起始日 + N 年 - 1 天
+  const target = buildLeasePeriod(formatDate(start), years)!;
+  end.setTime(new Date(`${target.end}T00:00:00`).getTime());
   form.tenantLeaseDateRange = [start, end];
   form.tenantLeaseStart = formatDate(start);
   form.tenantLeaseEnd = formatDate(end);
-}
-
-function applyRoomLeasePreset(index: number, years: number, event: MouseEvent) {
-  event.preventDefault();
-  event.stopPropagation();
-  const room = form.rooms[index];
-  if (!room) return;
-  const start = room.leaseDateRange?.[0] ? new Date(room.leaseDateRange[0]) : new Date();
-  const end = new Date(start);
-  end.setFullYear(end.getFullYear() + years);
-  end.setDate(end.getDate() - 1); // 租期结束 = 起始日 + N 年 - 1 天
-  room.leaseDateRange = [start, end];
-  room.leaseStart = formatDate(start);
-  room.leaseEnd = formatDate(end);
-}
-
-function onRoomDateChange(index: number, val: [Date, Date] | null) {
-  const room = form.rooms[index];
-  if (!room) return;
-  if (val && val[0] && val[1]) {
-    room.leaseStart = formatDate(val[0]);
-    room.leaseEnd = formatDate(val[1]);
-  } else {
-    room.leaseStart = '';
-    room.leaseEnd = '';
-  }
 }
 
 function onDateRangeChange(val: [Date, Date] | null) {
@@ -485,15 +471,12 @@ const tenantPaymentSchedule = computed(() =>
   buildPaymentSchedule(form.tenantLeaseStart, form.tenantLeaseEnd, form.tenantPaymentMethod),
 );
 
-// 合租房间交租计划
-function roomPaymentSchedule(room: any) {
-  return buildPaymentSchedule(room.leaseStart, room.leaseEnd, room.paymentMethod);
-}
-
 async function submit(manage = false) {
   if (submitting.value || loading.value || loadError.value) return;
   submitting.value = true;
   try {
+    const errors = rentalFormErrors(form, landlordRentText.value, tenantRentText.value, canViewLandlordInfo.value);
+    if (Object.keys(errors).length) { ElMessage.warning(Object.values(errors)[0]); return; }
     if (!await formRef.value?.validate().catch(() => false)) return;
     if (manage && (!form.landlordName?.trim() || !form.landlordPhone?.trim()
       || !form.leaseStart || !form.leaseEnd || !form.landlordPaymentMethod)) {
@@ -513,9 +496,12 @@ async function submit(manage = false) {
     form.images = form.images.map(item => item.trim()).filter(Boolean);
     form.emergencyContacts = form.emergencyContacts.filter(item => item.name.trim() || item.phone.trim());
     form.title = form.title?.trim();
-    const rooms = form.rooms.map(({ leaseDateRange: _l, ...room }) => ({
+    const rooms = form.rooms.map(({ leaseDateRange: _l, ...room }, index) => ({
       ...room,
       roomNo: room.roomNo?.trim(),
+      sortOrder: index,
+      interiorArea: room.interiorArea == null ? undefined : Number(room.interiorArea),
+      facilities: [...(room.facilities || [])],
       rentPrice: Number(room.rentPrice || 0),
       listedPrice: Number(room.listedPrice || 0),
       depositAmount: Number(room.depositAmount || 0),
@@ -525,7 +511,7 @@ async function submit(manage = false) {
       (form.bizType === 'entire' ? form.tenantName || form.tenantPhone : rooms.some(room => room.status === 'rented'))) {
       form.status = 'rented';
     }
-    const payload = { ...form, rooms: form.bizType === 'entire' ? [] : rooms } as Partial<RentalSet> & { leaseDateRange?: unknown; tenantLeaseDateRange?: unknown; rooms: RentalRoom[] };
+    const payload = { ...form, freeRentRanges: (form.freeRentRanges || []).filter(range => range.start || range.end), rooms: form.bizType === 'entire' ? [] : rooms } as Partial<RentalSet> & { leaseDateRange?: unknown; tenantLeaseDateRange?: unknown; rooms: RentalRoom[] };
     delete (payload as Record<string, unknown>).leaseDateRange;
     delete (payload as Record<string, unknown>).tenantLeaseDateRange;
     delete payload.isManaged;
@@ -588,7 +574,7 @@ async function toggleManagement() {
         <strong>录入提示</strong>
         <span>红色 * 为必填项；未出租房源可留空租客信息，录入租客后请补齐电话、租期和付款方式。</span>
       </div>
-      <el-form ref="formRef" :model="form" :rules="rules" label-position="top" scroll-to-error>
+      <el-form ref="formRef" :model="form" :rules="rules" :validate-on-rule-change="false" label-position="top" scroll-to-error>
         <section class="form-section">
           <div class="section-heading">
             <span class="section-index">01</span>
@@ -859,17 +845,16 @@ async function toggleManagement() {
               </div>
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="12">
             <el-form-item label="房东缴费" prop="landlordPaymentMethod">
               <el-select v-model="form.landlordPaymentMethod" clearable placeholder="选择缴费方式" style="width: 100%;">
                 <el-option v-for="item in dictStore.getItems('payment_method')" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="6">
-            <el-form-item label="免租期" prop="rentFreePeriod">
-              <el-input v-model="form.rentFreePeriod" placeholder="如：20天" />
-            </el-form-item>
+          <el-col :span="24">
+            <FreeRentRanges v-model="form.freeRentRanges" :start="form.leaseStart" :end="form.leaseEnd" :rent="Number(landlordRentText)" />
+            <p v-if="form.rentFreePeriod" class="legacy-free-note">历史免租备注：{{ form.rentFreePeriod }}。请补选日期区间后参与自动计算。</p>
           </el-col>
           <el-col :span="12"><el-form-item label="首选带看时间"><el-input v-model="form.viewingTime" placeholder="如：周末 09:00-12:00" /></el-form-item></el-col>
           <el-col :span="12"><el-form-item label="备选带看时间"><el-input v-model="form.viewingTimeAlt" placeholder="如：工作日 18:00 后" /></el-form-item></el-col>
@@ -976,129 +961,9 @@ async function toggleManagement() {
 
         <template v-if="form.bizType === 'shared'">
           <section class="form-section">
-          <div class="section-heading section-heading-room">
-            <span class="section-index">03</span>
-            <div><strong>合租房间明细</strong><small>逐间维护价格、租客与租期</small></div>
-            <button type="button" class="btn btn-primary btn-sm" @click="addRoom">+ 添加房间</button>
-          </div>
-          <div v-for="(room, index) in form.rooms" :key="index" class="room-row">
-            <div class="room-row-header">
-              <span>房间 {{ index + 1 }}</span>
-              <el-button size="small" type="danger" plain @click="removeRoom(index)">删除</el-button>
-            </div>
-            <el-row :gutter="12">
-              <el-col :span="8">
-                <el-form-item label="房号" :prop="`rooms.${index}.roomNo`">
-                  <el-input v-model="room.roomNo" placeholder="如：A" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="房型" :prop="`rooms.${index}.roomType`">
-                  <el-input v-model="room.roomType" placeholder="如：主卧" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="租金" :prop="`rooms.${index}.rentPrice`">
-                  <el-input v-model="room.rentPrice" placeholder="0">
-                    <template #append>元</template>
-                  </el-input>
-                  <MoneyUppercase :value="room.rentPrice" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="挂牌价" :prop="`rooms.${index}.listedPrice`">
-                  <el-input v-model="room.listedPrice" placeholder="0">
-                    <template #append>元</template>
-                  </el-input>
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="押金" :prop="`rooms.${index}.depositAmount`">
-                  <el-input v-model="room.depositAmount" placeholder="0">
-                    <template #append>元</template>
-                  </el-input>
-                  <MoneyUppercase :value="room.depositAmount" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="房间状态" :prop="`rooms.${index}.status`">
-                  <el-select v-model="room.status" style="width: 100%;">
-                    <el-option v-for="item in dictStore.getItems('room_status')" :key="item.value" :label="item.label" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="付款方式" :prop="`rooms.${index}.paymentMethod`">
-                  <el-select v-model="room.paymentMethod" placeholder="选择" style="width: 100%;">
-                    <el-option v-for="item in dictStore.getItems('payment_method')" :key="item.value" :label="item.label" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="租赁期限" :prop="`rooms.${index}.leaseTerm`">
-                  <el-select v-model="room.leaseTerm" clearable placeholder="选择" style="width: 100%;">
-                    <el-option v-for="item in dictStore.getItems('lease_term')" :key="item.value" :label="item.label" :value="item.value" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="装修进度" :prop="`rooms.${index}.renovationProgress`">
-                  <el-input v-model="room.renovationProgress" placeholder="如：地板更换中" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="租客姓名" :prop="`rooms.${index}.tenantName`">
-                  <el-input v-model="room.tenantName" placeholder="请输入租客姓名" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="租客电话" :prop="`rooms.${index}.tenantPhone`">
-                  <el-input v-model="room.tenantPhone" placeholder="请输入租客电话" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="租客身份证" :prop="`rooms.${index}.tenantIdCard`">
-                  <el-input v-model="room.tenantIdCard" maxlength="18" placeholder="请输入证件号码" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12" class="lease-field">
-                <el-form-item label="租期" :prop="`rooms.${index}.leaseDateRange`">
-                  <div class="lease-range-control">
-                    <el-date-picker
-                      v-model="room.leaseDateRange"
-                      type="daterange"
-                      range-separator="至"
-                      start-placeholder="开始"
-                      end-placeholder="结束"
-                      style="flex: 1;"
-                      @change="onRoomDateChange(index, $event)"
-                    />
-                    <div class="lease-presets">
-                      <button v-for="p in leasePresets" :key="p.years" type="button" class="lease-preset-btn" @click="applyRoomLeasePreset(index, p.years, $event)">{{ p.label }}</button>
-                    </div>
-                  </div>
-                  <div v-if="!room.leaseStart && room.leaseEnd" class="text-muted">
-                    已记录结束日期 {{ room.leaseEnd }}，开始日期待补全
-                  </div>
-                </el-form-item>
-              </el-col>
-            </el-row>
-            <div v-if="roomPaymentSchedule(room).length" class="pay-schedule">
-              <div class="pay-schedule-title">交租日期（按租期 + 付款方式自动计算）</div>
-              <table class="pay-table">
-                <thead>
-                  <tr><th>期数</th><th>交租日期</th></tr>
-                </thead>
-                <tbody>
-                  <tr v-for="p in roomPaymentSchedule(room)" :key="p.period">
-                    <td>第 {{ p.period }} 期</td>
-                    <td>{{ p.date }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <el-form-item v-if="!form.rooms.length" prop="rooms"><span class="empty-room-tip">请先添加一个房间</span></el-form-item>
+            <div class="section-heading"><span class="section-index">03</span><div><strong>合租房间</strong><small>一行录入一间，配置与租赁资料点击编辑</small></div></div>
+            <SharedRoomTable :rooms="form.rooms" :facility-options="facilityOptions" :initial-room-id="Number(route.query.roomId) || undefined" @add="addRoom" @remove="removeRoom" />
+            <el-form-item v-if="!form.rooms.length" prop="rooms"><span class="empty-room-tip">请先添加一个房间</span></el-form-item>
           </section>
         </template>
 
@@ -1358,6 +1223,7 @@ async function toggleManagement() {
   }
 }
 
+.legacy-free-note { margin:0 0 18px; font-size:12px; color:var(--ink-500); }
 @media (max-width: 620px) {
   .form-tip { align-items: flex-start; }
   .form-section { padding: 16px 14px 2px; }

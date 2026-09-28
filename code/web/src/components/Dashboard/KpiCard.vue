@@ -7,6 +7,7 @@ withDefaults(defineProps<{
   trendLabel?: string;
   color?: 'pink' | 'yellow' | 'green' | 'blue' | 'purple';
   sparkline?: number[];
+  detail?: boolean;
 }>(), {
   unit: '',
   trend: undefined,
@@ -14,6 +15,7 @@ withDefaults(defineProps<{
   color: 'blue',
   sparkline: () => [],
 });
+defineEmits<{ detail: [] }>();
 
 const colorMap: Record<string, { bg: string; bar: string; grad: string }> = {
   pink:  { bg: '#fff0f5', bar: '#f472b6', grad: 'linear-gradient(180deg, #fce7f3 0%, #fff0f5 100%)' },
@@ -37,6 +39,7 @@ function slPoints(d: number[], w: number, h: number): string {
     <div class="kpi-value">
       {{ value }}<span v-if="unit" class="kpi-unit">{{ unit }}</span>
     </div>
+    <button v-if="detail" class="kpi-detail" :aria-label="`${label}详情`" @click="$emit('detail')">详情 →</button>
     <div v-if="trend !== undefined" class="kpi-trend" :class="trend >= 0 ? 'up' : 'down'">
       {{ trend >= 0 ? '↑' : '↓' }}{{ Math.abs(trend) }}%
       <span v-if="trendLabel" class="kpi-trend-label">{{ trendLabel }}</span>
@@ -78,6 +81,7 @@ function slPoints(d: number[], w: number, h: number): string {
   color: #1e293b;
   line-height: 1.2; padding-left: 4px;
 }
+.kpi-detail { align-self: flex-end; margin-top: auto; padding: 5px 0 0; border: 0; background: transparent; color: #2563eb; font-size: 12px; cursor: pointer; }
 .kpi-unit {
   font-size: 12px; color: #94a3b8;
   font-weight: 500; margin-left: 3px;

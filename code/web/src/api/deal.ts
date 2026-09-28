@@ -38,5 +38,5 @@ export interface DealQuery { keyword?: string; bizType?: string; status?: string
 export function getDeals(params: DealQuery) {
   // 空选项表示不筛选，不将空字符串作为枚举或日期交给后端校验。
   const filtered = Object.fromEntries(Object.entries(params).filter(([, value]) => value !== '' && value != null));
-  return get<{ list: Deal[]; total: number; stats: { total: number; rentCount: number; saleCount: number; monthlyRent: number; saleAmount: number } }>('/finance/deals', { params: filtered });
+  return get<{ list: Deal[]; total: number; stats: { total: number; rentCount: number; saleCount: number; managementCount?: number; monthlyRent: number; saleAmount: number } }>('/finance/deals', { params: filtered });
 }

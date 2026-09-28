@@ -6,9 +6,7 @@ import * as http from 'http';
 
 import { PermissionGuard } from '../src/common/guards/permission.guard';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
-import { BlacklistController } from '../src/modules/house/controllers/blacklist.controller';
 import { RentalController } from '../src/modules/house/controllers/rental.controller';
-import { BlacklistService } from '../src/modules/house/services/blacklist.service';
 import { RentalService } from '../src/modules/house/services/rental.service';
 
 @Injectable()
@@ -71,7 +69,7 @@ describe('e2e: route existence and permission protection', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      controllers: [RentalController, BlacklistController],
+      controllers: [RentalController],
       providers: [
         {
           provide: RentalService,
@@ -79,22 +77,6 @@ describe('e2e: route existence and permission protection', () => {
             createSet: jest.fn(),
             findSet: jest.fn().mockResolvedValue({ id: 1, code: 'CZ0001' }),
             updateSet: jest.fn().mockResolvedValue({ id: 1, code: 'CZ0001' }),
-          },
-        },
-        {
-          provide: BlacklistService,
-          useValue: {
-            findAll: jest.fn().mockResolvedValue({ list: [], total: 0 }),
-            check: jest.fn().mockResolvedValue([{
-              id: 1,
-              name: '测试人员',
-              mobile: '13800000000',
-              idCard: '110101199001011234',
-              type: 'customer',
-              reason: '测试原因',
-              source: '测试',
-              status: 'active',
-            }]),
           },
         },
         { provide: APP_GUARD, useClass: PermissionGuard },
@@ -132,21 +114,11 @@ describe('e2e: route existence and permission protection', () => {
     expect((await requestJson(port, 'PUT', '/house/rental-sets/1', {}, ['renting:edit'])).status).toBe(200);
   });
 
-  it('does not accept house:customer as blacklist-list permission', async () => {
-    expect((await requestJson(port, 'GET', '/house/blacklist', undefined, ['house:customer'])).status).toBe(403);
-    expect((await requestJson(port, 'GET', '/house/blacklist', undefined, ['house:blacklist'])).status).toBe(200);
+
+
+
+  it('removed feature routes return 404', async () => {
+    expect((await requestJson(port, 'GET', '/house/blacklist', undefined, ['*'])).status).toBe(404);
   });
 
-  it('does not expose mobile or ID card through blacklist checking', async () => {
-    const response = await requestJson(port, 'GET', '/house/blacklist/check?mobile=13800000000');
-    expect(response.status).toBe(200);
-    expect(response.body[0]).toEqual({
-      id: 1,
-      name: '测试人员',
-      type: 'customer',
-      reason: '测试原因',
-      source: '测试',
-      status: 'active',
-    });
-  });
 });

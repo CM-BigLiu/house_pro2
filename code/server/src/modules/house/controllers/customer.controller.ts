@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Query, UseGuards, Put, Param, ParseIntPipe } from '@nestjs/common';
-import { IsString, IsNotEmpty, IsOptional, IsNumber, IsBoolean, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PartialType } from '@nestjs/swagger';
 import { CustomerService } from '../services/customer.service';
@@ -42,10 +42,6 @@ class CreateCustomerDto {
   @Type(() => Number)
   salesmanId?: number;
 
-  @IsBoolean()
-  @IsOptional()
-  isBlacklist?: boolean;
-
   @IsString()
   @IsOptional()
   desiredDistrict?: string;
@@ -68,7 +64,7 @@ class CreateCustomerDto {
 class UpdateCustomerDto extends PartialType(CreateCustomerDto) {
   @IsString()
   @IsOptional()
-  @IsIn(['active', 'done', 'invalid', 'blacklist'])
+  @IsIn(['active', 'done', 'invalid'])
   status?: string;
 }
 

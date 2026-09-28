@@ -8,6 +8,9 @@ import { applyDataScope } from '../../../common/data-scope/data-scope.util';
 import { CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 import { BEIJING_DISTRICTS } from '../../../common/constants/beijing-districts';
 import { canAccessRentalLandlord, filterRentalLandlord, isRentalAdministrator, RENTAL_LANDLORD_FIELDS } from '../../../common/utils/rental-privacy.util';
+import { normalizeFreeRentRanges } from '../../finance/services/business-calculation';
+import { syncLandlordFreeRent } from '../../finance/services/landlord-free-rent';
+import { attachRentalCardSummaries } from './rental-card-summary';
 
 type RentalSetInput = Omit<Partial<RentalSet>, 'rooms'> & {
   rooms?: Partial<RentalRoom>[];
@@ -23,7 +26,7 @@ export class RentalService {
   ) {}
 
   private mapSet(rs: RentalSet, user: CurrentUserPayload) {
-    const rooms = rs.rooms || [];
+    const rooms = [...(rs.rooms || [])].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.id - b.id);
     const rent = rs.bizType === 'entire'
       ? Number(rs.rent || 0)
       : rooms.reduce((sum, room) => sum + Number(room.rentPrice || 0), 0);
@@ -32,6 +35,7 @@ export class RentalService {
       : rooms.reduce((sum, room) => sum + Number(room.depositAmount || 0), 0);
     return filterRentalLandlord({
       ...rs,
+      rooms,
       communityName: rs.community?.name || '',
       landlordDeposit: Number(rs.landlordDeposit || 0),
       rent,
@@ -151,7 +155,7 @@ export class RentalService {
       .take(query.pageSize || 20)
       .getManyAndCount();
     const mapped = list.map((rs) => this.mapSet(rs, user));
-    return { list: mapped, total };
+    return { list: query.withFinancialSummary === 'true' || query.withFinancialSummary === true ? await attachRentalCardSummaries(this.setRepo.manager, mapped, user) : mapped, total };
   }
 
   async findSet(id: number, user: CurrentUserPayload) {
@@ -169,6 +173,8 @@ export class RentalService {
       throw new ForbiddenException('仅填写人和管理员可修改房东与收房信息或托管状态');
     }
     if (data.isManaged !== undefined && typeof data.isManaged !== 'boolean') throw new BadRequestException('托管状态须为布尔值');
+    if (data.freeRentRanges !== undefined) data.freeRentRanges = normalizeFreeRentRanges(data.freeRentRanges, data.leaseStart ?? existing.leaseStart ?? '', data.leaseEnd ?? existing.leaseEnd ?? '');
+    else if (data.leaseStart !== undefined || data.leaseEnd !== undefined) normalizeFreeRentRanges(existing.freeRentRanges || [], data.leaseStart ?? existing.leaseStart ?? '', data.leaseEnd ?? existing.leaseEnd ?? '');
     if (data.isManaged === true) this.validateManagement({ ...existing, ...data });
     if (data.district !== undefined && data.district !== existing.district) this.validateDistrict(data.district);
     if (
@@ -185,7 +191,7 @@ export class RentalService {
       'propertyType', 'orientation', 'elevator', 'decoration', 'sourceChannel', 'tags', 'description',
       'title', 'communityIntro', 'nearbySchool', 'taxDescription', 'advantages', 'facilities',
       'landlordRent', 'landlordDeposit', 'rent', 'leaseStart', 'leaseEnd',
-      'landlordPaymentMethod', 'rentFreePeriod', 'status',
+      'landlordPaymentMethod', 'rentFreePeriod', 'freeRentRanges', 'status',
       'storeId', 'groupId', 'landlordId', 'salesmanId', 'housekeeperId',
       'tenantLeaseStart', 'tenantLeaseEnd',
       'landlordName', 'landlordPhone', 'landlordPhoneBackup', 'landlordRemark', 'emergencyContacts',
@@ -230,6 +236,8 @@ export class RentalService {
       delete (setToSave as any).community;
       delete (setToSave as any).rooms;
       await setRepo.save(setToSave);
+      if (data.freeRentRanges !== undefined && JSON.stringify(existing.freeRentRanges || []) !== JSON.stringify(data.freeRentRanges))
+        await syncLandlordFreeRent(manager, setToSave);
 
       if (incomingRooms !== undefined) {
         const incomingIds = new Set(
@@ -249,6 +257,7 @@ export class RentalService {
           'paymentMethod', 'leaseTerm', 'renovationProgress', 'cohabitantIds',
           'leaseDuration', 'arrearDays', 'depositAmount', 'paymentStatus', 'tenantId',
           'leaseStart', 'tenantName', 'tenantPhone', 'tenantIdCard',
+          'privateBathroom', 'balcony', 'airConditioner', 'interiorArea', 'orientation', 'facilities', 'sortOrder',
         ];
         const roomsToSave = incomingRooms.map((room) => {
           const current = room.id === undefined ? undefined : currentRoomById.get(Number(room.id));
@@ -276,6 +285,7 @@ export class RentalService {
   }
 
   async createSet(data: RentalSetInput, user?: CurrentUserPayload) {
+    if (data.freeRentRanges !== undefined) data.freeRentRanges = normalizeFreeRentRanges(data.freeRentRanges, data.leaseStart || '', data.leaseEnd || '');
     this.validateDistrict(data.district);
     if (data.isManaged !== undefined && typeof data.isManaged !== 'boolean') throw new BadRequestException('托管状态须为布尔值');
     if (data.isManaged === true) this.validateManagement(data);

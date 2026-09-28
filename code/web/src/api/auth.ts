@@ -30,6 +30,7 @@ export interface UserInfo {
   avatar?: string;
   role?: string;
   roleName?: string;
+  roleCodes?: string[];
   storeIds: number[];
   groupIds: number[];
   dataScope: string;

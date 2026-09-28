@@ -177,6 +177,9 @@ export class RentalSet {
   @Column({ length: 50, nullable: true })
   rentFreePeriod: string;
 
+  @Column({ name: 'free_rent_ranges', type: 'jsonb', default: [] })
+  freeRentRanges: { start: string; end: string }[];
+
   @Column({ length: 30, default: 'active' })
   status: string;
 

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, reactive, onMounted } from 'vue';
+import { computed, ref, reactive, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { createEmployee, getEmployeeForEdit, getRoles, getStores, getPositions, updateEmployee } from '@/api/organization';
+import { createEmployee, getEmployeeForEdit, getRoles, getStores, getPositions, updateEmployee, getEmployeeManagers } from '@/api/organization';
 import type { Role, Store } from '@/api/organization';
 
 const router = useRouter();
@@ -14,25 +14,34 @@ const isEdit = computed(() => editId.value > 0);
 const roles = ref<Role[]>([]);
 const stores = ref<Store[]>([]);
 const positions = ref<{ id: number; name: string; code: string }[]>([]);
+const managers = ref<Awaited<ReturnType<typeof getEmployeeManagers>>>([]);
+const initialMobile = ref('');
 const form = reactive({
   name: '', mobile: '', password: '', status: 'normal' as string,
   roleIds: [] as number[], storeIds: [] as number[], positionIds: [] as number[],
   entryDate: '' as string | undefined,
+  managerId: null as number | null,
 });
+const isSalesperson = computed(() => roles.value.some(role => form.roleIds.includes(role.id) && ['salesman', 'agent'].includes(role.code)));
+const availableManagers = computed(() => managers.value.filter(manager => manager.id !== editId.value && manager.storeIds.some(id => form.storeIds.includes(id))));
+watch([isSalesperson, () => [...form.storeIds]], () => { if (!isSalesperson.value || !availableManagers.value.some(manager => manager.id === form.managerId)) form.managerId = null; });
 
 onMounted(async () => {
-  const [rolesData, storesData, positionsData] = await Promise.all([getRoles(), getStores(), getPositions()]);
+  const [rolesData, storesData, positionsData, managerData] = await Promise.all([getRoles(), getStores(), getPositions(), getEmployeeManagers()]);
   roles.value = rolesData;
   stores.value = storesData;
   positions.value = positionsData;
+  managers.value = managerData;
   if (isEdit.value) {
     loading.value = true;
     try {
       const employee = await getEmployeeForEdit(editId.value);
+      initialMobile.value = employee.mobile;
       Object.assign(form, {
         name: employee.name, mobile: employee.mobile, password: '', status: employee.status,
         roleIds: employee.roles?.map((item) => item.id) || [], storeIds: employee.stores?.map((item) => item.id) || [],
         positionIds: employee.positions?.map((item) => item.id) || [], entryDate: employee.entryDate || '',
+        managerId: employee.managerId || null,
       });
     } catch { router.push('/system/employee'); }
     finally { loading.value = false; }
@@ -41,7 +50,7 @@ onMounted(async () => {
 
 async function submit() {
   if (!form.name.trim() || !form.mobile.trim()) return ElMessage.warning('请填写姓名和手机号');
-  if (!/^1\d{10}$/.test(form.mobile) && !(isEdit.value && form.mobile === 'super_admin')) return ElMessage.warning('请输入正确的 11 位手机号');
+  if (!/^1\d{10}$/.test(form.mobile) && !(isEdit.value && form.mobile === initialMobile.value)) return ElMessage.warning('请输入正确的 11 位手机号');
   if (!isEdit.value && !form.password) return ElMessage.warning('请设置初始密码');
   if (form.password && form.password.length < 8) return ElMessage.warning('密码至少 8 位');
   if (!form.roleIds.length) return ElMessage.warning('请至少选择一个角色');
@@ -98,6 +107,12 @@ async function submit() {
               <el-option v-for="store in stores" :key="store.id" :label="store.name" :value="store.id" />
             </el-select>
           </el-form-item>
+          <el-form-item v-if="isSalesperson" label="归属店长">
+            <el-select v-model="form.managerId" clearable filterable style="width:100%" placeholder="请选择同门店店长" @clear="form.managerId = null">
+              <el-option v-for="manager in availableManagers" :key="manager.id" :value="manager.id" :label="`${manager.name} · ${manager.storeIds.map(id => stores.find(store => store.id === id)?.name).filter(Boolean).join(' / ')}`" />
+            </el-select>
+            <small class="manager-hint">先选择所属门店，再指定该业务员的归属店长。</small>
+          </el-form-item>
           <el-form-item label="入驻时间">
             <el-date-picker
               v-model="form.entryDate"
@@ -127,4 +142,5 @@ async function submit() {
   flex-direction: column;
   gap: 16px;
 }
+.manager-hint { color:var(--ink-500); line-height:1.7; }
 </style>

@@ -18,6 +18,7 @@ export interface ContractDetails {
   performanceRatio: number;
   commissionRatio: number;
   freeDays: number[];
+  freeRentRanges?: import('@/utils/free-rent').FreeRentRange[];
   entryEmployeeId?: number;
   entryRatio?: number;
   closingEmployeeId?: number;
@@ -42,9 +43,17 @@ export function emptyContractDetails(): ContractDetails {
     performanceRatio: 100,
     commissionRatio: 0,
     freeDays: [0, 0, 0, 0, 0],
+    freeRentRanges: [],
   };
 }
 export interface ContractSchedule {
+  billType?: 'rent' | 'charge';
+  categoryLabel?: string;
+  counterparty?: string;
+  remark?: string;
+  grossRent?: number;
+  freeRentDays?: number;
+  freeRentAmount?: number;
   id: number;
   dealId: number;
   propertyId: number;
@@ -57,6 +66,10 @@ export interface ContractSchedule {
   amount: number;
   remaining: number;
   settledAmount: number;
+  contractCode?: string;
+  paymentMethod?: string;
+  monthlyRent?: number;
+  roomId?: number | null;
 }
 export interface CalendarBucket {
   direction: 'pay' | 'receive';
@@ -77,6 +90,8 @@ export interface CashEntry {
   payee: string;
 }
 export interface ConfigurationItem {
+  dueDate?: string;
+  roomId?: number | null;
   type: string;
   amount: number;
   recipient: string;
@@ -134,12 +149,12 @@ export const delegateProperty = (
     details: ContractDetails;
   },
 ) => post(`${root}/properties/${id}/delegate`, data);
-export const getBusinessCalendar = (period: string) =>
+export const getBusinessCalendar = (period: string, filter: { propertyId?: number; roomId?: number } = {}) =>
   get<{
     period: string;
     buckets: CalendarBucket[];
     overdue: ContractSchedule[];
-  }>(`${root}/calendar`, { params: { period } });
+  }>(`${root}/calendar`, { params: { period, ...filter } });
 export const settleSchedule = (
   id: number,
   data: {
@@ -153,6 +168,7 @@ export const settleSchedule = (
     payee: string;
   },
 ) => post(`${root}/schedules/${id}/settle`, data);
+export const settleCharge = (id: number, data: Parameters<typeof settleSchedule>[1]) => post(`${root}/charges/${id}/settle`, data);
 export const getCompanyCashFlow = () =>
   get<{
     accounts: {
@@ -165,10 +181,11 @@ export const getCompanyCashFlow = () =>
     history: CashEntry[];
     scope: string;
   }>(`${root}/cash-flow`);
+export const getRentalCosts = (period: string) => get<{ period: string; totalIncome: number; totalCost: number; freeAmount: number; net: number; list: { propertyId: number; propertyCode: string; propertyName: string; rentIncome: number; originalRent: number; freeAmount: number; rentCost: number; net: number }[] }>(`${root}/rental-costs`, { params: { period } });
 export const setOpeningBalance = (code: string, amount: number) =>
   post(`${root}/accounts/${code}/opening`, { amount });
 export const getPropertyConfiguration = (id: number) =>
-  get<{ items: ConfigurationItem[] }>(`${root}/properties/${id}/configuration`);
+  get<{ items: ConfigurationItem[]; rooms?: { id: number; roomNo: string }[] }>(`${root}/properties/${id}/configuration`);
 export const getConfigurationEmployees = (id: number) =>
   get<{ id: number; name: string; code: string }[]>(`${root}/properties/${id}/configuration-employees`);
 export const getDelegationContext = (id: number) =>
@@ -220,6 +237,8 @@ export function validateContractDetails(
   if (mode !== 'regular' && !d.paymentDate) return '请填写付款日期';
   if (mode === 'management' && (!d.payee.trim() || !d.payeeAccount.trim()))
     return '请填写收款人和收款账号';
+  if (mode === 'management' && (d.freeDays.length !== 5 || d.freeDays.some(days => !Number.isInteger(days) || days < 0 || days > 366)))
+    return '请填写五个年度的免租期，每年0至366天';
   if (
     mode === 'tenant' &&
     (!Number.isInteger(d.occupants) ||
@@ -231,4 +250,15 @@ export function validateContractDetails(
   if (!Number.isFinite(d.commissionAmount) || d.commissionAmount < 0)
     return '佣金金额无效';
   return '';
+}
+
+export interface IncomeCostEntry {
+  id: string; date: string; direction: 'income' | 'expense'; category: string;
+  source: string; reference: string; propertyName: string; amount: number;
+}
+export interface AutomaticIncomeCosts {
+  period: string; list: IncomeCostEntry[]; totalIncome: number; totalCost: number; net: number;
+}
+export function getAutomaticIncomeCosts(period: string) {
+  return get<AutomaticIncomeCosts>('/finance/business/income-costs', { params: { period } });
 }

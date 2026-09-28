@@ -48,6 +48,10 @@ export function validDate(value: string) {
   );
 }
 export function addMonths(value: string, count: number) {
+  return addCalendarMonths(value, count);
+}
+/** 从原始锚点增加真实日历月份，月底超出目标月份时取该月最后一天。 */
+export function addCalendarMonths(value: string, count: number) {
   const date = new Date(`${value}T00:00:00Z`),
     day = date.getUTCDate();
   date.setUTCDate(1);
@@ -63,41 +67,67 @@ export function addDays(value: string, count: number) {
   date.setUTCDate(date.getUTCDate() + count);
   return date.toISOString().slice(0, 10);
 }
-const days = (start: string, end: string) =>
+export const days = (start: string, end: string) =>
   (Date.parse(end) - Date.parse(start)) / 86400000;
 
-/** 整个合同月收取月租；免租后或租期截断的零散天数按月租 / 30 折算。 */
-export function leaseAmount(
+export interface FreeRentRange { start: string; end: string }
+/** 起止日均计入免租；交叠及相邻区间合并，避免重复扣租。 */
+export function normalizeFreeRentRanges(value: unknown, leaseStart?: string, leaseEnd?: string, maxRanges = 100): FreeRentRange[] {
+  if (!Array.isArray(value) || value.length > maxRanges)
+    throw new BadRequestException('免租日期区间须为数组，最多100段');
+  if (value.length && leaseStart !== undefined && (!validDate(leaseStart) || !validDate(leaseEnd)))
+    throw new BadRequestException('添加免租日期前请填写完整承租期');
+  const sorted = value.map(range => {
+    if (!range || !validDate(range.start) || !validDate(range.end) || range.start > range.end)
+      throw new BadRequestException('请选择完整有效的免租日期区间');
+    if (leaseStart && (range.start < leaseStart || range.end > leaseEnd))
+      throw new BadRequestException('免租日期须在承租期内');
+    return { start: range.start as string, end: range.end as string };
+  }).sort((a, b) => a.start.localeCompare(b.start));
+  const merged: FreeRentRange[] = [];
+  for (const range of sorted) {
+    const previous = merged[merged.length - 1];
+    if (previous && range.start <= addDays(previous.end, 1)) previous.end = [previous.end, range.end].sort().pop()!;
+    else merged.push({ ...range });
+  }
+  return merged;
+}
+
+/** 年度免租与所选区间取并集，日期继续使用真实日历。 */
+export function contractFreeRentRanges(start: string, end: string, freeDays: number[] = [], freeRentRanges: FreeRentRange[] = []) {
+  const annual = freeDays.flatMap((count, year) => count > 0 ? [{ start: addMonths(start, year * 12), end: addDays(addMonths(start, year * 12), count - 1) }] : []);
+  return normalizeFreeRentRanges([...annual, ...normalizeFreeRentRanges(freeRentRanges)], undefined, undefined, 105)
+    .map(range => ({ start: [start, range.start].sort().pop()!, end: [end, range.end].sort()[0] })).filter(range => range.start <= range.end);
+}
+export function leaseBreakdown(
   start: string,
   end: string,
   rent: number,
   from: string,
   until: string,
   freeDays: number[] = [],
+  freeRentRanges: FreeRentRange[] = [],
 ) {
-  let total = 0;
+  const ranges = contractFreeRentRanges(start, end, freeDays, freeRentRanges);
+  let gross = 0, freeDaysInPeriod = 0;
   for (let month = 0; month < 120; month++) {
-    const a = addMonths(start, month),
-      b = addMonths(start, month + 1);
+    const a = addMonths(start, month), b = addMonths(start, month + 1);
     if (a >= until || a > end) break;
-    const left = [a, from].sort().pop()!,
-      right = [b, until, addDays(end, 1)].sort()[0];
+    const left = [a, from].sort().pop()!, right = [b, until, addDays(end, 1)].sort()[0];
     if (left >= right) continue;
-    let payableDays = days(left, right);
-    freeDays.forEach((count, year) => {
-      const freeStart = addMonths(start, year * 12),
-        freeEnd = addDays(freeStart, count);
-      const overlapStart = [left, freeStart].sort().pop()!,
-        overlapEnd = [right, freeEnd].sort()[0];
-      if (overlapStart < overlapEnd)
-        payableDays -= days(overlapStart, overlapEnd);
-    });
-    const fullMonth = left === a && right === b && payableDays === days(a, b);
-    total += fullMonth
-      ? cents(rent)
-      : (cents(rent) * Math.max(0, payableDays)) / 30;
+    const exempt = ranges.reduce((sum, range) => {
+      const x = [left, range.start].sort().pop()!, y = [right, addDays(range.end, 1)].sort()[0];
+      return sum + (x < y ? days(x, y) : 0);
+    }, 0);
+    gross += cents(rent) * days(left, right) / days(a, b);
+    freeDaysInPeriod += exempt;
   }
-  return money(total);
+  // 整期基础租金按合同月计，零散租期按实际日历；免租扣款统一使用月租÷30。
+  const deduction = Math.min(gross, cents(rent) * freeDaysInPeriod / 30);
+  return { grossRent: money(gross), freeRentDays: freeDaysInPeriod, freeRentAmount: money(deduction), amount: money(gross - deduction) };
+}
+export function leaseAmount(start: string, end: string, rent: number, from: string, until: string, freeDays: number[] = [], freeRentRanges: FreeRentRange[] = []) {
+  return leaseBreakdown(start, end, rent, from, until, freeDays, freeRentRanges).amount;
 }
 export function buildContractSchedule(input: {
   leaseStart: string;
@@ -106,6 +136,7 @@ export function buildContractSchedule(input: {
   paymentDate: string;
   amount: number;
   freeDays?: number[];
+  freeRentRanges?: FreeRentRange[];
 }) {
   if (
     !validDate(input.leaseStart) ||
@@ -117,6 +148,9 @@ export function buildContractSchedule(input: {
   if (input.leaseEnd >= addMonths(input.leaseStart, 120))
     throw new BadRequestException('租赁期限最多十年');
   validMoney(input.amount, '合同月租');
+  normalizeFreeRentRanges(input.freeRentRanges || [], input.leaseStart, input.leaseEnd);
+  if (input.freeDays && (input.freeDays.length !== 5 || input.freeDays.some((count, year) => !Number.isInteger(count) || count < 0 || count > days(addMonths(input.leaseStart, year * 12), addMonths(input.leaseStart, (year + 1) * 12)))))
+    throw new BadRequestException('年度免租天数不能超过对应合同年的实际天数，共五个年度');
   const interval = Object.prototype.hasOwnProperty.call(
     PAYMENT_MONTHS,
     input.paymentMethod,
@@ -150,6 +184,7 @@ export function buildContractSchedule(input: {
         start,
         until,
         input.freeDays,
+        input.freeRentRanges,
       ),
     });
   }

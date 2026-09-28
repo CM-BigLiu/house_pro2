@@ -268,6 +268,7 @@ const roleEnabled = (role: Role) => ['enabled', 'active', 'normal'].includes(rol
               </span>
             </div>
             <div class="role-detail-code">代码：{{ selectedRole.code }}</div>
+            <button v-if="['salesman', 'agent'].includes(selectedRole.code)" v-permission="['system:employee:edit']" class="btn btn-default btn-sm" @click="router.push({ path: '/system/employee', query: { roleCode: selectedRole.code } })">设置归属店长</button>
           </div>
 
           <div class="card-body" v-loading="permLoading">

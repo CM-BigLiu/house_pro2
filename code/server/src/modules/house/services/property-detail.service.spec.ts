@@ -1,6 +1,7 @@
 import { PropertyDetailService } from './property-detail.service';
 import { Checkout } from '../entities/checkout.entity';
 import { OperationLog } from '../../system/entities/operation-log.entity';
+import { Deal } from '../entities/deal.entity';
 
 function setup() {
   const find = jest.fn(async () => []);
@@ -10,6 +11,16 @@ function setup() {
   return { service: new PropertyDetailService(db, rental, sale), db, rental, sale, find };
 }
 describe('scoped property detail', () => {
+  it('年度免租按合同日期展示，只有房东字段授权后才读取私有委托', async () => {
+    const ctx = setup();
+    ctx.rental.findSet.mockResolvedValue({ id: 2, rooms: [], canViewLandlordInfo: true });
+    ctx.db.getRepository.mockImplementation((type: any) => type === Deal ? { find: jest.fn().mockResolvedValue([{ id: 7, contractCode: 'WT7', paymentMethod: 'quarterly', leaseStart: '2026-07-01', leaseEnd: '2029-06-30', amount: 7300, details: { freeDays: [30, 30, 30, 0, 0], freeRentRanges: [] } }]) } : { find: ctx.find });
+    const result = await ctx.service.detail('rent', 2, {} as any);
+    expect(result.landlordContract.freeRentRanges).toEqual([{ start: '2026-07-01', end: '2026-07-30' }, { start: '2027-07-01', end: '2027-07-30' }, { start: '2028-07-01', end: '2028-07-30' }]);
+    ctx.db.getRepository.mockClear(); ctx.rental.findSet.mockResolvedValue({ id: 2, rooms: [], canViewLandlordInfo: false });
+    expect((await ctx.service.detail('rent', 2, {} as any)).landlordContract).toBeUndefined();
+    expect(ctx.db.getRepository).not.toHaveBeenCalledWith(Deal);
+  });
   it('checks property scope before querying any history', async () => {
     const ctx = setup(); ctx.rental.findSet.mockRejectedValue(new Error('无权查看'));
     await expect(ctx.service.detail('rent', 2, {} as any)).rejects.toThrow('无权查看');

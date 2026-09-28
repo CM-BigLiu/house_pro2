@@ -5,6 +5,8 @@ import { SaleService } from './sale.service';
 import { ApprovalRecord } from '../../system/entities/approval-record.entity';
 import { OperationLog } from '../../system/entities/operation-log.entity';
 import { Checkout } from '../entities/checkout.entity';
+import { Deal } from '../entities/deal.entity';
+import { contractFreeRentRanges } from '../../finance/services/business-calculation';
 import { CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 
 @Injectable()
@@ -28,6 +30,15 @@ export class PropertyDetailService {
       where: { objectType: type, objectId: String(id) }, order: { createdAt: 'DESC' },
       select: ['id', 'action', 'employeeId', 'result', 'createdAt'],
     });
-    return { property, roomId: roomId || null, approvals, checkouts, operations };
+    let landlordContract;
+    if (kind === 'rent' && (property as any).canViewLandlordInfo === true) {
+      const contracts = await this.db.getRepository(Deal).find({ where: { propertyId: id, bizType: 'management', status: In(['active', 'termination_pending']) }, order: { signedAt: 'DESC', id: 'DESC' }, take: 1 });
+      const contract = contracts[0];
+      if (contract) landlordContract = { id: contract.id, contractCode: contract.contractCode, paymentMethod: contract.paymentMethod,
+        leaseStart: contract.leaseStart, leaseEnd: contract.leaseEnd, amount: Number(contract.amount),
+        freeRentRanges: contractFreeRentRanges(contract.leaseStart, contract.leaseEnd, contract.details?.freeDays, contract.details?.freeRentRanges),
+      };
+    }
+    return { property, landlordContract, roomId: roomId || null, approvals, checkouts, operations };
   }
 }

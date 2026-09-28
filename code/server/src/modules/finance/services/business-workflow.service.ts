@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository, In } from 'typeorm';
 import { CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 import { applyDataScope } from '../../../common/data-scope/data-scope.util';
 import { isRentalAdministrator } from '../../../common/utils/rental-privacy.util';
@@ -14,6 +14,9 @@ import { Deal } from '../../house/entities/deal.entity';
 import { RentalSet } from '../../house/entities/rental-set.entity';
 import { ContractDetails } from '../../house/entities/contract-details';
 import { Employee } from '../../system/entities/employee.entity';
+import { Deposit } from '../../house/entities/deposit.entity';
+import { BusinessCharge } from '../entities/business-charge.entity';
+import { chargeCalendarRow, syncContractCharges, syncConfigurationCharges } from './business-charges';
 import {
   BusinessSubmission,
   CashAccount,
@@ -23,14 +26,16 @@ import {
 } from '../entities/business-workflow.entity';
 import {
   addDays,
-  addMonths,
+  addCalendarMonths,
   buildContractSchedule,
   CASH_ACCOUNTS,
   cents,
   leaseAmount,
+  leaseBreakdown,
   money,
   validDate,
   validMoney,
+  normalizeFreeRentRanges,
 } from './business-calculation';
 
 @Injectable()
@@ -80,6 +85,7 @@ export class BusinessWorkflowService {
   validateDetails(details: ContractDetails = {}) {
     if (!details || typeof details !== 'object' || Array.isArray(details))
       throw new BadRequestException('合同详情格式无效');
+    if (details.freeRentRanges != null) details.freeRentRanges = normalizeFreeRentRanges(details.freeRentRanges);
     for (const key of [
       'ownerName',
       'ownerAddress',
@@ -148,9 +154,9 @@ export class BusinessWorkflowService {
       details.freeDays != null &&
       (!Array.isArray(details.freeDays) ||
         details.freeDays.length !== 5 ||
-        details.freeDays.some((v) => !Number.isInteger(v) || v < 0 || v > 365))
+        details.freeDays.some((v) => !Number.isInteger(v) || v < 0 || v > 366))
     )
-      throw new BadRequestException('请填写五个年度的免租天数（0 至 365）');
+      throw new BadRequestException('请填写五个年度的免租天数（0 至 366）');
     return details;
   }
 
@@ -203,6 +209,7 @@ export class BusinessWorkflowService {
       paymentMethod: deal.paymentMethod,
       paymentDate: deal.details?.paymentDate || deal.leaseStart,
       freeDays: direction === 'pay' ? deal.details?.freeDays : undefined,
+      freeRentRanges: direction === 'pay' ? deal.details?.freeRentRanges : undefined,
     });
     const repo = manager.getRepository(ContractSchedule);
     await repo.save(
@@ -236,7 +243,7 @@ export class BusinessWorkflowService {
       details: { ownerName: rental.landlordName || '', ownerPhone: rental.landlordPhone || '',
         ownerIdCard: rental.landlordIdCard || '', payee: rental.landlordName || '', payeeAccount: rental.landlordBankCard || '',
         propertyAddress: [rental.address, rental.building && `${rental.building}栋`, rental.unit && `${rental.unit}单元`, rental.roomNo && `${rental.roomNo}室`].filter(Boolean).join(' '),
-        ...latest?.details },
+        ...latest?.details, freeRentRanges: rental.freeRentRanges || latest?.details?.freeRentRanges || [] },
     };
   }
 
@@ -278,9 +285,11 @@ export class BusinessWorkflowService {
       ...input,
       paymentDate: input.details.paymentDate,
       freeDays: input.details.freeDays,
+      freeRentRanges: input.details.freeRentRanges,
     });
     return this.ds.transaction(async (manager) => {
       const rental = await this.property(propertyId, user, manager, true);
+      if (input.details.freeRentRanges === undefined) input.details.freeRentRanges = normalizeFreeRentRanges(rental.freeRentRanges || [], input.leaseStart, input.leaseEnd);
       const repo = manager.getRepository(Deal);
       if (
         await repo
@@ -332,22 +341,30 @@ export class BusinessWorkflowService {
         leaseStart: input.leaseStart,
         leaseEnd: input.leaseEnd,
         landlordPaymentMethod: input.paymentMethod,
+        freeRentRanges: input.details.freeRentRanges || [],
       });
       await manager.getRepository(RentalSet).save(rental);
       await this.createSchedules(manager, deal, 'pay');
+      await syncContractCharges(manager, deal);
       return deal;
     });
   }
 
-  async calendar(periodValue: string, user: CurrentUserPayload) {
+  async calendar(periodValue: string, user: CurrentUserPayload, filter: { propertyId?: number; roomId?: number } = {}) {
+    for (const value of [filter.propertyId, filter.roomId]) if (value !== undefined && (!Number.isInteger(value) || value <= 0)) throw new BadRequestException('房源或房间编号无效');
+    const filterQuery = (qb: any) => {
+      if (filter.propertyId) qb.andWhere('record.propertyId = :propertyId', { propertyId: filter.propertyId });
+      if (filter.roomId) qb.andWhere('deal.roomId = :roomId', { roomId: filter.roomId });
+      return qb;
+    };
     const period = this.period(periodValue),
       start = `${period}-01`,
-      end = addMonths(start, 2);
-    const rows = await this.scoped(
+      end = addCalendarMonths(start, 2);
+    const rows = await filterQuery(this.scoped(
       this.ds.getRepository(ContractSchedule),
       user,
     )
-      .innerJoin(Deal, 'deal', 'deal.id = record.dealId')
+      .innerJoin(Deal, 'deal', 'deal.id = record.dealId'))
       .andWhere('deal.status IN (:...active)', {
         active: ['active', 'termination_pending'],
       })
@@ -359,18 +376,35 @@ export class BusinessWorkflowService {
       .orderBy('record.dueDate', 'ASC')
       .addOrderBy('record.id', 'ASC')
       .getMany();
+    const overdue = await filterQuery(this.scoped(this.ds.getRepository(ContractSchedule), user).innerJoin(Deal, 'deal', 'deal.id = record.dealId'))
+      .andWhere('deal.status IN (:...active)', { active: ['active', 'termination_pending'] })
+      .andWhere('record.status = :status AND record.dueDate < :start', { status: 'pending', start })
+      .orderBy('record.dueDate', 'ASC').getMany();
+    const chargeQuery = this.scoped(this.ds.getRepository(BusinessCharge), user)
+      .leftJoin(Deal, 'chargeDeal', 'chargeDeal.id = record.dealId')
+      .andWhere('record.status = :status AND record.dueDate < :end', { status: 'pending', end })
+      .andWhere('(record.category != :deposit OR chargeDeal.status IN (:...depositActive))', { deposit: 'tenant_deposit', depositActive: ['active', 'termination_pending'] });
+    if (filter.propertyId) chargeQuery.andWhere('record.propertyId = :propertyId', { propertyId: filter.propertyId });
+    if (filter.roomId) chargeQuery.andWhere('record.roomId = :roomId', { roomId: filter.roomId });
+    const charges = await chargeQuery.orderBy('record.dueDate', 'ASC').addOrderBy('record.id', 'ASC').getMany();
+    const dealIds = [...new Set<number>([...rows, ...overdue, ...charges].map(row => row.dealId).filter((id): id is number => id != null))];
+    const deals = dealIds.length ? await this.ds.getRepository(Deal).find({ where: { id: In(dealIds) } }) : [];
+    const contracts = new Map(deals.map(deal => [deal.id, deal]));
+    const withContract = (row: ContractSchedule) => { const deal = contracts.get(row.dealId);
+      const breakdown = deal && validDate(deal.leaseStart) && validDate(deal.leaseEnd) ? leaseBreakdown(deal.leaseStart, deal.leaseEnd, Number(deal.amount), row.periodStart, addDays(row.periodEnd, 1), row.direction === 'pay' ? deal.details?.freeDays : undefined, row.direction === 'pay' ? deal.details?.freeRentRanges : undefined) : undefined;
+      return { ...row, billType: 'rent', categoryLabel: '租金', grossRent: breakdown?.grossRent, freeRentDays: breakdown?.freeRentDays, freeRentAmount: breakdown?.freeRentAmount, amount: Number(row.amount), settledAmount: Number(row.settledAmount),
+      remaining: money(cents(row.amount) - cents(row.settledAmount)), contractCode: contracts.get(row.dealId)?.contractCode,
+      paymentMethod: contracts.get(row.dealId)?.paymentMethod, monthlyRent: Number(contracts.get(row.dealId)?.amount || 0), roomId: contracts.get(row.dealId)?.roomId,
+    }; };
+    const extra = charges.map(row => chargeCalendarRow(row, contracts.get(row.dealId)?.contractCode));
     const buckets = ['pay', 'receive'].flatMap((direction) =>
-      [period, addMonths(start, 1).slice(0, 7)].map((month) => {
+      [period, addCalendarMonths(start, 1).slice(0, 7)].map((month) => {
         const list = rows
           .filter(
             (row) =>
               row.direction === direction && row.dueDate.startsWith(month),
           )
-          .map((row) => ({
-            ...row,
-            amount: Number(row.amount),
-            remaining: money(cents(row.amount) - cents(row.settledAmount)),
-          }));
+          .map(withContract).concat(extra.filter(row => row.direction === direction && row.dueDate.startsWith(month)) as any);
         return {
           direction,
           period: month,
@@ -380,27 +414,10 @@ export class BusinessWorkflowService {
         };
       }),
     );
-    const overdue = await this.scoped(
-      this.ds.getRepository(ContractSchedule),
-      user,
-    )
-      .innerJoin(Deal, 'deal', 'deal.id = record.dealId')
-      .andWhere('deal.status IN (:...active)', {
-        active: ['active', 'termination_pending'],
-      })
-      .andWhere('record.status = :status AND record.dueDate < :start', {
-        status: 'pending',
-        start,
-      })
-      .orderBy('record.dueDate', 'ASC')
-      .getMany();
     return {
       period,
       buckets,
-      overdue: overdue.map((row) => ({
-        ...row,
-        remaining: money(cents(row.amount) - cents(row.settledAmount)),
-      })),
+      overdue: overdue.map(withContract).concat(extra.filter(row => row.dueDate < start) as any),
     };
   }
 
@@ -482,6 +499,7 @@ export class BusinessWorkflowService {
           entries.create({
             ...input,
             scheduleId: id,
+            chargeId: null,
             direction: row.direction,
             employeeId: row.employeeId,
             storeId: row.storeId,
@@ -501,6 +519,44 @@ export class BusinessWorkflowService {
           throw new ConflictException('付款请求编号已被使用，请核对原记录');
         throw error;
       });
+  }
+
+  async settleCharge(id: number, input: Parameters<BusinessWorkflowService['settle']>[1], user: CurrentUserPayload) {
+    if (!input.requestKey?.trim() || input.requestKey.length > 100 || !validDate(input.paymentDate) || !CASH_ACCOUNTS[input.accountCode]) throw new BadRequestException('请填写有效付款日期和公司收支账户');
+    validMoney(input.amount, '支付金额');
+    if (input.amount <= 0) throw new BadRequestException('支付金额须大于零');
+    for (const key of ['payerAccount', 'payer', 'payeeAccount', 'payee']) if (!input[key]?.trim() || input[key].length > 100) throw new BadRequestException('请填写付款人、收款人及双方账号');
+    return this.ds.transaction(async manager => {
+      const repo = manager.getRepository(BusinessCharge);
+      const row = await this.scoped(repo, user).andWhere('record.id = :id', { id }).setLock('pessimistic_write').getOne();
+      if (!row) throw new ForbiddenException('费用不存在或无权操作');
+      const entries = manager.getRepository(CashEntry);
+      const existing = await entries.findOne({ where: { requestKey: input.requestKey } });
+      if (existing) {
+        if (existing.chargeId !== id || existing.scheduleId != null || ['amount', 'accountCode', 'paymentDate', 'payer', 'payee', 'payerAccount', 'payeeAccount'].some(key => key === 'amount' ? cents(existing[key]) !== cents(input[key]) : existing[key] !== input[key])) throw new ConflictException('重复请求编号对应不同付款内容');
+        return existing;
+      }
+      if (row.status !== 'pending') throw new ConflictException('该项费用已结清');
+      if (cents(input.amount) > cents(row.amount) - cents(row.settledAmount)) throw new BadRequestException('支付金额不能超过该项未结金额');
+      if (row.category === 'tenant_deposit') {
+        const contract = row.dealId && await manager.getRepository(Deal).findOne({ where: { id: row.dealId } });
+        if (!contract || !['active', 'termination_pending'].includes(contract.status)) throw new ConflictException('租约已结束，不能继续收取租房押金');
+      }
+      await this.ensureAccounts(manager);
+      const entry = await entries.save(entries.create({ ...input, scheduleId: null, chargeId: id, direction: row.direction, employeeId: row.employeeId, storeId: row.storeId, groupId: row.groupId }));
+      row.settledAmount = money(cents(row.settledAmount) + cents(input.amount));
+      row.status = cents(row.settledAmount) === cents(row.amount) ? 'paid' : 'pending';
+      await repo.save(row);
+      if (row.category === 'tenant_deposit' && row.dealId) {
+        const deal = await manager.getRepository(Deal).findOne({ where: { id: row.dealId } });
+        if (!deal) throw new ConflictException('押金合同不存在');
+        const deposits = manager.getRepository(Deposit);
+        const deposit = await deposits.findOne({ where: { contractCode: deal.contractCode }, lock: { mode: 'pessimistic_write' } });
+        if (deposit && deposit.status !== 'pending') throw new ConflictException('押金已退还或扣留，请核对合同');
+        await deposits.save(deposits.create({ ...deposit, contractCode: deal.contractCode, tenantName: deal.customerName, houseInfo: deal.propertyName, depositAmount: money(cents(deposit?.depositAmount || 0) + cents(input.amount)), depositDate: deposit?.depositDate || input.paymentDate, status: 'pending', storeId: row.storeId, creatorId: row.employeeId }));
+      }
+      return entry;
+    }).catch(error => { if (error?.code === '23505') throw new ConflictException('付款请求编号已被使用，请核对原记录'); throw error; });
   }
 
   async cashFlow(user: CurrentUserPayload) {
@@ -554,8 +610,9 @@ export class BusinessWorkflowService {
   }
 
   async configuration(id: number, user: CurrentUserPayload) {
-    await this.property(id, user, this.ds.manager);
-    return (
+    const rental = await this.property(id, user, this.ds.manager);
+    const rooms = await this.ds.getRepository(RentalSet).findOne({ where: { id }, relations: ['rooms'] });
+    const configuration = (
       (await this.ds
         .getRepository(PropertyConfiguration)
         .findOne({ where: { propertyId: id } })) || {
@@ -563,6 +620,32 @@ export class BusinessWorkflowService {
         items: [],
       }
     );
+    return { ...configuration, rooms: (rooms?.rooms || []).map(room => ({ id: room.id, roomNo: room.roomNo })) };
+  }
+
+  async rentalCosts(periodValue: string, user: CurrentUserPayload) {
+    const period = this.period(periodValue), from = `${period}-01`, until = addCalendarMonths(from, 1);
+    const rentals = await this.scoped(this.ds.getRepository(RentalSet), user, 'creatorId').leftJoinAndSelect('record.rooms', 'rooms').getMany();
+    if (!rentals.length) return { period, list: [], totalIncome: 0, totalCost: 0, freeAmount: 0, net: 0 };
+    const deals = await this.ds.getRepository(Deal).createQueryBuilder('deal').where('deal.propertyId IN (:...ids) AND deal.workflowType IN (:...types) AND deal.status IN (:...statuses)', {
+      ids: rentals.map(row => row.id), types: ['management', 'tenant'], statuses: ['active', 'termination_pending', 'terminated'],
+    }).getMany();
+    const calculate = (start: string, end: string, rent: number, freeDays?: number[], ranges?: { start: string; end: string }[]) =>
+      validDate(start) && validDate(end) && start <= end ? leaseAmount(start, end, Number(rent || 0), from, until, freeDays, ranges) : 0;
+    const list = rentals.map(rental => {
+      const contracts = deals.filter(deal => deal.propertyId === rental.id);
+      const landlords = contracts.filter(deal => deal.workflowType === 'management'), tenants = contracts.filter(deal => deal.workflowType === 'tenant');
+      const endDate = (deal: Deal) => deal.terminatedOn ? [deal.leaseEnd, addDays(deal.terminatedOn, -1)].sort()[0] : deal.leaseEnd;
+      const original = landlords.length ? money(landlords.reduce((sum, deal) => sum + cents(calculate(deal.leaseStart, endDate(deal), Number(deal.amount))), 0)) : calculate(rental.leaseStart, rental.leaseEnd, rental.landlordRent);
+      const cost = landlords.length ? money(landlords.reduce((sum, deal) => sum + cents(calculate(deal.leaseStart, endDate(deal), Number(deal.amount), deal.details?.freeDays, deal.details?.freeRentRanges)), 0)) : calculate(rental.leaseStart, rental.leaseEnd, rental.landlordRent, [], rental.freeRentRanges);
+      const contractedRooms = new Set(tenants.map(deal => deal.roomId));
+      let income = money(tenants.reduce((sum, deal) => sum + cents(calculate(deal.leaseStart, endDate(deal), Number(deal.amount))), 0));
+      if (rental.bizType === 'shared') income = money(cents(income) + (rental.rooms || []).filter(room => !contractedRooms.has(room.id) && ['rented', 'checkout'].includes(room.status)).reduce((sum, room) => sum + cents(calculate(room.leaseStart, room.leaseEnd, room.rentPrice)), 0));
+      else if (!tenants.length && ['rented', 'checkout'].includes(rental.status)) income = calculate(rental.tenantLeaseStart, rental.tenantLeaseEnd, rental.rent);
+      return { propertyId: rental.id, propertyCode: rental.code, propertyName: rental.title || rental.address, rentIncome: income, originalRent: original, freeAmount: money(cents(original) - cents(cost)), rentCost: cost, net: money(cents(income) - cents(cost)) };
+    }).filter(row => row.originalRent || row.rentIncome);
+    const totalIncome = money(list.reduce((sum, row) => sum + cents(row.rentIncome), 0)), totalCost = money(list.reduce((sum, row) => sum + cents(row.rentCost), 0)), freeAmount = money(list.reduce((sum, row) => sum + cents(row.freeAmount), 0));
+    return { period, list, totalIncome, totalCost, freeAmount, net: money(cents(totalIncome) - cents(totalCost)) };
   }
   async configurationEmployees(id: number, user: CurrentUserPayload) {
     await this.property(id, user, this.ds.manager);
@@ -614,7 +697,7 @@ export class BusinessWorkflowService {
         throw new BadRequestException('仅托管房源支持配置');
       const employees = await this.saleEmployees(user, manager);
       items = items.map(row => {
-        if (!row.type.endsWith('_bonus')) return { ...row, recipient: '', recipientEmployeeId: undefined };
+        if (!row.type.endsWith('_bonus')) return { ...row, recipientEmployeeId: undefined };
         if (row.recipientEmployeeId == null && row.amount === 0) return { ...row, recipient: '' };
         const employee = employees.find(employee => employee.id === row.recipientEmployeeId);
         if (!employee) throw new ForbiddenException('奖励员工不存在、已停用或不在可选范围内');
@@ -633,7 +716,7 @@ export class BusinessWorkflowService {
           }).format(new Date()),
           amount: money(delta),
         });
-      return repo.save(
+      const saved = await repo.save(
         repo.create({
           ...old,
           propertyId: id,
@@ -644,6 +727,9 @@ export class BusinessWorkflowService {
           groupId: rental.groupId,
         }),
       );
+      rental.rooms = (await manager.getRepository(RentalSet).findOne({ where: { id }, relations: ['rooms'] }))?.rooms || [];
+      await syncConfigurationCharges(manager, saved, rental);
+      return saved;
     });
   }
 
@@ -736,7 +822,7 @@ export class BusinessWorkflowService {
   async performance(periodValue: string, user: CurrentUserPayload) {
     const period = this.period(periodValue),
       start = `${period}-01`,
-      end = addMonths(start, 1);
+      end = addCalendarMonths(start, 1);
     const deals = await this.scoped(
       this.ds.getRepository(Deal),
       user,
@@ -882,6 +968,7 @@ export class BusinessWorkflowService {
           start,
           end,
           d.freeDays,
+          d.freeRentRanges,
         );
         const incoming = tenants
           .filter((row) => row.propertyId === deal.propertyId)
@@ -923,6 +1010,7 @@ export class BusinessWorkflowService {
             propertyName: deal.propertyName,
             contractCode: deal.contractCode,
             freeDays: d.freeDays || [0, 0, 0, 0, 0],
+            freeRentRanges: d.freeRentRanges || [],
             freeAmount,
             premium,
             occurredOn: start,
@@ -1031,18 +1119,19 @@ export class BusinessWorkflowService {
         : await this.performance(period, user);
     if (type === 'management') {
       const start = `${period}-01`,
-        end = addMonths(start, 1);
+        end = addCalendarMonths(start, 1);
       (data as any).payments = await this.scoped(
         this.ds.getRepository(CashEntry),
         user,
       )
-        .innerJoin(
+        .leftJoin(
           ContractSchedule,
           'schedule',
           'schedule.id = record.scheduleId',
         )
+        .leftJoin(BusinessCharge, 'charge', 'charge.id = record.chargeId')
         .select('record')
-        .addSelect('schedule.propertyName', 'propertyName')
+        .addSelect('COALESCE(schedule.propertyName, charge.propertyName)', 'propertyName')
         .andWhere(
           'record.paymentDate >= :start AND record.paymentDate < :end',
           { start, end },

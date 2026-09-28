@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { SaleProperty } from '../house/entities/sale-property.entity';
@@ -8,9 +8,16 @@ import { Customer } from '../house/entities/customer.entity';
 import { Bill } from '../finance/archive/bill.entity';
 import { FinanceFlow } from '../finance/archive/finance-flow.entity';
 import { ApprovalRecord } from '../system/entities/approval-record.entity';
+import { applyRecordScope } from '../../common/data-scope/record-data-scope.util';
 import { applyDataScope } from '../../common/data-scope/data-scope.util';
 import { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { Employee } from '../system/entities/employee.entity';
+import { IncomeCostReportService } from '../finance/services/income-cost-report.service';
+import { ContractSchedule } from '../finance/entities/business-workflow.entity';
+import { BusinessCharge } from '../finance/entities/business-charge.entity';
+import { Deal } from '../house/entities/deal.entity';
+import { CHARGE_LABELS } from '../finance/services/business-charges';
+import { addMonths, cents, money } from '../finance/services/business-calculation';
 
 @Injectable()
 export class DashboardService {
@@ -23,75 +30,61 @@ export class DashboardService {
     @InjectRepository(FinanceFlow) private flowRepo: Repository<FinanceFlow>,
     @InjectRepository(ApprovalRecord) private approvalRepo: Repository<ApprovalRecord>,
     @InjectRepository(Employee) private employeeRepo: Repository<Employee>,
+    private costs: IncomeCostReportService,
   ) {}
 
   async getOverview(user: CurrentUserPayload) {
-    const saleQb = this.saleRepo.createQueryBuilder('s');
-    applyDataScope(saleQb, user, 's', { ownerField: 'creatorId' });
-    const saleCount = await saleQb.getCount();
-
-    const rentalQb = this.rentalSetRepo.createQueryBuilder('rs');
-    applyDataScope(rentalQb, user, 'rs', { ownerField: 'creatorId', groupField: 'groupId' });
-    const rentalCount = await rentalQb.getCount();
-
-    const roomQb = this.rentalRoomRepo.createQueryBuilder('rr')
-      .innerJoin('rr.set', 'set');
-    applyDataScope(roomQb, user, 'set', { ownerField: 'creatorId', groupField: 'groupId' });
-    const roomCount = await roomQb.getCount();
-
-    const vacantQb = this.rentalRoomRepo.createQueryBuilder('rr')
-      .innerJoin('rr.set', 'set')
-      .where('rr.status = :status', { status: 'vacant' });
-    applyDataScope(vacantQb, user, 'set', { ownerField: 'creatorId', groupField: 'groupId' });
-    const vacantCount = await vacantQb.getCount();
-
-    const clientQb = this.customerRepo.createQueryBuilder('c');
-    applyDataScope(clientQb, user, 'c', { ownerField: 'creatorId' });
-    const clientCount = await clientQb.getCount();
-
-    const canViewFinance = this.canViewFinance(user);
-    let receivable = 0;
-    let received = 0;
-    if (canViewFinance) {
-      const { start, end } = this.currentMonthRange();
-      const receivableQb = this.billRepo.createQueryBuilder('b')
-        .select('COALESCE(SUM(b.amount), 0)', 'total')
-        .where('b.dueDate BETWEEN :start AND :end', { start, end });
-      applyDataScope(receivableQb, user, 'b', { ownerField: 'creatorId' });
-      receivable = +(await receivableQb.getRawOne()).total;
-
-      const receivedQb = this.billRepo.createQueryBuilder('b')
-        .select('COALESCE(SUM(b.actualAmount), 0)', 'total')
-        .where('b.dueDate BETWEEN :start AND :end', { start, end });
-      applyDataScope(receivedQb, user, 'b', { ownerField: 'creatorId' });
-      received = +(await receivedQb.getRawOne()).total;
+    const keys = ['properties', 'rented', 'vacant', ...(this.canViewFinance(user) ? ['receivable', 'received'] : [])];
+    const labels = { properties: '在管房源', rented: '在租房间', vacant: '空房间', receivable: '本月应收', received: '本月实收' };
+    const data = await Promise.all(keys.map(key => this.kpiRows(key, user)));
+    const kpis = keys.map((key, index) => ({ key, label: labels[key],
+      value: index < 3 ? data[index].length : (data[index].reduce((sum, row) => sum + cents(row.amount), 0) / 1000000).toFixed(2),
+      unit: key === 'properties' ? '套' : index < 3 ? '间' : '万', color: ['blue', 'green', 'orange', 'blue', 'green'][index],
+    }));
+    return { greetingName: user.name, role: user.dataScope || 'self', kpis,
+      charts: { monthly: this.canViewFinance(user) ? await this.monthlyTrend(user) : [] },
+      smallCards: await this.getSmallCards(user), bigCards: await this.getBigCards(user) };
+  }
+  async getKpiDetails(key: string, query: any, user: CurrentUserPayload) {
+    const page = Math.max(1, Math.floor(Number(query.page) || 1)), pageSize = Math.min(100, Math.max(1, Math.floor(Number(query.pageSize) || 10)));
+    const list = await this.kpiRows(key, user);
+    return { key, list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length,
+      totalAmount: money(list.reduce((sum, row) => sum + cents(row.amount || 0), 0)) };
+  }
+  private async kpiRows(key: string, user: CurrentUserPayload): Promise<any[]> {
+    if (key === 'properties') {
+      const rental = this.rentalSetRepo.createQueryBuilder('r');
+      applyDataScope(rental, user, 'r', { ownerField: 'creatorId', groupField: 'groupId' });
+      const sale = this.saleRepo.createQueryBuilder('s');
+      applyRecordScope(sale, user, 's', 'creatorId');
+      const [rentals, sales] = await Promise.all([rental.getMany(), sale.getMany()]);
+      return [...rentals.map(row => ({ id: `rent:${row.id}`, propertyCode: row.code, propertyName: row.title || row.address, type: '出租房源', status: row.status })),
+        ...sales.map(row => ({ id: `sale:${row.id}`, propertyCode: row.code, propertyName: row.title || row.code, type: '出售房源', status: row.status }))];
     }
-
-    const monthly = canViewFinance ? await this.monthlyTrend(user) : [];
-    const smallCards = await this.getSmallCards(user);
-    const bigCards = await this.getBigCards(user);
-
-    const kpis: Array<{ label: string; value: number | string; unit: string; color: string }> = [
-      { label: '在管房源', value: rentalCount + saleCount, unit: '套', color: 'blue' },
-      { label: '在租房间', value: roomCount, unit: '间', color: 'green' },
-      { label: '空房间', value: vacantCount, unit: '间', color: 'orange' },
-      { label: '客户总数', value: clientCount, unit: '人', color: 'purple' },
-    ];
-    if (canViewFinance) {
-      kpis.push(
-        { label: '本月应收', value: (receivable / 10000).toFixed(2), unit: '万', color: 'blue' },
-        { label: '本月实收', value: (received / 10000).toFixed(2), unit: '万', color: 'green' },
-      );
+    if (['rented', 'vacant'].includes(key)) {
+      const qb = this.rentalRoomRepo.createQueryBuilder('rr').innerJoinAndSelect('rr.set', 'set').where('rr.status = :status', { status: key });
+      applyDataScope(qb, user, 'set', { ownerField: 'creatorId', groupField: 'groupId' });
+      const rows = await qb.orderBy('rr.id', 'ASC').getMany();
+      return rows.map(row => ({ id: row.id, propertyCode: row.set.code, propertyName: row.set.title || row.set.address, roomNo: row.roomNo, status: row.status, rent: Number(row.rentPrice || 0), leaseStart: row.leaseStart, leaseEnd: row.leaseEnd }));
     }
-
-    return {
-      greetingName: user.name,
-      role: user.dataScope || 'self',
-      kpis,
-      charts: { monthly },
-      smallCards,
-      bigCards,
-    };
+    if (!['receivable', 'received'].includes(key)) throw new BadRequestException('不支持的经营指标');
+    if (!this.canViewFinance(user)) throw new ForbiddenException('无权查看财务详情');
+    const { start, end } = this.currentMonthRange();
+    if (key === 'received') return (await this.costs.report(start.slice(0, 7), user)).list.filter(row => row.direction === 'income');
+    const schedules = this.rentalSetRepo.manager.getRepository(ContractSchedule).createQueryBuilder('s')
+      .where('s.direction = :direction AND s.status != :cancelled AND s.dueDate BETWEEN :start AND :end', { direction: 'receive', cancelled: 'cancelled', start, end });
+    applyDataScope(schedules, user, 's', { ownerField: 'employeeId', groupField: 'groupId' });
+    const bills = this.billRepo.createQueryBuilder('b').where('b.dueDate BETWEEN :start AND :end AND b.status IN (:...statuses)', { start, end, statuses: ['pending_receive', 'partial', 'received'] });
+    applyRecordScope(bills, user, 'b', 'creatorId');
+    const chargeQuery = this.rentalSetRepo.manager.getRepository(BusinessCharge).createQueryBuilder('charge')
+      .leftJoin(Deal, 'chargeDeal', 'chargeDeal.id = charge.dealId')
+      .where('charge.direction = :direction AND charge.status != :cancelled AND charge.dueDate BETWEEN :start AND :end', { direction: 'receive', cancelled: 'cancelled', start, end })
+      .andWhere('(charge.category != :deposit OR chargeDeal.status IN (:...depositActive))', { deposit: 'tenant_deposit', depositActive: ['active', 'termination_pending'] });
+    applyDataScope(chargeQuery, user, 'charge', { ownerField: 'employeeId', groupField: 'groupId' });
+    const [plans, legacy, charges] = await Promise.all([schedules.getMany(), bills.getMany(), chargeQuery.getMany()]);
+    return [...plans.map(row => ({ id: `schedule:${row.id}`, date: row.dueDate, reference: `合同 #${row.dealId} / 第${row.sequence}期`, propertyName: row.propertyName, source: '租金缴费计划', amount: Number(row.amount), settledAmount: Number(row.settledAmount), status: row.status })),
+      ...legacy.map(row => ({ id: `bill:${row.id}`, date: row.dueDate, reference: row.bizId || `账单 #${row.id}`, propertyName: row.roomCode || '', source: '历史账单', amount: Number(row.amount), settledAmount: Number(row.actualAmount), status: row.status })),
+      ...charges.map(row => ({ id: `charge:${row.id}`, date: row.dueDate, reference: row.dealId ? `合同 #${row.dealId}` : `房源 #${row.propertyId}`, propertyName: row.propertyName, source: CHARGE_LABELS[row.category] || row.category, amount: Number(row.amount), settledAmount: Number(row.settledAmount), status: row.status }))];
   }
 
   async getWarnings(user: CurrentUserPayload) {
@@ -112,13 +105,12 @@ export class DashboardService {
       color: 'red' | 'orange' | 'blue' | 'green';
     }> = [
       { title: '30天内到期租客', value: dueSoonCount, label: '需续租/退房', color: 'orange' as const },
-      { title: '黑名单人员', value: await this.countBlacklist(user), label: '生效中', color: 'red' as const },
     ];
     if (this.canViewFinance(user)) {
       const overdueQb = this.billRepo.createQueryBuilder('b')
         .where('b.dueDate < :today', { today })
         .andWhere('b.status IN (:...status)', { status: ['pending_receive', 'partial'] });
-      applyDataScope(overdueQb, user, 'b', { ownerField: 'creatorId' });
+      applyRecordScope(overdueQb, user, 'b', 'creatorId');
       const overdueCount = await overdueQb.getCount();
       result.splice(1, 0, {
         title: '逾期未缴账单',
@@ -169,7 +161,7 @@ export class DashboardService {
         .andWhere('b.status IN (:...status)', { status: ['pending_receive', 'partial'] })
         .orderBy('b.dueDate', 'ASC');
       if (!all) overdueQb.limit(5);
-      applyDataScope(overdueQb, user, 'b', { ownerField: 'creatorId' });
+      applyRecordScope(overdueQb, user, 'b', 'creatorId');
       const overdue = await overdueQb.getRawMany();
       overdue.forEach((item: any) => {
         todos.push({
@@ -185,41 +177,17 @@ export class DashboardService {
   }
 
   private currentMonthRange() {
-    const now = new Date();
-    const start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-    return { start, end };
+    const start = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(new Date()).slice(0, 7) + '-01';
+    const next = addMonths(start, 1), date = new Date(`${next}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() - 1);
+    return { start, end: date.toISOString().slice(0, 10) };
   }
-
   private async monthlyTrend(user: CurrentUserPayload) {
-    const months: { month: string; income: number; expense: number }[] = [];
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const start = `${year}-${month}-01`;
-      const end = new Date(year, d.getMonth() + 1, 0).toISOString().split('T')[0];
-
-      const incomeQb = this.flowRepo.createQueryBuilder('f')
-        .select('COALESCE(SUM(f.amount), 0)', 'total')
-        .where('f.direction = :direction', { direction: 'income' })
-        .andWhere('f.status = :status', { status: 'completed' })
-        .andWhere('f.createdAt BETWEEN :start AND :end', { start: `${start}T00:00:00`, end: `${end}T23:59:59` });
-      applyDataScope(incomeQb, user, 'f', { ownerField: 'creatorId' });
-      const income = +(await incomeQb.getRawOne()).total;
-
-      const expenseQb = this.flowRepo.createQueryBuilder('f')
-        .select('COALESCE(SUM(f.amount), 0)', 'total')
-        .where('f.direction = :direction', { direction: 'expense' })
-        .andWhere('f.status = :status', { status: 'completed' })
-        .andWhere('f.createdAt BETWEEN :start AND :end', { start: `${start}T00:00:00`, end: `${end}T23:59:59` });
-      applyDataScope(expenseQb, user, 'f', { ownerField: 'creatorId' });
-      const expense = +(await expenseQb.getRawOne()).total;
-
-      months.push({ month: `${year}-${month}`, income, expense });
-    }
-    return months;
+    const { start } = this.currentMonthRange();
+    return Promise.all(Array.from({ length: 6 }, async (_, index) => {
+      const month = addMonths(start, index - 5).slice(0, 7), report = await this.costs.report(month, user);
+      return { month, income: report.totalIncome, expense: report.totalCost };
+    }));
   }
 
   private async employeeRanking(user: CurrentUserPayload) {
@@ -229,14 +197,14 @@ export class DashboardService {
       .addSelect('COUNT(s.id)', 'count')
       .where('s.createdAt >= :start', { start: `${start}T00:00:00` })
       .groupBy('s.creatorId');
-    applyDataScope(saleQb, user, 's', { ownerField: 'creatorId' });
+    applyRecordScope(saleQb, user, 's', 'creatorId');
 
     const customerQb = this.customerRepo.createQueryBuilder('c')
       .select('c.creatorId', 'employeeId')
       .addSelect('COUNT(c.id)', 'count')
       .where('c.createdAt >= :start', { start: `${start}T00:00:00` })
       .groupBy('c.creatorId');
-    applyDataScope(customerQb, user, 'c', { ownerField: 'creatorId' });
+    applyRecordScope(customerQb, user, 'c', 'creatorId');
 
     const [saleRows, customerRows] = await Promise.all([saleQb.getRawMany(), customerQb.getRawMany()]);
     const counts = new Map<number, { saleCount: number; customerCount: number }>();
@@ -266,13 +234,6 @@ export class DashboardService {
       .slice(0, 5);
   }
 
-  private async countBlacklist(user: CurrentUserPayload) {
-    const { Blacklist } = await import('../house/entities/blacklist.entity');
-    const qb = this.saleRepo.manager.getRepository(Blacklist).createQueryBuilder('b')
-      .where('b.status = :status', { status: 'active' });
-    applyDataScope(qb, user, 'b', { ownerField: 'createdBy' });
-    return qb.getCount();
-  }
 
   async getSmallCards(user: CurrentUserPayload) {
     const today = new Date().toISOString().split('T')[0];
@@ -297,7 +258,7 @@ export class DashboardService {
 
   async getBigCards(user: CurrentUserPayload) {
     const saleQb = this.saleRepo.createQueryBuilder('s');
-    applyDataScope(saleQb, user, 's', { ownerField: 'creatorId' });
+    applyRecordScope(saleQb, user, 's', 'creatorId');
     const saleCount = await saleQb.getCount();
 
     const roomQb = this.rentalRoomRepo.createQueryBuilder('rr').innerJoin('rr.set', 'set');
@@ -317,7 +278,7 @@ export class DashboardService {
 
     const result = [
       { title: '在售房源', value: saleCount, label: '套', color: 'blue' },
-      { title: '在租房间', value: roomCount, label: '间', color: 'green' },
+      { title: '在租房间', value: rentedCount, label: '间', color: 'green' },
       { title: '空置房间', value: vacantCount, label: '间', color: 'orange' },
       { title: '出租率', value: `${occupancyRate}%`, label: '占比', color: 'purple' },
       { title: '待审批', value: pendingApproval, label: '条', color: 'orange' },
@@ -354,7 +315,7 @@ export class DashboardService {
       .select('COALESCE(SUM(b.amount - b.actualAmount), 0)', 'total')
       .where('b.dueDate < :today', { today })
       .andWhere('b.status = :status', { status });
-    applyDataScope(qb, user, 'b', { ownerField: 'creatorId' });
+    applyRecordScope(qb, user, 'b', 'creatorId');
     return +(await qb.getRawOne()).total;
   }
 
@@ -364,7 +325,7 @@ export class DashboardService {
       .select('COALESCE(SUM(b.amount), 0)', 'total')
       .where('b.dueDate < :today', { today })
       .andWhere('b.status = :status', { status: 'pending_pay' });
-    applyDataScope(qb, user, 'b', { ownerField: 'creatorId' });
+    applyRecordScope(qb, user, 'b', 'creatorId');
     return +(await qb.getRawOne()).total;
   }
 
@@ -377,15 +338,8 @@ export class DashboardService {
   }
 
   private async sumDeposit(user: CurrentUserPayload, direction: string) {
-    const { start, end } = this.currentMonthRange();
-    const qb = this.flowRepo.createQueryBuilder('f')
-      .select('COALESCE(SUM(f.amount), 0)', 'total')
-      .where('f.direction = :direction', { direction })
-      .andWhere('f.status = :status', { status: 'completed' })
-      .andWhere('f.bizType = :bizType', { bizType: 'deposit' })
-      .andWhere('f.createdAt BETWEEN :start AND :end', { start: `${start}T00:00:00`, end: `${end}T23:59:59` });
-    applyDataScope(qb, user, 'f', { ownerField: 'creatorId' });
-    return +(await qb.getRawOne()).total;
+    const report = await this.costs.report(this.currentMonthRange().start.slice(0, 7), user);
+    return money(report.list.filter(row => row.direction === direction && row.category.includes('押金')).reduce((sum, row) => sum + cents(row.amount), 0));
   }
 
   private canViewFinance(user: CurrentUserPayload): boolean {

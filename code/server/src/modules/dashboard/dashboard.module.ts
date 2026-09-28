@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { FinanceModule } from '../finance/finance.module';
 import { DashboardController } from './dashboard.controller';
 import { DashboardAliasController } from './dashboard-alias.controller';
 import { DashboardService } from './dashboard.service';
@@ -14,7 +15,7 @@ import { ApprovalRecord } from '../system/entities/approval-record.entity';
 import { Employee } from '../system/entities/employee.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SaleProperty, RentalSet, RentalRoom, Customer, Bill, FinanceFlow, ApprovalRecord, Employee])],
+  imports: [FinanceModule, TypeOrmModule.forFeature([SaleProperty, RentalSet, RentalRoom, Customer, Bill, FinanceFlow, ApprovalRecord, Employee])],
   controllers: [DashboardController, DashboardAliasController],
   providers: [DashboardService],
 })

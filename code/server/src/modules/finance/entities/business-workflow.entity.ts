@@ -45,7 +45,8 @@ export class CashAccount {
 export class CashEntry {
   @PrimaryGeneratedColumn() id: number;
   @Index({ unique: true }) @Column({ length: 100 }) requestKey: string;
-  @Column({ name: 'schedule_id' }) scheduleId: number;
+  @Column({ name: 'schedule_id', type: 'integer', nullable: true }) scheduleId: number | null;
+  @Column({ name: 'charge_id', type: 'integer', nullable: true }) chargeId: number | null;
   @Column({ length: 30 }) accountCode: string;
   @Column({ length: 10 }) direction: string;
   @Column({ type: 'date' }) paymentDate: string;
@@ -74,6 +75,8 @@ export class PropertyConfiguration {
     recipient?: string;
     recipientEmployeeId?: number;
     channel?: string;
+    dueDate?: string;
+    roomId?: number | null;
     remark: string;
   }[];
   // 金额调整按发生月份记账；修改当前配置不会挪走历史月份的成本。

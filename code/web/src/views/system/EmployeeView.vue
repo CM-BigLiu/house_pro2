@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   getEmployees, deleteEmployee,
@@ -9,6 +9,7 @@ import {
 } from '@/api/organization';
 
 const router = useRouter();
+const route = useRoute();
 
 const employees = ref<Employee[]>([]);
 const roles = ref<Role[]>([]);
@@ -24,6 +25,7 @@ const query = reactive({
   statusFilter: 'all' as string,
   storeId: undefined as number | undefined,
   positionId: undefined as number | undefined,
+  roleCode: String(route.query.roleCode || ''),
 });
 
 const statusStats = computed(() => {
@@ -76,6 +78,7 @@ function resetFilters() {
   query.statusFilter = 'all';
   query.storeId = undefined;
   query.positionId = undefined;
+  query.roleCode = '';
   currentPage.value = 1;
   loadEmployees();
 }
@@ -160,6 +163,7 @@ async function remove(row: Employee) {
           <option v-for="p in positions" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>
       </div>
+      <div class="filter-group"><span class="filter-label">角色</span><select v-model="query.roleCode" class="select" @change="currentPage = 1; loadEmployees()"><option value="">全部</option><option v-for="role in roles" :key="role.id" :value="role.code">{{ role.name }}</option></select></div>
       <div class="filter-group" style="flex: 1; min-width: 140px; max-width: 240px;">
         <input
           v-model="query.keyword"
@@ -191,13 +195,14 @@ async function remove(row: Employee) {
               <th style="width: 160px;">岗位</th>
               <th style="width: 160px;">门店</th>
               <th style="width: 120px;">入职时间</th>
+              <th style="width: 120px;">归属店长</th>
               <th style="width: 90px;">状态</th>
               <th style="width: 140px;">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="employees.length === 0">
-              <td colspan="7" style="text-align: center; padding: 48px 0; color: var(--ink-400);">暂无数据</td>
+              <td colspan="8" style="text-align: center; padding: 48px 0; color: var(--ink-400);">暂无数据</td>
             </tr>
             <tr v-for="row in employees" :key="row.id">
               <td>
@@ -231,9 +236,8 @@ async function remove(row: Employee) {
                 <span v-if="row.entryDate" class="mono">{{ row.entryDate }}</span>
                 <span v-else class="text-muted">--</span>
               </td>
-              <td>
-                <span :class="['pill', getStatusPillClass(row.status)]">{{ getStatusLabel(row.status) }}</span>
-              </td>
+              <td>{{ row.managerName || '未指定' }}</td>
+              <td><span :class="['pill', getStatusPillClass(row.status)]">{{ getStatusLabel(row.status) }}</span></td>
               <td>
                 <div class="operation-cell">
                   <button

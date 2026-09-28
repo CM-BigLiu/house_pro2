@@ -13,6 +13,14 @@ beforeEach(() => { vi.clearAllMocks(); vi.mocked(getDeals).mockResolvedValue({ l
 afterEach(() => { app?.unmount(); document.body.innerHTML = ''; });
 async function render() { const root = document.createElement('div'); document.body.append(root); app = createApp(DealView); app.directive('loading', {}); app.directive('permission', {}); app.component('ElDialog', { props: ['modelValue'], template: '<div v-if="modelValue"><slot/><slot name="footer"/></div>' }); app.config.warnHandler = () => {}; app.mount(root); await flush(); return root; }
 describe('成交管理和财务功能退休', () => {
+  it('委托合同显示委托及月租，不被误标为买卖或成交总价', async () => {
+    vi.mocked(getDeals).mockResolvedValue({ list: [{ id: 6, contractCode: 'WT006', customerId: null, customerName: '房东', propertyId: 5, propertyCode: 'ZJ005', propertyName: '委托房源', bizType: 'management', workflowType: 'management', signedAt: '2026-09-28', amount: 7300, deposit: 0, responsibleEmployeeName: '经纪人', status: 'active' }], total: 1, stats: { total: 1, rentCount: 0, saleCount: 0, managementCount: 1, monthlyRent: 0, saleAmount: 0 } });
+    const root = await render();
+    expect(root.querySelector('tbody tr td:nth-child(2)')?.textContent).toBe('委托');
+    expect(root.querySelector('tbody tr td:nth-child(6)')?.textContent).toContain('/月');
+    expect(root.querySelector('tbody')?.textContent).not.toContain('买房');
+    expect(root.textContent).toContain('委托 1 单');
+  });
   it('仅注册新的成交入口，已删除模块不保留创建或编辑路由', () => {
     expect(asyncRoutes.find(route => route.path === '/finance/deal')?.meta?.permission).toBe('finance:deal');
     expect(asyncRoutes.some(route => /^\/finance\/(bill(?:\/|$)|daily-account|rent-increase|payout)/.test(route.path))).toBe(false);

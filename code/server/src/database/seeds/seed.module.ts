@@ -22,7 +22,6 @@ import { RentalRoom } from '../../modules/house/entities/rental-room.entity';
 import { Checkout } from '../../modules/house/entities/checkout.entity';
 import { Deposit } from '../../modules/house/entities/deposit.entity';
 import { Customer } from '../../modules/house/entities/customer.entity';
-import { Blacklist } from '../../modules/house/entities/blacklist.entity';
 
 @Module({
   imports: [
@@ -31,7 +30,7 @@ import { Blacklist } from '../../modules/house/entities/blacklist.entity';
       OperationLog, Config,
       Community, Building, Unit, Floor, RoomCode, SaleProperty, RentalSet, RentalRoom,
       Checkout, Deposit,
-      Customer, Blacklist,
+      Customer,
     ]),
   ],
   providers: [SeedService, BizSeedService],

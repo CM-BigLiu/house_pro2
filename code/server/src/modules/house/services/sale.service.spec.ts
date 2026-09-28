@@ -12,8 +12,7 @@ function setup() {
   qb.getManyAndCount = jest.fn().mockResolvedValue([[item], 1]);
   qb.getOne = jest.fn().mockResolvedValue(item);
   const repo = { createQueryBuilder: jest.fn().mockReturnValue(qb), update: jest.fn().mockResolvedValue({ affected: 1 }), delete: jest.fn().mockResolvedValue({ affected: 1 }), create: jest.fn((v) => v), save: jest.fn((v) => v) };
-  const blacklist = { check: jest.fn().mockResolvedValue([]) };
-  return { service: new SaleService(repo as any, blacklist as any), qb, repo, blacklist };
+  return { service: new SaleService(repo as any), qb, repo };
 }
 const admin: any = { employeeId: 1, permissions: ['*'], dataScope: 'company', storeIds: [1] };
 
@@ -105,11 +104,10 @@ describe('sale functional regressions', () => {
     await expect(service.update(1, { status: 'sold' }, admin)).rejects.toThrow('不可通过编辑');
     await expect(service.update(1, { creatorId: 2 }, admin)).rejects.toThrow('不可通过编辑');
   });
-  it('checks the blacklist when changing the owner', async () => {
-    const { service, repo, blacklist } = setup();
-    blacklist.check.mockResolvedValue([{ mobile: '19900009092' }] as never);
-    await expect(service.update(1, { ownerName: 'blocked' }, admin)).rejects.toThrow('业主信息命中黑名单');
-    expect(repo.update).not.toHaveBeenCalled();
+  it('allows updating owner information without a retired screening feature', async () => {
+    const { service, repo } = setup();
+    await service.update(1, { ownerName: '业主' }, admin);
+    expect(repo.update).toHaveBeenCalledWith(1, { ownerName: '业主' });
   });
   it('requires the status permission and enforces valid transitions', async () => {
     const { service } = setup();

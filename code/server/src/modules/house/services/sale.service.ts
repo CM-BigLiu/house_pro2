@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Brackets } from 'typeorm';
 import { Employee } from '../../system/entities/employee.entity';
 import { SaleProperty } from '../entities/sale-property.entity';
-import { BlacklistService } from './blacklist.service';
 import { applyDataScope } from '../../../common/data-scope/data-scope.util';
 import { CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 import { StateMachineService } from '../../../common/services/state-machine.service';
@@ -15,7 +14,6 @@ export class SaleService {
 
   constructor(
     @InjectRepository(SaleProperty) private saleRepo: Repository<SaleProperty>,
-    private blacklistService: BlacklistService,
   ) {}
 
   private require(user: CurrentUserPayload, permission: string) {
@@ -176,10 +174,6 @@ export class SaleService {
     return this.map(item);
   }
 
-  private async checkOwner(data: Partial<SaleProperty>) {
-    const hits = await this.blacklistService.check(data.ownerPhone, data.ownerIdCard, data.ownerName);
-    if (hits.length) throw new BadRequestException('业主信息命中黑名单，请联系有权限的管理员核实');
-  }
 
   async create(data: Partial<SaleProperty>, user: CurrentUserPayload) {
     this.require(user, 'sale:add');
@@ -187,7 +181,6 @@ export class SaleService {
     if (!storeId || (user.dataScope !== 'company' && ![...(user.storeIds || []), ...(user.assignedStoreIds || [])].includes(storeId))) {
       throw new ForbiddenException('无权在该门店新增房源');
     }
-    await this.checkOwner(data);
     return this.saleRepo.save(this.saleRepo.create({ ...data, storeId, creatorId: user.employeeId, status: SaleStatus.PRE_PUBLISH }));
   }
 
@@ -197,7 +190,6 @@ export class SaleService {
     for (const key of ['status', 'creatorId', 'storeId', 'code', 'community', 'maintainer', 'createdAt', 'updatedAt', 'id']) {
       if (Object.prototype.hasOwnProperty.call(data, key)) throw new BadRequestException('不可通过编辑接口修改状态、归属或系统字段');
     }
-    await this.checkOwner({ ...existing, ...data });
     // 不保存 findOne 的关联对象，避免旧 community 关系覆盖新的 communityId。
     await this.saleRepo.update(id, data);
     return this.findOne(id, user);

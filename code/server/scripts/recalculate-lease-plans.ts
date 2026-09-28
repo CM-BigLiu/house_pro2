@@ -32,6 +32,7 @@ export async function recalculatePendingLeasePlans(ds: DataSource, apply = false
         deal.leaseStart, deal.leaseEnd, Number(deal.amount),
         row.periodStart, addDays(row.periodEnd, 1),
         row.direction === 'pay' ? deal.details?.freeDays : undefined,
+        row.direction === 'pay' ? deal.details?.freeRentRanges : undefined,
       );
       if (cents(nextAmount) === cents(row.amount)) return [];
       return [{

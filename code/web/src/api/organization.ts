@@ -5,6 +5,8 @@ export interface Employee {
   name: string;
   mobile: string;
   status: string;
+  managerId?: number | null;
+  managerName?: string;
   entryDate?: string;
   leaveDate?: string;
   idCard?: string;
@@ -45,7 +47,7 @@ export interface Permission {
   children?: Permission[];
 }
 
-export function getEmployees(params?: { keyword?: string; storeId?: number }) {
+export function getEmployees(params?: { keyword?: string; storeId?: number; roleCode?: string; managerId?: number }) {
   return get<{ list: Employee[]; total: number }>('/system/employees', { params });
 }
 
@@ -59,6 +61,9 @@ export function updateEmployee(id: number, data: Partial<Employee>) {
 
 export function getEmployeeForEdit(id: number) {
   return get<Employee>(`/system/employees/${id}/edit`);
+}
+export function getEmployeeManagers() {
+  return get<{ id: number; name: string; storeIds: number[] }[]>('/system/employees/managers');
 }
 
 export function deleteEmployee(id: number) {

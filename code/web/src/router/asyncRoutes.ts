@@ -85,24 +85,6 @@ export const asyncRoutes: RouteRecordRaw[] = [
     meta: { title: '编辑客户', permission: 'house:customer', actionPermission: 'house:customer:edit', hidden: true },
   },
   {
-    path: '/house/blacklist',
-    name: 'Blacklist',
-    component: () => import('@/views/house/BlacklistView.vue'),
-    meta: { title: '黑名单', permission: 'house:blacklist' },
-  },
-  {
-    path: '/house/blacklist/create',
-    name: 'BlacklistCreate',
-    component: () => import('@/views/house/BlacklistFormView.vue'),
-    meta: { title: '新增黑名单', permission: 'house:blacklist', actionPermission: 'house:blacklist:create', hidden: true },
-  },
-  {
-    path: '/house/blacklist/edit/:id',
-    name: 'BlacklistEdit',
-    component: () => import('@/views/house/BlacklistFormView.vue'),
-    meta: { title: '编辑黑名单', permission: 'house:blacklist', actionPermission: 'house:blacklist:edit', hidden: true },
-  },
-  {
     path: '/house/community',
     name: 'Community',
     component: () => import('@/views/house/CommunityView.vue'),
@@ -136,7 +118,7 @@ export const asyncRoutes: RouteRecordRaw[] = [
     path: '/finance/income-cost',
     name: 'FinanceIncomeCost',
     component: () => import('@/views/finance/IncomeCostView.vue'),
-    meta: { title: '收入成本', permission: 'finance:income_cost' },
+    meta: { title: '收支成本', permission: 'finance:income_cost' },
   },
   {
     path: '/finance/performance',
@@ -160,7 +142,7 @@ export const asyncRoutes: RouteRecordRaw[] = [
     path: '/finance/plan',
     name: 'FinancePlan',
     component: () => import('@/views/finance/CashFlowView.vue'),
-    meta: { title: '公司现金流', permission: 'finance:plan' },
+    meta: { title: '收支计划（公司现金流）', permission: 'finance:plan' },
   },
   {
     path: '/finance/plan/create',

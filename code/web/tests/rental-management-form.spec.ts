@@ -4,7 +4,7 @@ import RentFormView from '@/views/house/RentFormView.vue';
 import { createRentalSet, getRentalSet, updateRentalSet } from '@/api/rental';
 import { rentalFormErrors, rentalLandlordFields } from '@/utils/rental-form';
 
-const { route, replace, push } = vi.hoisted(() => ({ route: { params: { id: '1' }, fullPath: '/house/rent/edit/1' }, replace: vi.fn(), push: vi.fn() }));
+const { route, replace, push } = vi.hoisted(() => ({ route: { params: { id: '1' }, query: {}, fullPath: '/house/rent/edit/1' }, replace: vi.fn(), push: vi.fn() }));
 vi.mock('vue-router', () => ({ useRoute: () => reactive(route), useRouter: () => ({ replace, push }) }));
 vi.mock('element-plus', () => ({ ElMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 vi.mock('@/stores/user', () => ({ useUserStore: () => ({ userInfo: { employeeId: 7, storeIds: [1] } }) }));
@@ -35,14 +35,23 @@ async function render() {
     expose({ validate: () => Promise.resolve(true) }); return () => h('form', slots.default?.());
   } }));
   for (const name of ['ElRow', 'ElCol']) app.component(name, { template: '<div><slot /></div>' });
-  app.component('ElFormItem', { props: ['label'], template: '<div>{{ label }}<slot /></div>' });
+  app.component('ElTable', { template: '<div><slot /></div>' });
+  app.component('ElTableColumn', { render: () => h('span') });
+  app.component('ElFormItem', { props: ['label'], template: '<div :data-label="label">{{ label }}<slot /></div>' });
   app.component('ElInput', { props: ['modelValue'], emits: ['update:modelValue'], template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' });
-  app.component('ElSelect', { props: ['modelValue'], emits: ['update:modelValue'], template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' });
+  app.component('ElSelect', { props: ['modelValue'], emits: ['update:modelValue', 'change'], template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.placeholder === \'选择小区\' ? Number($event.target.value) : $event.target.value)" @change="$emit(\'change\', $event.target.value)" />' });
   app.config.warnHandler = () => {}; app.mount(root); await flush(); return root;
 }
 const button = (root: HTMLElement, label: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === label)!;
 
 describe('租房托管表单', () => {
+  it('首次切换合租默认三间，分别为主卧、次卧、小卧并随房源保存', async () => {
+    const root = await render(); button(root, '合租').click(); await flush();
+    button(root, '保存').click(); await flush();
+    const payload = vi.mocked(updateRentalSet).mock.calls[0][1];
+    expect(payload.rooms?.map(room => [room.roomNo, room.roomType])).toEqual([['1', 'master'], ['2', 'second'], ['3', 'small']]);
+    expect(payload.rooms?.every(room => typeof room.privateBathroom === 'boolean' && typeof room.balcony === 'boolean')).toBe(true);
+  });
   it('首次跟进后显示托管；保存成功变取消托管，取消只写托管状态', async () => {
     const root = await render();
     expect(root.querySelector('.landlord-section')?.textContent).toContain('首次跟进');
@@ -86,6 +95,15 @@ describe('租房托管表单', () => {
     };
     fill('请输入房东姓名', '测试房东'); fill('请输入房东电话', '13800000000');
     fill('选择缴费方式', 'monthly'); fill('请输入承租价', '1000');
+    fill('选择小区', '1');
+    fill('选择小区后自动带出', '测试地址');
+    fill('请输入面积', '50');
+    fill('请选择或输入户型', '1室1厅1卫');
+    root.querySelector<HTMLInputElement>('input[placeholder="请选择或输入户型"]')!.dispatchEvent(new Event('change'));
+    for (const label of ['楼栋', '单元', '房号']) {
+      const input = root.querySelector<HTMLInputElement>(`[data-label="${label}"] input`)!;
+      input.value = '1'; input.dispatchEvent(new Event('input'));
+    }
     button(root, '一年').click(); await flush();
     vi.mocked(getRentalSet).mockResolvedValue({ ...base, id: 9, isManaged: true });
     replace.mockImplementation(async path => {

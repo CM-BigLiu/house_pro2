@@ -21,6 +21,27 @@ export class RentalRoom {
   @Column({ length: 50, nullable: true })
   roomType: string;
 
+  @Column({ type: 'boolean', nullable: true })
+  privateBathroom: boolean;
+
+  @Column({ type: 'boolean', nullable: true })
+  balcony: boolean;
+
+  @Column({ type: 'boolean', nullable: true })
+  airConditioner: boolean;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  interiorArea: number;
+
+  @Column({ length: 50, nullable: true })
+  orientation: string;
+
+  @Column('simple-json', { nullable: true })
+  facilities: string[];
+
+  @Column({ type: 'int', default: 0 })
+  sortOrder: number;
+
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   rentPrice: number;
 

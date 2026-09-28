@@ -21,12 +21,8 @@ describe('route permission: menu and action permissions', () => {
     expect(canAccessRoute(['*'], 'house:rent', 'renting:add')).toBe(true);
   });
 
-  it('protects blacklist routes with blacklist permissions instead of customer permissions', () => {
-    const listRoute = asyncRoutes.find(route => route.name === 'Blacklist');
-    const createRoute = asyncRoutes.find(route => route.name === 'BlacklistCreate');
-    expect(listRoute?.meta.permission).toBe('house:blacklist');
-    expect(createRoute?.meta.actionPermission).toBe('house:blacklist:create');
-    expect(canAccessRoute(['house:customer'], listRoute?.meta.permission)).toBe(false);
+  it('does not register retired screening pages', () => {
+    expect(asyncRoutes.some(route => route.path.includes('/house/blacklist'))).toBe(false);
   });
 
   it('uses dedicated community action permissions', () => {

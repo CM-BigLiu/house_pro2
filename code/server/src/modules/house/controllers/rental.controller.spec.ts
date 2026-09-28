@@ -35,7 +35,7 @@ describe('Rental form validation', () => {
     landlordIdCard: '310101197801011234', landlordBankCard: '6227001234567890123', landlordBankName: 'QA银行',
     tenantIdCard: '310101199201011234',
     tenantPhone: '13000000001', tenantPaymentMethod: 'monthly', landlordDeposit: '5000', deposit: '1200',
-    rooms: [{ roomNo: 'A', leaseStart: '2026-09-09', tenantName: 'QA合租客', tenantPhone: '13000000002', tenantIdCard: '310101199301011234', rentPrice: '900' }],
+    rooms: [{ roomNo: 'A', roomType: 'master', privateBathroom: false, balcony: true, leaseStart: '2026-09-09', tenantName: 'QA合租客', tenantPhone: '13000000002', tenantIdCard: '310101199301011234', rentPrice: '900' }],
   };
 
   it('preserves all editable rental fields through the whitelist and transforms nested amounts', async () => {

@@ -5,19 +5,16 @@ import { SaleController } from './controllers/sale.controller';
 import { RentalController } from './controllers/rental.controller';
 import { CustomerController } from './controllers/customer.controller';
 import { PropertyController } from './controllers/property.controller';
-import { BlacklistController } from './controllers/blacklist.controller';
 import { CommunityService } from './services/community.service';
 import { SaleService } from './services/sale.service';
 import { RentalService } from './services/rental.service';
 import { CustomerService } from './services/customer.service';
-import { BlacklistService } from './services/blacklist.service';
 import { Community } from './entities/community.entity';
 import { Building, Unit, Floor, RoomCode } from './entities/community-hierarchy.entity';
 import { SaleProperty } from './entities/sale-property.entity';
 import { RentalSet } from './entities/rental-set.entity';
 import { RentalRoom } from './entities/rental-room.entity';
 import { Customer } from './entities/customer.entity';
-import { Blacklist } from './entities/blacklist.entity';
 import { FollowUp } from './entities/follow-up.entity';
 import { OperationLogController } from './controllers/operation-log.controller';
 import { OperationLogService } from './services/operation-log.service';
@@ -51,13 +48,13 @@ import { FinanceModule } from '../finance/finance.module';
     TypeOrmModule.forFeature([
       Community, Building, Unit, Floor, RoomCode,
       SaleProperty, RentalSet, RentalRoom,
-      Customer, Blacklist, FollowUp,
+      Customer, FollowUp,
       OperationLog, Checkout, Deposit, Employee, RentalAppointment, RentalAppointmentAction,
       Deal, SaleAppointment,
     ]),
   ],
-  controllers: [CustomerWorkflowController, DealsController, PropertyManagementController, PropertyDetailController, CommunityController, CommunityAliasController, SaleController, RentalController, RentalAppointmentController, CustomerController, BlacklistController, OperationLogController, PropertyController, CheckoutController, DepositController],
-  providers: [CustomerWorkflowService, PropertyManagementService, PropertyDetailService, CommunityService, SaleService, RentalService, RentalAppointmentService, CustomerService, BlacklistService, OperationLogService, CheckoutService, DepositService],
-  exports: [CommunityService, SaleService, RentalService, RentalAppointmentService, CustomerService, BlacklistService, OperationLogService, CheckoutService, DepositService],
+  controllers: [CustomerWorkflowController, DealsController, PropertyManagementController, PropertyDetailController, CommunityController, CommunityAliasController, SaleController, RentalController, RentalAppointmentController, CustomerController, OperationLogController, PropertyController, CheckoutController, DepositController],
+  providers: [CustomerWorkflowService, PropertyManagementService, PropertyDetailService, CommunityService, SaleService, RentalService, RentalAppointmentService, CustomerService, OperationLogService, CheckoutService, DepositService],
+  exports: [CommunityService, SaleService, RentalService, RentalAppointmentService, CustomerService, OperationLogService, CheckoutService, DepositService],
 })
 export class HouseModule {}

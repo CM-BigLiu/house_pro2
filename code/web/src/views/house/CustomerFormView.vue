@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { createCustomer, getCustomerForEdit, updateCustomer, type Customer } from '@/api/customer';
-import { checkBlacklist } from '@/api/blacklist';
 import { useDictStore } from '@/stores/dict';
 
 const route = useRoute();
@@ -29,15 +28,6 @@ onMounted(async () => {
   }
 });
 
-async function checkCustomerBlacklist() {
-  if (!form.mobile || form.mobile.length < 7) return;
-  const hit = ((await checkBlacklist(form.mobile, form.idCard || undefined)) || [])[0];
-  if (hit) {
-    ElMessageBox.confirm(`该客户命中黑名单：${hit.name}\n原因：${hit.reason}\n来源：${hit.source || '系统录入'}`, '黑名单预警', {
-      confirmButtonText: '继续保存（需特批）', cancelButtonText: '取消', type: 'warning',
-    }).catch(() => { form.mobile = ''; });
-  }
-}
 
 async function submit() {
   if (!form.name?.trim() || !form.mobile?.trim() || !form.customerType) return ElMessage.warning('请填写姓名、电话和客户类型');
@@ -62,8 +52,8 @@ async function submit() {
     </div>
     <div class="card" style="padding: 24px;" v-loading="loading">
       <el-form :model="form" label-width="100px">
-        <el-row :gutter="16"><el-col :span="12"><el-form-item label="姓名" required><el-input v-model="form.name" /></el-form-item></el-col><el-col :span="12"><el-form-item label="电话" required><el-input v-model="form.mobile" @blur="checkCustomerBlacklist" /></el-form-item></el-col></el-row>
-        <el-row :gutter="16"><el-col :span="12"><el-form-item label="客户类型" required><el-select v-model="form.customerType" style="width: 100%;"><el-option label="租客" value="tenant" /><el-option label="买家" value="buyer" /><el-option label="业主" value="landlord" /></el-select></el-form-item></el-col><el-col :span="12"><el-form-item label="状态"><el-select v-model="form.status" style="width: 100%;"><el-option label="有效" value="active" /><el-option label="已成交" value="done" /><el-option label="已失效" value="invalid" /><el-option label="黑名单" value="blacklist" /></el-select></el-form-item></el-col></el-row>
+        <el-row :gutter="16"><el-col :span="12"><el-form-item label="姓名" required><el-input v-model="form.name" /></el-form-item></el-col><el-col :span="12"><el-form-item label="电话" required><el-input v-model="form.mobile" /></el-form-item></el-col></el-row>
+        <el-row :gutter="16"><el-col :span="12"><el-form-item label="客户类型" required><el-select v-model="form.customerType" style="width: 100%;"><el-option label="租客" value="tenant" /><el-option label="买家" value="buyer" /><el-option label="业主" value="landlord" /></el-select></el-form-item></el-col><el-col :span="12"><el-form-item label="状态"><el-select v-model="form.status" style="width: 100%;"><el-option label="有效" value="active" /><el-option label="已成交" value="done" /><el-option label="已失效" value="invalid" /></el-select></el-form-item></el-col></el-row>
         <el-form-item label="身份证"><el-input v-model="form.idCard" /></el-form-item>
         <el-row :gutter="16"><el-col :span="12"><el-form-item label="来源"><el-select v-model="form.sourceChannel" clearable style="width: 100%;"><el-option v-for="item in dictStore.getItems('source_channel')" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col><el-col :span="12"><el-form-item label="期望区域"><el-input v-model="form.desiredDistrict" /></el-form-item></el-col></el-row>
         <el-row :gutter="16"><el-col :span="12"><el-form-item label="预算下限"><PlainNumberInput v-model="form.budgetMin" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.budgetMin" /></el-form-item></el-col><el-col :span="12"><el-form-item label="预算上限"><PlainNumberInput v-model="form.budgetMax" :min="0" style="width: 100%;" /><MoneyUppercase :value="form.budgetMax" /></el-form-item></el-col></el-row>

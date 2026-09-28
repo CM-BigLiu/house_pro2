@@ -20,22 +20,26 @@ import { Performance } from './entities/performance.entity';
 import { Accounting } from './entities/accounting.entity';
 import { BusinessWorkflowController } from './controllers/business-workflow.controller';
 import { BusinessWorkflowService } from './services/business-workflow.service';
+import { IncomeCostReportService } from './services/income-cost-report.service';
+import { BusinessCharge } from './entities/business-charge.entity';
 import { BusinessSubmission, CashAccount, CashEntry, ContractSchedule, PropertyConfiguration } from './entities/business-workflow.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([
     Invoice, PaymentPlan, Arrear,
-    IncomeCost, Performance, Accounting, BusinessSubmission, CashAccount, CashEntry, ContractSchedule, PropertyConfiguration,
+    IncomeCost, Performance, Accounting, BusinessSubmission, CashAccount, CashEntry, ContractSchedule, PropertyConfiguration, BusinessCharge,
   ])],
   controllers: [
     BusinessWorkflowController, InvoiceController, PlanController, ArrearController,
     IncomeCostController, PerformanceController, AccountingController,
   ],
   providers: [
+    IncomeCostReportService,
     BusinessWorkflowService, InvoiceService, PlanService, ArrearService,
     IncomeCostService, PerformanceService, AccountingService,
   ],
   exports: [
+    IncomeCostReportService,
     BusinessWorkflowService, InvoiceService, PlanService, ArrearService,
     IncomeCostService, PerformanceService, AccountingService,
   ],
