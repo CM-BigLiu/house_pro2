@@ -223,6 +223,23 @@ export class BusinessWorkflowService {
     );
   }
 
+  async delegationContext(id: number, user: CurrentUserPayload) {
+    const rental = await this.property(id, user, this.ds.manager);
+    const latest = await this.ds.getRepository(Deal).findOne({
+      where: { propertyId: id, workflowType: 'management', status: 'active' }, order: { signedAt: 'DESC' },
+    });
+    return {
+      leaseStart: latest?.leaseStart || rental.leaseStart || '', leaseEnd: latest?.leaseEnd || rental.leaseEnd || '',
+      amount: Number(latest?.amount ?? rental.landlordRent ?? 0), deposit: Number(latest?.deposit ?? rental.landlordDeposit ?? 0),
+      paymentMethod: latest?.paymentMethod || rental.landlordPaymentMethod || 'monthly',
+      existingContractCode: latest?.contractCode,
+      details: { ownerName: rental.landlordName || '', ownerPhone: rental.landlordPhone || '',
+        ownerIdCard: rental.landlordIdCard || '', payee: rental.landlordName || '', payeeAccount: rental.landlordBankCard || '',
+        propertyAddress: [rental.address, rental.building && `${rental.building}栋`, rental.unit && `${rental.unit}单元`, rental.roomNo && `${rental.roomNo}室`].filter(Boolean).join(' '),
+        ...latest?.details },
+    };
+  }
+
   async delegate(
     propertyId: number,
     input: {
@@ -547,6 +564,10 @@ export class BusinessWorkflowService {
       }
     );
   }
+  async configurationEmployees(id: number, user: CurrentUserPayload) {
+    await this.property(id, user, this.ds.manager);
+    return this.employeeOptions(user);
+  }
   async saveConfiguration(
     id: number,
     items: PropertyConfiguration['items'],
@@ -582,15 +603,23 @@ export class BusinessWorkflowService {
       if (
         row.type.endsWith('_bonus') &&
         row.amount > 0 &&
-        (!row.recipient?.trim() ||
+        (!Number.isInteger(row.recipientEmployeeId) || row.recipientEmployeeId <= 0 ||
           !['cash', 'transfer', 'wechat'].includes(row.channel))
       )
-        throw new BadRequestException('奖励需填写获奖人和发放渠道');
+        throw new BadRequestException('奖励需选择员工和发放渠道');
     });
     return this.ds.transaction(async (manager) => {
       const rental = await this.property(id, user, manager, true);
       if (!rental.isManaged)
         throw new BadRequestException('仅托管房源支持配置');
+      const employees = await this.saleEmployees(user, manager);
+      items = items.map(row => {
+        if (!row.type.endsWith('_bonus')) return { ...row, recipient: '', recipientEmployeeId: undefined };
+        if (row.recipientEmployeeId == null && row.amount === 0) return { ...row, recipient: '' };
+        const employee = employees.find(employee => employee.id === row.recipientEmployeeId);
+        if (!employee) throw new ForbiddenException('奖励员工不存在、已停用或不在可选范围内');
+        return { ...row, recipient: employee.name, recipientEmployeeId: employee.id };
+      });
       const repo = manager.getRepository(PropertyConfiguration),
         old = await repo.findOne({ where: { propertyId: id } });
       const delta =
@@ -618,8 +647,8 @@ export class BusinessWorkflowService {
     });
   }
 
-  private async saleEmployees(user: CurrentUserPayload) {
-    const employees = await this.ds
+  private async saleEmployees(user: CurrentUserPayload, manager = this.ds.manager) {
+    const employees = await manager
       .getRepository(Employee)
       .find({ relations: ['stores', 'groups'] });
     return employees.filter(

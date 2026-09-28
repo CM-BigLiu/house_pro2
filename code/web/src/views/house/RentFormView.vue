@@ -12,6 +12,7 @@ import { generateHouseCode } from '@/utils/code';
 import { useDictStore } from '@/stores/dict';
 import { useUserStore } from '@/stores/user';
 import LayoutSelect from '@/components/LayoutSelect.vue';
+import { rentalListPath } from '@/router/rental-origin';
 
 const router = useRouter();
 const route = useRoute();
@@ -543,7 +544,7 @@ async function submit(manage = false) {
       if (!isEdit.value) await router.replace(`/house/rent/edit/${saved.id}`);
     } else {
       ElMessage.success(isEdit.value ? '保存成功' : '创建成功');
-      router.push('/house/rent');
+      router.push(rentalListPath(route.query.source));
     }
   } catch {
     // 请求层显示失败原因；只有保存成功后才改变托管状态。
@@ -576,7 +577,7 @@ async function toggleManagement() {
         <div class="page-desc">{{ isEdit ? '修改出租房源基本信息与房间明细' : '填写出租房源基本信息与房间明细' }}</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-default" @click="router.push('/house/rent')">返回</button>
+        <button class="btn btn-default" @click="router.push(rentalListPath(route.query.source))">返回</button>
         <button class="btn btn-primary" :disabled="submitting || loading || !!loadError" @click="submit()">保存</button>
       </div>
     </div>

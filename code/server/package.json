@@ -16,6 +16,7 @@
     "migration:generate": "npm run typeorm -- migration:generate ./src/database/migrations/$npm_config_name",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert",
+    "recalculate:lease-plans": "node --env-file=.env -r ts-node/register scripts/recalculate-lease-plans.ts",
     "seed": "ts-node ./src/database/seeds/main.seed.ts",
     "migrate:permission-tree": "node ./scripts/migrate-permission-tree.js"
   },

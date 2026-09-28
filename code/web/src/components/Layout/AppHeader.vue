@@ -10,7 +10,7 @@ const router = useRouter();
 const userStore = useUserStore();
 const emit = defineEmits<{ 'toggle-sidebar': [] }>();
 
-const breadcrumbs = computed(() => getBreadcrumbs(route.path, route.meta?.title));
+const breadcrumbs = computed(() => getBreadcrumbs(route.path, route.meta?.title, route.query.source));
 
 const user = computed(() => userStore.userInfo ?? { name: '用户' });
 const initials = computed(() => {

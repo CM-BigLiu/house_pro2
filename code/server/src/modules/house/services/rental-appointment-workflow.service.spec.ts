@@ -29,6 +29,30 @@ const user: any = { employeeId: 7, name: '当前经纪人', dataScope: 'self', s
 const contract = { leaseStart: '2026-10-01', leaseEnd: '2027-09-30', rent: 4500, deposit: 4500, paymentMethod: 'monthly' };
 
 describe('Rental appointment workflow', () => {
+  it('signs directly from a property without creating a viewing and rejects a second contract', async () => {
+    const test = setup();
+    const input = { ...contract, tenantName: '直接成交客户', tenantPhone: '13800001234' };
+    const deal = await test.service.signProperty(4, input, user);
+    expect(deal).toMatchObject({ propertyId: 4, rentalAppointmentId: null, workflowType: 'regular', responsibleEmployeeId: 7, amount: 4500 });
+    expect(test.repo.save).not.toHaveBeenCalled();
+    expect(test.actionRepo.save).not.toHaveBeenCalled();
+    expect(test.rentalQb.setLock).toHaveBeenCalledWith('pessimistic_write');
+    await expect(test.service.signProperty(4, input, user)).rejects.toMatchObject({ status: 409 });
+  });
+  it('prefills owner details only for the creator or administrator', async () => {
+    const test = setup({ rental: { creatorId: 99, landlordName: '受限业主', landlordIdCard: '110101199001011234', rent: '3200.50' } });
+    const restricted = await test.service.propertySigningContext(4, user);
+    expect(restricted.defaults.rent).toBe(3200.5);
+    expect(restricted.defaults.details).not.toHaveProperty('ownerName');
+    const own = await test.service.propertySigningContext(4, { ...user, employeeId: 99 });
+    expect(own.defaults.details.ownerName).toBe('受限业主');
+  });
+  it('enforces property scope for direct signing', async () => {
+    const test = setup();
+    test.rentalQb.getOne.mockResolvedValue(null);
+    await expect(test.service.signProperty(4, { ...contract, tenantName: '客户', tenantPhone: '13800001234' }, user)).rejects.toMatchObject({ status: 403 });
+    expect(test.setRepo.save).not.toHaveBeenCalled();
+  });
   it('returns the authorized customer contact and selects managed-tenant contract fields', async () => {
     const test = setup({ rental: { isManaged: true }, appointment: { customerName: '旧姓名', propertyName: '约看房屋地址' } });
     const result = await test.service.signingContext(5, user);

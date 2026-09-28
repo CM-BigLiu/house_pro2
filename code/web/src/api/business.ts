@@ -80,6 +80,7 @@ export interface ConfigurationItem {
   type: string;
   amount: number;
   recipient: string;
+  recipientEmployeeId?: number;
   channel: string;
   remark: string;
 }
@@ -168,6 +169,10 @@ export const setOpeningBalance = (code: string, amount: number) =>
   post(`${root}/accounts/${code}/opening`, { amount });
 export const getPropertyConfiguration = (id: number) =>
   get<{ items: ConfigurationItem[] }>(`${root}/properties/${id}/configuration`);
+export const getConfigurationEmployees = (id: number) =>
+  get<{ id: number; name: string; code: string }[]>(`${root}/properties/${id}/configuration-employees`);
+export const getDelegationContext = (id: number) =>
+  get<{ leaseStart: string; leaseEnd: string; amount: number; deposit: number; paymentMethod: string; details: Partial<ContractDetails>; existingContractCode?: string }>(`${root}/properties/${id}/delegation-context`);
 export const savePropertyConfiguration = (
   id: number,
   items: ConfigurationItem[],

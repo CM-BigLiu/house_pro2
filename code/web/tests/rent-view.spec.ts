@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp, nextTick, type App } from 'vue';
 import RentView from '@/views/house/RentView.vue';
 import { createRentalAppointment, followUpRentalAppointment, getRentalAppointmentSigningContext, getRentalAppointments,
-  getRentalSets, recommendRentalAppointment, signRentalAppointment, type RentalAppointment } from '@/api/rental';
+  getRentalSets, getRentalSigningContext, signRentalProperty, recommendRentalAppointment, signRentalAppointment, type RentalAppointment } from '@/api/rental';
 import { getCustomers, type Customer } from '@/api/customer';
 
 const { routerPush } = vi.hoisted(() => ({ routerPush: vi.fn() }));
@@ -40,6 +40,8 @@ vi.mock('@/api/rental', () => ({
   createRentalAppointment: vi.fn(),
   followUpRentalAppointment: vi.fn(),
   getRentalAppointmentSigningContext: vi.fn(),
+  getRentalSigningContext: vi.fn(),
+  signRentalProperty: vi.fn(),
   recommendRentalAppointment: vi.fn(),
   signRentalAppointment: vi.fn(),
 }));
@@ -163,6 +165,22 @@ async function render() {
 }
 
 describe('租房管理页面', () => {
+  it('列表成交预填已有金额，直接提交并禁止已出租房源再次成交', async () => {
+    vi.mocked(getRentalSigningContext).mockResolvedValue({ bizType: 'entire', workflowType: 'regular', propertyAddress: '测试房屋地址', rooms: [],
+      defaults: { tenantName: '测试客户', tenantPhone: '13800001234', leaseStart: '2026-10-01', leaseEnd: '2027-09-30', rent: 3200.5, deposit: 3200,
+        paymentMethod: 'quarterly', details: { ownerName: '测试业主', ownerIdCard: '110101199001011234', ownerPhone: '13800001111', ownerAddress: '业主地址', customerIdCard: '110101199001011235', customerAddress: '客户地址' } } });
+    const root = await render();
+    const buttons = root.querySelectorAll<HTMLButtonElement>('.sign-link');
+    expect([...buttons].some(button => button.disabled)).toBe(true);
+    [...buttons].find(button => !button.disabled)!.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(getRentalSigningContext).toHaveBeenCalledWith(2);
+    const dialog = root.querySelector('section[aria-label="普租成交"]')!;
+    expect(dialog.querySelector<HTMLInputElement>('input[placeholder="元/月"]')?.value).toBe('3200.50');
+    dialog.querySelector<HTMLButtonElement>('.btn-primary')!.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(signRentalProperty).toHaveBeenCalledWith(2, expect.objectContaining({ rent: 3200.5, tenantName: '测试客户', details: expect.objectContaining({ propertyAddress: '测试房屋地址' }) }));
+  });
   it('同时展示整租、合租房间，并对联系电话脱敏', async () => {
     const root = await render();
 
@@ -309,7 +327,7 @@ describe('约看记录业务操作', () => {
 
   it('签约提交租期和金额，并使用原约看的客户', async () => {
     const root = await openRecords();
-    [...root.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent?.trim() === '成交')!.click();
+    [...root.querySelectorAll<HTMLButtonElement>('.appointment-actions button')].find((button) => button.textContent?.trim() === '成交')!.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     const dialog = root.querySelector('section[aria-label="普租成交"]')!;
     expect(dialog.querySelector('form')?.getAttribute('data-label-position')).toBe('top');

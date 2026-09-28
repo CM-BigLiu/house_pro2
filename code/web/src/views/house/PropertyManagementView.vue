@@ -5,6 +5,7 @@ import { Building2, RefreshCw, Search } from 'lucide-vue-next';
 import { getManagedProperties, getManagedTenants, type ManagedProperty, type ManagedTenant } from '@/api/property-management';
 import { useDictStore } from '@/stores/dict';
 import PropertyConfigurationDialog from '@/components/PropertyConfigurationDialog.vue';
+import PropertyDelegationDialog from '@/components/PropertyDelegationDialog.vue';
 
 const router = useRouter();
 const dictStore = useDictStore();
@@ -16,6 +17,11 @@ const loading = ref(false);
 const loadError = ref(false);
 const configurationProperty = ref<ManagedProperty | null>(null);
 const configurationVisible = ref(false);
+const delegationProperty = ref<ManagedProperty | null>(null);
+const delegationVisible = ref(false);
+function rentalRoute(item: ManagedProperty, action = 'detail') {
+  return { path: `/house/rent/${action}/${item.id}`, query: { source: 'property-management' } };
+}
 function configure(item: ManagedProperty) { configurationProperty.value = item; configurationVisible.value = true; }
 const query = reactive({ keyword: '', page: 1, pageSize: 20 });
 let requestId = 0;
@@ -105,9 +111,9 @@ onMounted(() => { load(); void dictStore.ensureLoaded(['room_status']).catch(() 
         <table class="management-table property-table">
           <thead><tr><th>基本信息</th><th>房源状态</th><th>租赁期限（与房东）</th><th>下一次给房东的房租支付时间</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="item in properties" :key="item.id" class="property-row" @dblclick="router.push(`/house/rent/detail/${item.id}`)">
+            <tr v-for="item in properties" :key="item.id" class="property-row" @dblclick="router.push(rentalRoute(item))">
               <td><div class="property-info"><div class="property-icon"><Building2 :size="24" /></div><div>
-                <button class="property-link" @click="router.push(`/house/rent/detail/${item.id}`)">{{ propertyName(item) }}</button>
+                <button class="property-link" @click="router.push(rentalRoute(item))">{{ propertyName(item) }}</button>
                 <div class="property-meta">{{ item.address || '地址未登记' }}</div>
                 <div class="property-meta">{{ item.bizType === 'shared' ? '合租' : '整租' }} · {{ item.layout || '户型未登记' }}<template v-if="item.buildingArea"> · {{ item.buildingArea }}㎡</template></div>
                 <small class="property-code">{{ item.code }}</small>
@@ -115,7 +121,11 @@ onMounted(() => { load(); void dictStore.ensureLoaded(['room_status']).catch(() 
               <td><span :class="['status-pill', { rented: item.status === 'rented' }]">{{ statusLabel(item.status) }}</span></td>
               <td><template v-if="item.leaseStart || item.leaseEnd"><div>{{ item.leaseStart || '开始日期未登记' }}</div><div class="date-end">至 {{ item.leaseEnd || '结束日期未登记' }}</div></template><span v-else class="muted">租期未登记</span></td>
               <td><span v-if="item.nextLandlordPaymentDate" :class="{ 'payment-overdue': overdue(item.nextLandlordPaymentDate) }">{{ item.nextLandlordPaymentDate }}<small v-if="overdue(item.nextLandlordPaymentDate)" class="overdue-tag">逾期</small></span><span v-else class="muted">未生成租金账单</span></td>
-              <td><button v-permission="['renting:edit']" class="btn btn-ghost btn-sm" @click.stop="configure(item)">配置</button></td>
+              <td @dblclick.stop><div class="management-actions">
+                <button v-permission="['renting:edit']" class="btn btn-default btn-sm" @click.stop="router.push(rentalRoute(item, 'edit'))">编辑</button>
+                <button v-permission="['renting:edit']" class="btn btn-default btn-sm" @click.stop="delegationProperty = item; delegationVisible = true">成交</button>
+                <button v-permission="['renting:edit']" class="btn btn-default btn-sm" @click.stop="configure(item)">配置</button>
+              </div></td>
             </tr>
             <tr v-if="!loading && !properties.length"><td colspan="5" class="empty-state">暂无符合条件的托管房源</td></tr>
           </tbody>
@@ -133,11 +143,13 @@ onMounted(() => { load(); void dictStore.ensureLoaded(['room_status']).catch(() 
       <footer class="management-pagination"><el-pagination v-model:current-page="query.page" v-model:page-size="query.pageSize" :total="total" :page-sizes="[20, 50, 100]" layout="total, sizes, prev, pager, next" @current-change="load" @size-change="search" /></footer>
     </section>
     <PropertyConfigurationDialog v-model:visible="configurationVisible" :property-id="configurationProperty?.id || null" :property-name="configurationProperty ? propertyName(configurationProperty) : ''" @completed="load" />
+    <PropertyDelegationDialog v-model:visible="delegationVisible" :property="delegationProperty" @completed="load" />
   </div>
 </template>
 
 <style scoped>
 .management-page { display: grid; gap: 20px; }
+.management-actions { display: flex; flex-wrap: wrap; gap: 7px; min-width: 120px; }
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .page-title { font-size: 22px; margin: 0 0 6px; }
 .page-desc { margin: 0; font-size: 13px; color: var(--ink-400); }

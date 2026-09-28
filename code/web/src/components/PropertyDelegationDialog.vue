@@ -3,10 +3,12 @@ import { reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import {
   delegateProperty,
+  getDelegationContext,
   emptyContractDetails,
   validateContractDetails,
 } from '@/api/business';
 import ContractBusinessFields from './ContractBusinessFields.vue';
+import MoneyInput from './MoneyInput.vue';
 import { useDictStore } from '@/stores/dict';
 const props = defineProps<{
   visible: boolean;
@@ -22,6 +24,8 @@ const emit = defineEmits(['update:visible', 'completed']);
 const dict = useDictStore(),
   busy = ref(false),
   error = ref('');
+const loading = ref(false), failed = ref(false), existingContractCode = ref('');
+let generation = 0;
 const form = reactive({
   leaseStart: '',
   leaseEnd: '',
@@ -31,10 +35,14 @@ const form = reactive({
   details: emptyContractDetails(),
 });
 watch(
-  () => props.visible,
-  (value) => {
-    if (!value) return;
+  () => [props.visible, props.property?.id],
+  async () => {
+    const current = ++generation;
+    if (!props.visible || !props.property) return;
     error.value = '';
+    existingContractCode.value = '';
+    loading.value = true;
+    failed.value = false;
     Object.assign(form, {
       leaseStart: '',
       leaseEnd: '',
@@ -50,16 +58,23 @@ watch(
       props.property?.code ||
       '';
     void dict.ensureLoaded(['payment_method']);
+    try {
+      const context = await getDelegationContext(props.property.id);
+      if (current !== generation) return;
+      Object.assign(form, context, { details: { ...emptyContractDetails(), ...context.details } });
+      existingContractCode.value = context.existingContractCode || '';
+    } catch { if (current === generation) { failed.value = true; error.value = '房源资料加载失败，请关闭后重试'; } }
+    finally { if (current === generation) loading.value = false; }
   },
 );
 async function submit() {
-  if (busy.value || !props.property) return;
+  if (busy.value || loading.value || failed.value || !props.property) return;
   error.value = validateContractDetails(form.details, 'management');
   if (
     !form.leaseStart ||
     !form.leaseEnd ||
     form.leaseEnd < form.leaseStart ||
-    form.amount <= 0
+    !Number.isFinite(form.amount) || form.amount <= 0 || !Number.isFinite(form.deposit) || form.deposit < 0
   )
     error.value = '请填写有效租赁期限及成交月租';
   if (error.value) return;
@@ -79,6 +94,8 @@ async function submit() {
 <template>
   <el-dialog
     :model-value="visible"
+    class="business-dialog"
+    top="5vh"
     title="房管房委托成交"
     width="min(800px,94vw)"
     :close-on-click-modal="false"
@@ -90,7 +107,8 @@ async function submit() {
     "
   >
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
-    <el-form :model="form" label-position="top"
+    <el-alert v-if="existingContractCode" :title="`已带入生效委托合同 ${existingContractCode} 的资料；新增合同租期不能与已有合同重叠。`" type="info" :closable="false" />
+    <el-form v-loading="loading" :model="form" label-position="top"
       ><ContractBusinessFields :details="form.details" mode="management" />
       <el-form-item label="成交合同号"
         ><el-input disabled placeholder="电子编码提交后自动生成"
@@ -110,16 +128,14 @@ async function submit() {
               value-format="YYYY-MM-DD" /></el-form-item></el-col
         ><el-col :span="12"
           ><el-form-item label="成交金额（元/月）" required
-            ><el-input-number
+            ><MoneyInput
               v-model="form.amount"
-              :min="0.01"
-              :precision="2" /></el-form-item></el-col
+              unit="元/月" /></el-form-item></el-col
         ><el-col :span="12"
           ><el-form-item label="押金（元）"
-            ><el-input-number
+            ><MoneyInput
               v-model="form.deposit"
-              :min="0"
-              :precision="2" /></el-form-item></el-col
+               /></el-form-item></el-col
       ></el-row>
       <el-form-item label="付款方式" required
         ><el-select v-model="form.paymentMethod"
@@ -130,13 +146,13 @@ async function submit() {
             :label="item.label" /></el-select
       ></el-form-item>
       <p class="hint">
-        免租从各合同年度开始日计算；不足整月按合同月实际天数折算。提交后自动生成各期应付计划。
+        免租从各合同年度开始日计算；整月按月租，免租后或不足整月的零散天数按月租÷30折算。提交后自动生成各期应付计划。
       </p>
     </el-form>
     <template #footer
       ><el-button :disabled="busy" @click="emit('update:visible', false)"
         >取消</el-button
-      ><el-button type="primary" :loading="busy" @click="submit"
+      ><el-button type="primary" :loading="busy" :disabled="loading || failed" @click="submit"
         >直接提交</el-button
       ></template
     >

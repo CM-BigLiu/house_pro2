@@ -13,6 +13,7 @@ import { Deal } from '../entities/deal.entity';
 import { Customer } from '../entities/customer.entity';
 import { ContractDetails } from '../entities/contract-details';
 import { BusinessWorkflowService } from '../../finance/services/business-workflow.service';
+import { canAccessRentalLandlord } from '../../../common/utils/rental-privacy.util';
 
 type CreateRentalAppointmentInput = {
   rentalSetId: number;
@@ -195,6 +196,31 @@ export class RentalAppointmentService {
   }
 
   async sign(id: number, input: SignRentalAppointmentInput, user: CurrentUserPayload) {
+    return this.executeSign(id, input, user);
+  }
+
+  async propertySigningContext(id: number, user: CurrentUserPayload) {
+    const qb = this.rentalSetRepo.createQueryBuilder('rentalSet').where('rentalSet.id = :id', { id });
+    applyDataScope(qb, user, 'rentalSet', { ownerField: 'creatorId', groupField: 'groupId', storeField: 'storeId' });
+    const rental = await qb.leftJoinAndSelect('rentalSet.rooms', 'rooms').getOne();
+    if (!rental) throw new ForbiddenException('房源不存在或无权签约');
+    const owner = canAccessRentalLandlord(rental, user);
+    return { bizType: rental.bizType, workflowType: rental.isManaged ? 'tenant' : 'regular',
+      propertyAddress: [rental.address, rental.building && `${rental.building}栋`, rental.unit && `${rental.unit}单元`, rental.roomNo && `${rental.roomNo}室`].filter(Boolean).join(' '),
+      defaults: { tenantName: rental.tenantName || '', tenantPhone: rental.tenantPhone || '',
+        leaseStart: rental.tenantLeaseStart || '', leaseEnd: rental.tenantLeaseEnd || '',
+        rent: Number(rental.rent || 0), deposit: Number(rental.deposit || 0), paymentMethod: rental.tenantPaymentMethod || '',
+        details: { customerIdCard: rental.tenantIdCard || '',
+          ...(owner ? { ownerName: rental.landlordName || '', ownerPhone: rental.landlordPhone || '', ownerIdCard: rental.landlordIdCard || '' } : {}) } },
+      rooms: (rental.rooms || []).map(room => ({ id: room.id, roomNo: room.roomNo, status: room.status,
+        rent: Number(room.rentPrice || room.listedPrice || 0), deposit: Number(room.depositAmount || 0), paymentMethod: room.paymentMethod || '' })) };
+  }
+
+  async signProperty(id: number, input: SignRentalAppointmentInput, user: CurrentUserPayload) {
+    return this.executeSign(null, input, user, id);
+  }
+
+  private async executeSign(id: number | null, input: SignRentalAppointmentInput, user: CurrentUserPayload, propertyId?: number) {
     if (input.details) this.business?.validateDetails(input.details);
     const validDate = (value: string) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
       Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
@@ -208,7 +234,9 @@ export class RentalAppointmentService {
     try {
       return await this.appointmentRepo.manager.transaction(async (manager) => {
         const repo = manager.getRepository(RentalAppointment);
-        const appointment = await this.findScoped(id, user, repo, true);
+        // 列表成交与约看成交共用同一事务；直接成交不生成虚假的约看记录。
+        const appointment = id != null ? await this.findScoped(id, user, repo, true)
+          : repo.create({ rentalSetId: propertyId, customerId: null });
         if (appointment.status === 'signed') throw new ConflictException('该约看已签约，请勿重复提交');
         if (appointment.status === 'cancelled') throw new BadRequestException('已取消的约看不能签约');
         const customer = appointment.customerId ? await this.customerService.findOne(appointment.customerId, user) : null;
@@ -223,6 +251,9 @@ export class RentalAppointmentService {
         applyDataScope(qb, user, 'rentalSet', { ownerField: 'creatorId', groupField: 'groupId', storeField: 'storeId' });
         const rental = await qb.setLock('pessimistic_write').getOne();
         if (!rental) throw new ForbiddenException('房源不存在或无权签约');
+        if (id == null) Object.assign(appointment, { propertyCode: rental.code,
+          propertyName: input.details?.propertyAddress || rental.title || rental.address || rental.code,
+          storeId: rental.storeId, groupId: rental.groupId });
         if (this.business) this.business.validateRentalDetails(input.details || {}, rental.isManaged);
         if (!['active', 'vacant', 'reserved', 'rented'].includes(rental.status)) throw new BadRequestException('该房源当前状态不能签约');
         const roomId = appointment.rentalRoomId || input.rentalRoomId;
@@ -252,17 +283,19 @@ export class RentalAppointmentService {
         appointment.contractCode = input.details ? `HT${Date.now()}${randomUUID().slice(0, 8)}` : input.contractCode?.trim() || `HT${Date.now()}${randomUUID().slice(0, 8)}`;
         appointment.signedAt = new Date();
         appointment.customerName = tenantName;
-        await repo.save(appointment);
-        await this.saveAction(manager, id, 'sign', input.remark?.trim() || '约看签约', user, {
+        if (id != null) {
+          await repo.save(appointment);
+          await this.saveAction(manager, id, 'sign', input.remark?.trim() || '约看签约', user, {
           contractCode: appointment.contractCode, leaseStart: input.leaseStart, leaseEnd: input.leaseEnd,
           rent: input.rent, deposit: input.deposit, paymentMethod: input.paymentMethod,
         });
+        }
         const dealRepo = manager.getRepository(Deal);
         const deal = await dealRepo.save(dealRepo.create({ contractCode: appointment.contractCode, bizType: 'rent',
           workflowType: rental.isManaged ? 'tenant' : 'regular', details: input.details,
           customerId: appointment.customerId, customerName: tenantName, customerPhone: tenantPhone,
           propertyId: rental.id, roomId: appointment.rentalRoomId || null, propertyCode: appointment.propertyCode,
-          propertyName: appointment.propertyName, rentalAppointmentId: appointment.id, signedAt: appointment.signedAt,
+          propertyName: appointment.propertyName, rentalAppointmentId: id == null ? null : appointment.id, signedAt: appointment.signedAt,
           amount: input.rent, deposit: input.deposit, leaseStart: input.leaseStart, leaseEnd: input.leaseEnd,
           paymentMethod: input.paymentMethod, responsibleEmployeeId: user.employeeId,
           responsibleEmployeeName: user.name, storeId: appointment.storeId, groupId: appointment.groupId,
@@ -274,7 +307,7 @@ export class RentalAppointmentService {
         }
         if (appointment.customerId) await manager.getRepository(Customer).update(appointment.customerId,
           { status: 'done', relatedPropertyCode: appointment.propertyCode, contractEndDate: input.leaseEnd });
-        return appointment;
+        return id == null ? deal : appointment;
       });
     } catch (error) {
       if (error?.code === '23505') throw new ConflictException('合同编号已存在');

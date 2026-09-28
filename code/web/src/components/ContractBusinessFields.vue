@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ContractDetails } from '@/api/business';
+import MoneyInput from './MoneyInput.vue';
 defineProps<{
   details: ContractDetails;
   mode: 'regular' | 'tenant' | 'management';
@@ -109,10 +110,9 @@ defineProps<{
     <template v-else>
       <el-col :xs="24" :sm="8"
         ><el-form-item label="佣金金额（元）" required
-          ><el-input-number
+          ><MoneyInput
             v-model="details.commissionAmount"
-            :min="0"
-            :precision="2" /></el-form-item
+             /></el-form-item
       ></el-col>
     </template>
     <el-col :xs="24" :sm="8"

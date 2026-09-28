@@ -102,6 +102,28 @@ const payment = {
 };
 
 describe('业务工作流校验与记账', () => {
+  const configurationItems = () => ['cleaning', 'repair', 'renovation', 'furniture', 'appliance', 'collection_bonus', 'rental_bonus'].map(type => ({ type, amount: type === 'collection_bonus' ? 100.25 : 0, recipientEmployeeId: type === 'collection_bonus' ? 7 : undefined, recipient: '伪造姓名', channel: 'cash', remark: '' }));
+  it('奖励使用员工主键校验并保存真实姓名', async () => {
+    const { service, repos } = setup();
+    repos.get(RentalSet).qb.getOne.mockResolvedValue({ isManaged: true, storeId: 1 });
+    repos.get(Employee).find.mockResolvedValue([{ id: 7, name: '真实员工', status: 'normal', stores: [], groups: [] }]);
+    const result = await service.saveConfiguration(8, configurationItems(), user);
+    expect(result.items.find(row => row.type === 'collection_bonus')).toMatchObject({ recipientEmployeeId: 7, recipient: '真实员工', amount: 100.25 });
+  });
+  it('不能给停用或数据范围外的员工配置奖励', async () => {
+    const { service, repos } = setup();
+    repos.get(RentalSet).qb.getOne.mockResolvedValue({ isManaged: true, storeId: 1 });
+    repos.get(Employee).find.mockResolvedValue([{ id: 7, name: '停用员工', status: 'disabled', stores: [], groups: [] }]);
+    await expect(service.saveConfiguration(8, configurationItems(), user)).rejects.toMatchObject({ status: 403 });
+    expect(repos.get(PropertyConfiguration).save).not.toHaveBeenCalled();
+  });
+  it.each([-1, 1.234, Number.NaN, '12', '1e3'])('配置金额拒绝非法输入 %s', async amount => {
+    const { service, ds } = setup();
+    const items = configurationItems();
+    items[0].amount = amount as any;
+    await expect(service.saveConfiguration(8, items, user)).rejects.toMatchObject({ status: 400 });
+    expect(ds.transaction).not.toHaveBeenCalled();
+  });
   it('合同详情使用UTF-8往返加密，不存储明文身份证和账号', () => {
     const encrypted = contractDetailsTransformer.to(details);
     expect(encrypted).toMatch(/^enc:/);
@@ -305,11 +327,11 @@ describe('业务工作流校验与记账', () => {
     expect(list[0]).toMatchObject({
       employeeId: 7,
       employeeCode: '000007',
-      management: { amount: 1800 },
+      management: { amount: 1730 },
     });
     expect(list[0].management.details[0]).toMatchObject({
       premium: 1000,
-      freeAmount: 1000,
+      freeAmount: 930,
       costs: 200,
     });
   });

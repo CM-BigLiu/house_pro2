@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useUserStore } from '@/stores/user';
+import { activeMenuPath } from '@/router/rental-origin';
 import {
   LayoutDashboard,
   Building2,
@@ -38,7 +39,8 @@ function iconFor(name?: string) {
 
 function isActive(path?: string) {
   if (!path) return false;
-  return route.path === path || route.path.startsWith(path + '/');
+  const current = activeMenuPath(route.path, route.query.source);
+  return current === path || current.startsWith(path + '/');
 }
 
 function onTopClick(menu: any) {

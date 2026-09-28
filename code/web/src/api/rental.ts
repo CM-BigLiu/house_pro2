@@ -217,6 +217,16 @@ export function getRentalAppointmentSigningContext(id: number) {
   return get<{ bizType: string; workflowType?: 'regular' | 'tenant'; propertyAddress?: string; customerName?: string; customerPhone?: string; rooms: Pick<RentalRoom, 'id' | 'roomNo' | 'status'>[] }>(`/house/rental-appointments/${id}/signing-context`);
 }
 
+export interface RentalSigningContext {
+  bizType: string;
+  workflowType: 'regular' | 'tenant';
+  propertyAddress: string;
+  defaults: { tenantName: string; tenantPhone: string; leaseStart: string; leaseEnd: string; rent: number; deposit: number; paymentMethod: string; details: Partial<import('./business').ContractDetails> };
+  rooms: { id: number; roomNo: string; status: string; rent: number; deposit: number; paymentMethod: string }[];
+}
+export const getRentalSigningContext = (id: number) => get<RentalSigningContext>(`/house/rental-appointments/properties/${id}/signing-context`);
+export const signRentalProperty = (id: number, data: RentalAppointmentSignInput) => post(`/house/rental-appointments/properties/${id}/sign`, data);
+
 export function signRentalAppointment(id: number, data: RentalAppointmentSignInput) {
   return post<RentalAppointment>(`/house/rental-appointments/${id}/sign`, data);
 }

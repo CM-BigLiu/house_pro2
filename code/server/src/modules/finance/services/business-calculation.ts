@@ -66,7 +66,7 @@ export function addDays(value: string, count: number) {
 const days = (start: string, end: string) =>
   (Date.parse(end) - Date.parse(start)) / 86400000;
 
-/** 每月按合同月计算；不足一个合同月按该月实际天数折算，免租从各合同年度起始日扣除。 */
+/** 整个合同月收取月租；免租后或租期截断的零散天数按月租 / 30 折算。 */
 export function leaseAmount(
   start: string,
   end: string,
@@ -92,7 +92,10 @@ export function leaseAmount(
       if (overlapStart < overlapEnd)
         payableDays -= days(overlapStart, overlapEnd);
     });
-    total += (cents(rent) * Math.max(0, payableDays)) / days(a, b);
+    const fullMonth = left === a && right === b && payableDays === days(a, b);
+    total += fullMonth
+      ? cents(rent)
+      : (cents(rent) * Math.max(0, payableDays)) / 30;
   }
   return money(total);
 }

@@ -72,6 +72,7 @@ export class PropertyConfiguration {
     type: string;
     amount: number;
     recipient?: string;
+    recipientEmployeeId?: number;
     channel?: string;
     remark: string;
   }[];

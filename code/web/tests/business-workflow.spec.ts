@@ -11,6 +11,7 @@ import {
   getCompanyCashFlow,
   getBusinessSubmissions,
   getPropertyConfiguration,
+  getConfigurationEmployees,
   reviewBusinessSubmission,
   savePropertyConfiguration,
   settleSchedule,
@@ -32,6 +33,7 @@ vi.mock('@/api/business', async (original) => ({
   getCompanyCashFlow: vi.fn(),
   getBusinessSubmissions: vi.fn(),
   getPropertyConfiguration: vi.fn(),
+  getConfigurationEmployees: vi.fn(),
   reviewBusinessSubmission: vi.fn(),
   savePropertyConfiguration: vi.fn(),
   settleSchedule: vi.fn(),
@@ -79,6 +81,7 @@ beforeEach(() => {
     overdue: [],
   });
   vi.mocked(getPropertyConfiguration).mockResolvedValue({ items: [] });
+  vi.mocked(getConfigurationEmployees).mockResolvedValue([{ id: 7, name: '真实员工', code: '000007' }]);
   vi.mocked(getCompanyCashFlow).mockResolvedValue({
     accounts: ['bank_ccb', 'bank_rural', 'wechat', 'cash', 'corporate'].map(
       (code, i) => ({
@@ -185,11 +188,11 @@ async function mount(component: any, props: any = {}) {
     props: { modelValue: [String, Number], allowCreate: Boolean },
     emits: ['update:modelValue'],
     template:
-      '<input v-if="allowCreate" :value="modelValue" @input="$emit(`update:modelValue`, $event.target.value)"/><select v-else :value="modelValue" @change="$emit(`update:modelValue`, $event.target.value)"><slot/></select>',
+      '<input v-if="allowCreate" :value="modelValue" @input="$emit(`update:modelValue`, $event.target.value)"/><select v-else :value="modelValue" @change="$emit(`update:modelValue`, $event.target.selectedOptions[0]?.dataset.numeric === `true` ? Number($event.target.value) : $event.target.value)"><slot/></select>',
   });
   app.component('ElOption', {
     props: ['value', 'label'],
-    template: '<option :value="value">{{label}}</option>',
+    template: '<option :value="value" :data-numeric="typeof value === `number`">{{label}}</option>',
   });
   app.component('ElAlert', {
     props: ['title'],
@@ -337,6 +340,22 @@ describe('房管房支付、现金与财务审核界面', () => {
       'return',
       '补充付款资料',
     );
+  });
+
+  it('配置使用员工下拉并提交员工主键，非法金额禁止提交', async () => {
+    const root = await mount(PropertyConfigurationDialog, { visible: true, propertyId: 8 });
+    expect(getConfigurationEmployees).toHaveBeenCalledWith(8);
+    const rows = root.querySelectorAll('.configuration-row');
+    const input = rows[5].querySelector<HTMLInputElement>('input')!;
+    input.value = '12.345'; input.dispatchEvent(new Event('input')); await flush();
+    button(root, '直接提交').click(); await flush();
+    expect(savePropertyConfiguration).not.toHaveBeenCalled();
+    input.value = '123.45'; input.dispatchEvent(new Event('input'));
+    const select = rows[5].querySelector<HTMLSelectElement>('select')!;
+    expect(select.textContent).toContain('真实员工');
+    select.value = '7'; select.dispatchEvent(new Event('change')); await flush();
+    button(root, '直接提交').click(); await flush();
+    expect(savePropertyConfiguration).toHaveBeenCalledWith(8, expect.arrayContaining([expect.objectContaining({ type: 'collection_bonus', amount: 123.45, recipientEmployeeId: 7 })]));
   });
 
   it('配置加载失败不能用默认零费用覆盖原配置', async () => {

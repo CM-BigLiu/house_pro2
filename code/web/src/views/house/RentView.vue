@@ -22,6 +22,9 @@ import {
   createRentalAppointment,
   followUpRentalAppointment,
   getRentalAppointmentSigningContext,
+  getRentalSigningContext,
+  signRentalProperty,
+  type RentalSigningContext,
   recommendRentalAppointment,
   signRentalAppointment,
   deleteRentalSet,
@@ -80,6 +83,9 @@ const workflowRecord = ref<RentalAppointment>();
 const followUpVisible = ref(false);
 const followUpContent = ref('');
 const signVisible = ref(false);
+const directSigningProperty = ref<RentalSet>();
+const directSigningContext = ref<RentalSigningContext>();
+let signingGeneration = 0;
 const signingContext = ref<Awaited<ReturnType<typeof getRentalAppointmentSigningContext>>>();
 const signingContextLoading = ref(false);
 const signingContextError = ref(false);
@@ -340,6 +346,9 @@ async function submitFollowUp() {
 }
 
 async function openSign(record: RentalAppointment) {
+  const current = ++signingGeneration;
+  directSigningProperty.value = undefined;
+  directSigningContext.value = undefined;
   workflowRecord.value = record;
   Object.assign(signForm, { rentalRoomId: record.rentalRoomId, contractCode: '', tenantName: '', tenantPhone: '',
     leaseStart: '', leaseEnd: '', rent: '', deposit: '0', paymentMethod: '', remark: '', details: emptyContractDetails() });
@@ -348,13 +357,45 @@ async function openSign(record: RentalAppointment) {
   signingContextError.value = false;
   signingContextLoading.value = true;
   signVisible.value = true;
-  try { signingContext.value = await getRentalAppointmentSigningContext(record.id); }
-  catch { signingContextError.value = true; }
-  finally { signingContextLoading.value = false; }
+  try { const context = await getRentalAppointmentSigningContext(record.id); if (current === signingGeneration) signingContext.value = context; }
+  catch { if (current === signingGeneration) signingContextError.value = true; }
+  finally { if (current === signingGeneration) signingContextLoading.value = false; }
+}
+
+function canSignProperty(item: RentalSet, room?: RentalRoom) {
+  if (!['active', 'vacant', 'reserved', 'rented'].includes(item.status)) return false;
+  if (room) return ['vacant', 'reserved'].includes(room.status);
+  return item.bizType === 'shared' ? item.rooms?.some(room => ['vacant', 'reserved'].includes(room.status)) : item.status !== 'rented';
+}
+async function openPropertySign(item: RentalSet, room?: RentalRoom) {
+  const current = ++signingGeneration;
+  workflowRecord.value = undefined;
+  directSigningProperty.value = item;
+  directSigningContext.value = undefined;
+  Object.assign(signForm, { rentalRoomId: room?.id, contractCode: '', tenantName: '', tenantPhone: '',
+    leaseStart: '', leaseEnd: '', rent: '', deposit: '0', paymentMethod: '', remark: '', details: emptyContractDetails() });
+  signingContext.value = undefined;
+  signingContextError.value = false;
+  signingContextLoading.value = true;
+  signVisible.value = true;
+  try {
+    const context = await getRentalSigningContext(item.id);
+    if (current !== signingGeneration) return;
+    signingContext.value = context;
+    directSigningContext.value = context;
+    Object.assign(signForm, context.defaults, { rent: context.defaults.rent.toFixed(2), deposit: context.defaults.deposit.toFixed(2),
+      details: { ...emptyContractDetails(), ...context.defaults.details, propertyAddress: context.propertyAddress } });
+    if (room) prefillSigningRoom(room.id);
+  } catch { if (current === signingGeneration) signingContextError.value = true; }
+  finally { if (current === signingGeneration) signingContextLoading.value = false; }
+}
+function prefillSigningRoom(id: number) {
+  const room = directSigningContext.value?.rooms.find(room => room.id === id);
+  if (room) Object.assign(signForm, { rent: room.rent.toFixed(2), deposit: room.deposit.toFixed(2), paymentMethod: room.paymentMethod });
 }
 
 async function submitSign() {
-  if (workflowSubmitting.value || signingContextLoading.value || signingContextError.value || !workflowRecord.value) return;
+  if (workflowSubmitting.value || signingContextLoading.value || signingContextError.value || (!workflowRecord.value && !directSigningProperty.value)) return;
   const detailsError = validateContractDetails(signForm.details, signingContext.value?.workflowType === 'tenant' ? 'tenant' : 'regular');
   if (detailsError) { ElMessage.info(detailsError); return; }
   if (!signForm.leaseStart || !signForm.leaseEnd || signForm.leaseStart > signForm.leaseEnd) {
@@ -366,17 +407,19 @@ async function submitSign() {
   if (!signForm.paymentMethod || (signingContext.value?.bizType === 'shared' && !signForm.rentalRoomId)) {
     ElMessage.info('请选择付款方式及签约房间'); return;
   }
-  if (!workflowRecord.value.customerId && (!signForm.tenantName.trim() || !/^1\d{10}$/.test(signForm.tenantPhone))) {
+  if (!workflowRecord.value?.customerId && (!signForm.tenantName.trim() || !/^1\d{10}$/.test(signForm.tenantPhone))) {
     ElMessage.info('请填写租客姓名和有效手机号'); return;
   }
   workflowSubmitting.value = true;
   try {
-    await signRentalAppointment(workflowRecord.value.id, { ...signForm, rent: Number(signForm.rent), deposit: Number(signForm.deposit),
+    const payload = { ...signForm, rent: Number(signForm.rent), deposit: Number(signForm.deposit),
       contractCode: signForm.contractCode.trim() || undefined, tenantName: signForm.tenantName.trim() || undefined,
-      tenantPhone: signForm.tenantPhone || undefined });
+      tenantPhone: signForm.tenantPhone || undefined };
+    if (directSigningProperty.value) await signRentalProperty(directSigningProperty.value.id, payload);
+    else await signRentalAppointment(workflowRecord.value!.id, payload);
     signVisible.value = false;
     ElMessage.success('签约已保存，出租信息已更新');
-    await Promise.all([loadAppointments(), load()]);
+    await Promise.all([...(appointmentRecordsVisible.value ? [loadAppointments()] : []), load()]);
   } finally { workflowSubmitting.value = false; }
 }
 
@@ -779,6 +822,7 @@ function exportCurrent() {
           <div class="center-cell"><strong>{{ employeeName(item.housekeeperId || item.salesmanId) }}</strong><small>{{ storeName(item.storeId) }}</small></div>
           <div class="operation-cell">
             <button class="action-link" @click="openDetail(item)">详情</button>
+            <button v-permission="['renting:appointment:sign']" class="action-link sign-link" :disabled="!canSignProperty(item)" @click="openPropertySign(item)">成交</button>
             <button v-permission="['renting:appointment:create']" class="action-link appointment-link" @click="openAppointment(item)">约看</button>
             <button v-if="item.canViewLandlordInfo !== false" v-permission="['renting:edit']" class="action-link" @click="delegationProperty = item; delegationVisible = true">房管房</button>
             <button v-permission="['renting:edit']" class="action-link" @click="editSet(item)">编辑</button>
@@ -931,13 +975,13 @@ function exportCurrent() {
     </el-dialog>
 
     <PropertyDelegationDialog v-model:visible="delegationVisible" :property="delegationProperty" @completed="load" />
-    <el-dialog v-model="signVisible" :title="signingContext?.workflowType === 'tenant' ? '承租成交' : '普租成交'" width="min(760px, 94vw)" top="6vh" destroy-on-close>
+    <el-dialog v-model="signVisible" class="business-dialog" :title="signingContext?.workflowType === 'tenant' ? '承租成交' : '普租成交'" width="min(760px, 94vw)" top="5vh" destroy-on-close :close-on-click-modal="false" :show-close="!workflowSubmitting" :close-on-press-escape="!workflowSubmitting">
       <el-form v-loading="signingContextLoading" :model="signForm" label-position="top" class="signing-form" @submit.prevent>
-        <div class="appointment-property"><strong>{{ workflowRecord?.propertyName }}</strong><small>客户：{{ signingContext?.customerName || workflowRecord?.customerName || '请填写租客信息' }} · {{ signingContext?.customerPhone || '电话未登记' }}</small></div>
+        <div class="appointment-property"><strong>{{ directSigningProperty ? formatPropertyName(directSigningProperty) : workflowRecord?.propertyName }}</strong><small>客户：{{ signingContext?.customerName || workflowRecord?.customerName || '请填写租客信息' }} · {{ signingContext?.customerPhone || '电话未登记' }}</small></div>
         <p v-if="signingContextError" role="alert">签约信息加载失败，请关闭后重试。</p>
         <ContractBusinessFields :details="signForm.details" :mode="signingContext?.workflowType === 'tenant' ? 'tenant' : 'regular'" />
         <section class="sign-form-section">
-          <div class="sign-section-heading"><span class="sign-section-index">01</span><div><strong>租客与房源</strong><small>关联约看客户，确认本次签约房间</small></div></div>
+          <div class="sign-section-heading"><span class="sign-section-index">01</span><div><strong>租客与房源</strong><small>{{ directSigningProperty ? '核对客户资料，确认本次签约房间' : '关联约看客户，确认本次签约房间' }}</small></div></div>
           <el-row :gutter="12">
             <template v-if="!workflowRecord?.customerId">
               <el-col :xs="24" :sm="12"><el-form-item label="租客姓名" required><el-input v-model="signForm.tenantName" maxlength="100" placeholder="请输入租客姓名" /></el-form-item></el-col>
@@ -945,7 +989,7 @@ function exportCurrent() {
             </template>
             <el-col v-else :span="24"><div class="sign-customer-tip">签约租客：{{ workflowRecord.customerName }}（自动使用所关联客户的信息）</div></el-col>
             <el-col v-if="signingContext?.bizType === 'shared'" :span="24"><el-form-item label="签约房间" required>
-              <el-select v-model="signForm.rentalRoomId" aria-label="签约房间" placeholder="请选择房间" :disabled="!!workflowRecord?.rentalRoomId">
+              <el-select v-model="signForm.rentalRoomId" aria-label="签约房间" placeholder="请选择房间" :disabled="!!workflowRecord?.rentalRoomId" @change="prefillSigningRoom">
                 <el-option v-for="room in signingContext.rooms" :key="room.id" :value="room.id" :disabled="!['vacant', 'reserved'].includes(room.status)" :label="`${room.roomNo} · ${room.status === 'vacant' ? '可租' : room.status === 'reserved' ? '已定' : '不可签约'}`" />
               </el-select>
             </el-form-item></el-col>
@@ -965,7 +1009,7 @@ function exportCurrent() {
         </section>
       </el-form>
       <template #footer>
-        <button class="btn btn-default" @click="signVisible = false">取消</button>
+        <button class="btn btn-default" :disabled="workflowSubmitting" @click="signVisible = false">取消</button>
         <button class="btn btn-primary" :disabled="workflowSubmitting || signingContextLoading || signingContextError" @click="submitSign">{{ workflowSubmitting ? '保存中…' : '确认签约' }}</button>
       </template>
     </el-dialog>

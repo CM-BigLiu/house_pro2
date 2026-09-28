@@ -1,4 +1,5 @@
 import { asyncRoutes } from './asyncRoutes';
+import { rentalListPath } from './rental-origin';
 
 export interface BreadcrumbItem {
   label: string;
@@ -34,14 +35,16 @@ const breadcrumbMap: Record<string, string> = {
   '/system/log': '操作日志',
 };
 
-export function getBreadcrumbs(path: string, title?: unknown): BreadcrumbItem[] {
+export function getBreadcrumbs(path: string, title?: unknown, source?: unknown): BreadcrumbItem[] {
   const currentName = breadcrumbMap[path] || (typeof title === 'string' ? title : '');
   const segments: BreadcrumbItem[] = [
     { label: '首页', path: path === '/home' ? undefined : '/home' },
   ];
 
   // 新增/编辑是独立路由，route.matched 不含列表页；从同级路由找到真正的父列表。
-  const parentPath = path.replace(/\/(?:create|edit)(?:\/[^/]+)?$/, '');
+  const parentPath = /^\/house\/rent\/(detail|edit)\//.test(path)
+    ? rentalListPath(source)
+    : path.replace(/\/(?:create|edit|detail)(?:\/[^/]+)?$/, '');
   if (parentPath !== path) {
     const parent = asyncRoutes.find(route => route.path === parentPath);
     if (parent?.meta?.title && parentPath !== '/home') {

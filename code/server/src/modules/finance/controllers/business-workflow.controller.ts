@@ -22,6 +22,7 @@ import {
   Min,
 } from 'class-validator';
 import { Audit } from '../../../common/decorators/audit.decorator';
+import { SkipMasking } from '../../../common/decorators/skip-masking.decorator';
 import {
   CurrentUser,
   CurrentUserPayload,
@@ -88,6 +89,17 @@ class ReviewDto {
 @Controller('finance/business')
 export class BusinessWorkflowController {
   constructor(private service: BusinessWorkflowService) {}
+  @Get('properties/:id/delegation-context')
+  @RequirePermission('renting:edit')
+  @SkipMasking()
+  delegationContext(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUserPayload) {
+    return this.service.delegationContext(id, user);
+  }
+  @Get('properties/:id/configuration-employees')
+  @RequirePermission('renting:edit')
+  configurationEmployees(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUserPayload) {
+    return this.service.configurationEmployees(id, user);
+  }
   @Post('properties/:id/delegate')
   @RequirePermission('renting:edit')
   @Audit('finance', 'business:delegate')

@@ -70,6 +70,12 @@
   gap: 8px;
 }
 .el-dialog__footer .el-button + .el-button { margin-left: 0; }
+.el-dialog.business-dialog { padding: 0; border-radius: 12px; overflow: hidden; }
+.business-dialog .el-dialog__header { margin: 0; padding: 18px 52px 18px 24px; background: #f7f9fc; border-bottom: 1px solid var(--ink-200); }
+.business-dialog .el-dialog__title { color: var(--ink-900); font-size: 17px; font-weight: 700; }
+.business-dialog .el-dialog__body { padding: 22px 24px; max-height: calc(90vh - 138px); overflow-y: auto; }
+.business-dialog .el-dialog__footer { padding: 16px 24px; border-top: 1px solid var(--ink-200); background: #f7f9fc; }
+.business-dialog .el-select, .business-dialog .el-date-editor.el-input { width: 100%; }
 .el-message-box__btns { gap: 8px; }
 .el-message-box__btns .el-button + .el-button { margin-left: 0; }
 .form-page .section-title { font-weight: 700; color: var(--ink-900); margin: 20px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--ink-200); }

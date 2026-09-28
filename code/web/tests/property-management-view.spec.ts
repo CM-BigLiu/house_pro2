@@ -7,7 +7,7 @@ import { asyncRoutes } from '@/router/asyncRoutes';
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }));
 vi.mock('@/api/property-management', () => ({ getManagedProperties: vi.fn(), getManagedTenants: vi.fn() }));
-vi.mock('@/stores/dict', () => ({ useDictStore: () => ({ ensureLoaded: vi.fn().mockResolvedValue(undefined), getLabel: (_code: string, value: string) => value }) }));
+vi.mock('@/stores/dict', () => ({ useDictStore: () => ({ ensureLoaded: vi.fn().mockResolvedValue(undefined), getItems: () => [], getLabel: (_code: string, value: string) => value }) }));
 
 let app: App | undefined;
 const flush = async () => { await new Promise(resolve => setTimeout(resolve, 0)); await nextTick(); };
@@ -44,7 +44,11 @@ describe('房管房管理页面', () => {
     expect(root.textContent).toContain('租期未登记'); expect(root.textContent).toContain('未生成租金账单');
     expect(getManagedProperties).toHaveBeenCalledWith({ keyword: '', page: 1, pageSize: 20 });
     root.querySelector('.property-row')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    expect(push).toHaveBeenCalledWith('/house/rent/detail/1');
+    expect(push).toHaveBeenCalledWith({ path: '/house/rent/detail/1', query: { source: 'property-management' } });
+    expect(root.querySelector('.management-actions')?.textContent).toContain('成交');
+    const edit = [...root.querySelectorAll<HTMLButtonElement>('.management-actions button')].find(button => button.textContent === '编辑')!;
+    edit.click();
+    expect(push).toHaveBeenCalledWith({ path: '/house/rent/edit/1', query: { source: 'property-management' } });
   });
 
   it('切换客户管理展示租客、电话、真实签约时间和租金应付日', async () => {

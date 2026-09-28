@@ -6,9 +6,11 @@ import { useDictStore } from '@/stores/dict';
 import { formatMoney } from '@/utils/format';
 import { formatHouseAddress } from '@/utils/address';
 import { readSaleTaxFees, saleTaxLabel, SALE_TAX_OPTIONS } from '@/utils/sale-tax';
+import { rentalListPath } from '@/router/rental-origin';
 
 const route = useRoute(), router = useRouter(), dict = useDictStore();
 const kind = computed(() => route.name === 'SaleDetail' ? 'sale' : 'rent');
+const listPath = computed(() => kind.value === 'sale' ? '/house/sale' : rentalListPath(route.query.source));
 const data = ref<PropertyDetail>();
 const loading = ref(false), error = ref('');
 const property = computed(() => data.value?.property || {});
@@ -63,11 +65,11 @@ function action(value: string) {
   <div class="property-detail" v-loading="loading">
     <div class="page-header">
       <div><div class="page-title">{{ title }}</div><div class="page-desc">房源资料 · 租售信息 · 流程记录</div></div>
-      <div class="page-actions"><button class="btn btn-default" @click="router.push(`/house/${kind}`)">返回列表</button><button class="btn btn-primary" :disabled="loading" @click="load">刷新</button></div>
+      <div class="page-actions"><button class="btn btn-default" @click="router.push(listPath)">返回列表</button><button class="btn btn-primary" :disabled="loading" @click="load">刷新</button></div>
     </div>
     <div v-if="error" class="card error-state" role="alert">{{ error }} <button class="btn btn-default" @click="load">重试</button></div>
     <template v-else-if="data">
-      <div class="card property-banner"><h2>{{ property.code }} · {{ property.communityName || property.title }}</h2><p>{{ formatHouseAddress({ community: property.communityName, building: property.building, unit: property.unit, roomNo: property.roomNo }) }}</p><span class="pill pill-blue">{{ status(property.status) }}</span><p v-if="data.roomId">当前查看：{{ rooms[0]?.roomNo }} 室 <router-link :to="`/house/rent/detail/${property.id}`">查看整套房源</router-link></p></div>
+      <div class="card property-banner"><h2>{{ property.code }} · {{ property.communityName || property.title }}</h2><p>{{ formatHouseAddress({ community: property.communityName, building: property.building, unit: property.unit, roomNo: property.roomNo }) }}</p><span class="pill pill-blue">{{ status(property.status) }}</span><p v-if="data.roomId">当前查看：{{ rooms[0]?.roomNo }} 室 <router-link :to="{ path: `/house/rent/detail/${property.id}`, query: { source: route.query.source } }">查看整套房源</router-link></p></div>
       <section v-for="group in groups" :key="group.title" class="card detail-section">
         <h3>{{ group.title }}</h3>
         <dl class="detail-grid"><div v-for="field in group.fields" :key="field[0]"><dt>{{ field[0] }}</dt><dd>{{ value(field[1]) }}</dd></div></dl>
@@ -83,7 +85,7 @@ function action(value: string) {
             <div><dt>租客</dt><dd>{{ value(room.tenantName) }}</dd></div><div><dt>租客电话</dt><dd>{{ value(room.tenantPhone) }}</dd></div>
             <div><dt>租期</dt><dd>{{ period(room.leaseStart, room.leaseEnd) }}</dd></div><div><dt>付款方式</dt><dd>{{ dict.getLabel('payment_method', room.paymentMethod) }}</dd></div>
           </dl>
-          <router-link v-if="!data.roomId" :to="{ path: `/house/rent/detail/${property.id}`, query: { roomId: room.id } }">查看该房间流程</router-link>
+          <router-link v-if="!data.roomId" :to="{ path: `/house/rent/detail/${property.id}`, query: { roomId: room.id, source: route.query.source } }">查看该房间流程</router-link>
         </article>
       </section>
       <section class="card detail-section">

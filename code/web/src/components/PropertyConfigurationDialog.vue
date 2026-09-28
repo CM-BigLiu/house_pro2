@@ -3,9 +3,11 @@ import { reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import {
   getPropertyConfiguration,
+  getConfigurationEmployees,
   savePropertyConfiguration,
   type ConfigurationItem,
 } from '@/api/business';
+import MoneyInput from './MoneyInput.vue';
 const props = defineProps<{
   visible: boolean;
   propertyId: number | null;
@@ -25,6 +27,7 @@ const labels: Record<string, string> = {
   rental_bonus: '出房奖',
 };
 const items = reactive<ConfigurationItem[]>([]);
+const employees = ref<Awaited<ReturnType<typeof getConfigurationEmployees>>>([]);
 let generation = 0;
 watch(
   () => [props.visible, props.propertyId],
@@ -45,32 +48,39 @@ watch(
       })),
     );
     try {
-      const result = await getPropertyConfiguration(props.propertyId);
-      if (current === generation)
+      const [result, options] = await Promise.all([getPropertyConfiguration(props.propertyId), getConfigurationEmployees(props.propertyId)]);
+      if (current === generation) {
+        employees.value = options;
         result.items.forEach((item) =>
           Object.assign(
             items.find((row) => row.type === item.type) || {},
             item,
           ),
         );
+        for (const item of items) {
+          const matches = options.filter(employee => employee.name === item.recipient);
+          if (!item.recipientEmployeeId && matches.length === 1) item.recipientEmployeeId = matches[0].id;
+        }
+      }
     } catch {
       if (current === generation) failed.value = true;
     } finally {
       if (current === generation) loading.value = false;
     }
   },
+  { immediate: true },
 );
 async function submit() {
   if (busy.value || loading.value || !props.propertyId || failed.value) return;
-  if (items.some((row) => row.amount < 0 || !Number.isFinite(row.amount)))
-    return ElMessage.warning('配置金额必须为非负数');
+  if (items.some((row) => row.amount < 0 || !Number.isFinite(row.amount) || !/^\d+(\.\d{1,2})?$/.test(String(row.amount))))
+    return ElMessage.warning('配置金额必须为非负数字，最多两位小数');
   if (
     items.some(
       (row) =>
-        row.type.endsWith('_bonus') && row.amount > 0 && !row.recipient.trim(),
+        row.type.endsWith('_bonus') && row.amount > 0 && !employees.value.some(employee => employee.id === row.recipientEmployeeId),
     )
   )
-    return ElMessage.warning('请填写获奖人');
+    return ElMessage.warning('请选择奖励员工');
   busy.value = true;
   try {
     await savePropertyConfiguration(props.propertyId, items);
@@ -87,6 +97,8 @@ async function submit() {
 <template>
   <el-dialog
     :model-value="visible"
+    class="business-dialog"
+    top="5vh"
     :title="`房管房配置 · ${propertyName || ''}`"
     width="min(850px,94vw)"
     :close-on-click-modal="false"
@@ -110,17 +122,16 @@ async function submit() {
         <el-row :gutter="12">
           <el-col :xs="24" :sm="8"
             ><el-form-item label="金额（元）"
-              ><el-input-number
+              ><MoneyInput
                 v-model="item.amount"
-                :min="0"
-                :precision="2" /></el-form-item
+                :aria-label="`${labels[item.type]}金额`" /></el-form-item
           ></el-col>
           <template v-if="item.type.endsWith('_bonus')"
             ><el-col :xs="24" :sm="8"
-              ><el-form-item label="奖给谁"
-                ><el-input
-                  v-model="item.recipient"
-                  maxlength="100" /></el-form-item></el-col
+              ><el-form-item label="员工"
+                ><el-select v-model="item.recipientEmployeeId" filterable clearable placeholder="请选择员工" :aria-label="`${labels[item.type]}员工`">
+                  <el-option v-for="employee in employees" :key="employee.id" :value="employee.id" :label="`${employee.name} · ${employee.code}`" />
+                </el-select><small v-if="item.recipient && !item.recipientEmployeeId">原记录：{{ item.recipient }}，请重新选择员工</small></el-form-item></el-col
             ><el-col :xs="24" :sm="8"
               ><el-form-item label="发放渠道"
                 ><el-select v-model="item.channel"

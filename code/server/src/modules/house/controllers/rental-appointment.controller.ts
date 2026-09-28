@@ -6,6 +6,7 @@ import { Audit } from '../../../common/decorators/audit.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 import { RentalAppointmentService } from '../services/rental-appointment.service';
+import { SkipMasking } from '../../../common/decorators/skip-masking.decorator';
 
 class CreateRentalAppointmentDto {
   @IsInt()
@@ -95,6 +96,20 @@ export class SignRentalAppointmentDto {
 @Controller('house/rental-appointments')
 export class RentalAppointmentController {
   constructor(private appointmentService: RentalAppointmentService) {}
+
+  @Get('properties/:id/signing-context')
+  @RequirePermission('renting:appointment:sign')
+  @SkipMasking()
+  propertySigningContext(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: CurrentUserPayload) {
+    return this.appointmentService.propertySigningContext(id, user);
+  }
+
+  @Post('properties/:id/sign')
+  @RequirePermission('renting:appointment:sign')
+  @Audit('house', 'rental:sign', { objectType: 'rental_set' })
+  signProperty(@Param('id', ParseIntPipe) id: number, @Body() data: SignRentalAppointmentDto, @CurrentUser() user: CurrentUserPayload) {
+    return this.appointmentService.signProperty(id, data, user);
+  }
 
   @Get()
   @RequirePermission('renting:appointment:view')
