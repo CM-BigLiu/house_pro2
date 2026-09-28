@@ -6,6 +6,8 @@ import { createCustomerAppointment, getCustomerPropertyOptions, getCustomerSigni
   signCustomer, terminateCustomerContract, type CustomerAppointment, type CustomerWorkflowAction, type Deal, type PropertyOption } from '@/api/deal';
 import { useDictStore } from '@/stores/dict';
 import { useUserStore } from '@/stores/user';
+import ContractBusinessFields from './ContractBusinessFields.vue';
+import { emptyContractDetails, validateContractDetails } from '@/api/business';
 
 const props = defineProps<{ visible: boolean; customer: Customer | null; action: CustomerWorkflowAction }>();
 const emit = defineEmits<{ 'update:visible': [boolean]; completed: []; switch: [CustomerWorkflowAction] }>();
@@ -15,9 +17,10 @@ const loading = ref(false), submitting = ref(false), error = ref('');
 const properties = ref<PropertyOption[]>([]), propertyTotal = ref(0), propertyPage = ref(1), propertyKeyword = ref(''), propertyLoading = ref(false);
 const appointments = ref<CustomerAppointment[]>([]), contracts = ref<Deal[]>([]);
 const rooms = ref<{ id: number; roomNo: string; status: string }[]>([]), shared = ref(false), roomLoading = ref(false);
+const workflowType = ref<'regular' | 'tenant'>('regular');
 const form = reactive({ propertyId: undefined as number | undefined, appointmentId: undefined as number | undefined,
   dealId: undefined as number | undefined, rentalRoomId: undefined as number | undefined, scheduledAt: '',
-  contractCode: '', leaseStart: '', leaseEnd: '', rent: '', deposit: '0', paymentMethod: '', amount: '', remark: '', terminatedOn: '', reason: '' });
+  contractCode: '', leaseStart: '', leaseEnd: '', rent: '', deposit: '0', paymentMethod: '', amount: '', remark: '', terminatedOn: '', reason: '', details: emptyContractDetails() });
 const title = computed(() => ({ appointment: '客户约看', sign: '客户签约', terminate: '客户解约' })[props.action]);
 const renting = computed(() => props.customer?.customerType === 'tenant');
 let generation = 0, propertyGeneration = 0, roomGeneration = 0;
@@ -29,7 +32,8 @@ watch(() => [props.visible, props.customer?.id, props.action], async () => {
   if (!props.visible || !props.customer) return;
   error.value = ''; loading.value = true; appointments.value = []; contracts.value = []; properties.value = []; rooms.value = []; shared.value = false;
   Object.assign(form, { propertyId: undefined, appointmentId: undefined, dealId: undefined, rentalRoomId: undefined, scheduledAt: '', contractCode: '',
-    leaseStart: '', leaseEnd: '', rent: '', deposit: '0', paymentMethod: '', amount: '', remark: '', terminatedOn: today(), reason: '' });
+    leaseStart: '', leaseEnd: '', rent: '', deposit: '0', paymentMethod: '', amount: '', remark: '', terminatedOn: today(), reason: '', details: emptyContractDetails() });
+  workflowType.value = 'regular';
   try {
     await dict.ensureLoaded(['payment_method']);
     if (props.action === 'appointment') { propertyKeyword.value = ''; propertyPage.value = 1; await loadProperties(); }
@@ -64,6 +68,8 @@ async function selectAppointment(id: number) {
     const context = await getCustomerSigningContext(props.customer.id, id);
     if (current !== roomGeneration || dialogGeneration !== generation) return;
     shared.value = context.bizType === 'shared'; rooms.value = context.rooms;
+    workflowType.value = context.workflowType || 'regular';
+    form.details.propertyAddress = context.propertyAddress || appointments.value.find(row => row.id === id)?.propertyName || '';
   } catch { error.value = '签约房间加载失败，请重新选择约看记录。'; }
   finally { if (current === roomGeneration) roomLoading.value = false; }
 }
@@ -76,6 +82,7 @@ async function submit() {
     if (!form.appointmentId) error.value = '请先选择该客户的约看记录。';
     else if (renting.value && (!form.leaseStart || !form.leaseEnd || form.leaseEnd < form.leaseStart || !money(form.rent) || !money(form.deposit) || !form.paymentMethod || (shared.value && !form.rentalRoomId))) error.value = '请填写有效租期、金额、付款方式，并选择合租房间。';
     else if (!renting.value && !money(form.amount, true)) error.value = '请填写有效的成交总价（元），最多两位小数。';
+    else if (renting.value) error.value = validateContractDetails(form.details, workflowType.value);
   }
   if (props.action === 'terminate' && (!form.dealId || !form.terminatedOn || !form.reason.trim())) error.value = '请选择合同，并填写解约日期和原因。';
   if (error.value) return;
@@ -83,7 +90,7 @@ async function submit() {
   try {
     if (props.action === 'appointment') await createCustomerAppointment(props.customer.id, { propertyId: form.propertyId!, scheduledAt: new Date(form.scheduledAt).toISOString(), remark: form.remark });
     if (props.action === 'sign') await signCustomer(props.customer.id, { appointmentId: form.appointmentId!, contractCode: form.contractCode || undefined,
-      ...(renting.value ? { rentalRoomId: form.rentalRoomId, leaseStart: form.leaseStart, leaseEnd: form.leaseEnd, rent: Number(form.rent), deposit: Number(form.deposit), paymentMethod: form.paymentMethod } : { amount: Number(form.amount) }), remark: form.remark });
+      ...(renting.value ? { rentalRoomId: form.rentalRoomId, leaseStart: form.leaseStart, leaseEnd: form.leaseEnd, rent: Number(form.rent), deposit: Number(form.deposit), paymentMethod: form.paymentMethod, details: form.details } : { amount: Number(form.amount) }), remark: form.remark });
     if (props.action === 'terminate') await terminateCustomerContract(props.customer.id, { dealId: form.dealId!, terminatedOn: form.terminatedOn, reason: form.reason });
     ElMessage.success(props.action === 'terminate' && renting.value ? '解约申请已提交，请在退租管理审批并清算' : `${title.value}成功`);
     emit('completed'); emit('update:visible', false);
@@ -111,8 +118,9 @@ async function submit() {
             <el-alert v-if="!loading && !appointments.length" title="没有可签约的约看记录，请先为该客户创建约看。" type="info" :closable="false" />
             <el-form-item label="关联约看" required><el-select v-model="form.appointmentId" placeholder="选择该客户的约看记录" style="width:100%" @change="selectAppointment"><el-option v-for="item in appointments" :key="item.id" :value="item.id" :label="`${item.propertyName} · ${dateTime(item.scheduledAt)}`" /></el-select></el-form-item>
             <el-form-item v-if="renting && shared" label="签约房间" required><el-select v-model="form.rentalRoomId" :loading="roomLoading" style="width:100%" placeholder="选择可租房间"><el-option v-for="room in rooms" :key="room.id" :value="room.id" :disabled="!['vacant','reserved'].includes(room.status)" :label="room.roomNo" /></el-select></el-form-item>
-            <el-form-item label="合同编号"><el-input v-model="form.contractCode" maxlength="50" placeholder="留空自动生成" /></el-form-item>
+            <el-form-item label="成交合同号"><el-input disabled placeholder="电子编码提交后自动生成" /></el-form-item>
             <template v-if="renting">
+              <ContractBusinessFields :details="form.details" :mode="workflowType" />
               <el-row :gutter="14"><el-col :xs="24" :sm="12"><el-form-item label="租期开始" required><el-date-picker v-model="form.leaseStart" type="date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item></el-col><el-col :xs="24" :sm="12"><el-form-item label="租期结束" required><el-date-picker v-model="form.leaseEnd" type="date" value-format="YYYY-MM-DD" :disabled-date="(value: Date) => !!form.leaseStart && value.getTime() < new Date(form.leaseStart).getTime()" style="width:100%" /></el-form-item></el-col></el-row>
               <el-row :gutter="14"><el-col :xs="24" :sm="12"><el-form-item label="月租金（元/月）" required><el-input v-model="form.rent" type="number" min="0" step="0.01" /><MoneyUppercase :value="form.rent" /></el-form-item></el-col><el-col :xs="24" :sm="12"><el-form-item label="押金（元）" required><el-input v-model="form.deposit" type="number" min="0" step="0.01" /><MoneyUppercase :value="form.deposit" /></el-form-item></el-col></el-row>
               <el-form-item label="付款方式" required><el-select v-model="form.paymentMethod" style="width:100%" placeholder="选择付款方式"><el-option v-for="item in dict.getItems('payment_method')" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>

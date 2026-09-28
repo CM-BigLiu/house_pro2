@@ -62,6 +62,8 @@ describe('房管房管理', () => {
     expect(sql).toContain(`act.details->>'leaseStart' = rr."leaseStart"::text`);
     expect(sql).toContain(`b.payer = rr."tenantName"`);
     expect(sql).toContain(`rs.code || '-' || rr."roomNo"`);
+    expect(sql).toContain('fin_contract_schedule');
+    expect(sql).toContain('d.room_id IS NOT DISTINCT FROM rr.id');
     expect(sql).toContain(`NULLIF(TRIM(rr."tenantName"), '') IS NOT NULL`);
     expect(qb.offset).toHaveBeenCalledWith(20);
     expect(qb.limit).toHaveBeenCalledWith(10);

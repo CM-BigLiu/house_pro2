@@ -23,7 +23,7 @@ class TerminateDto {
   @IsString() @IsNotEmpty() @MaxLength(255) reason: string;
 }
 export class DealQueryDto {
-  @IsOptional() @IsIn(['rent', 'sale']) bizType?: string;
+  @IsOptional() @IsIn(['rent', 'sale', 'management']) bizType?: string;
   @IsOptional() @IsIn(['active', 'termination_pending', 'terminated']) status?: string;
   @IsOptional() @IsString() @MaxLength(100) keyword?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) customerId?: number;

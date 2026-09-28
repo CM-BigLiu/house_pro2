@@ -2,7 +2,8 @@ import { get, post } from '@/utils/request';
 import type { RentalAppointmentSignInput } from './rental';
 
 export interface Deal {
-  id: number; contractCode: string; bizType: 'rent' | 'sale'; customerId: number | null;
+  workflowType?: string; details?: import('./business').ContractDetails;
+  id: number; contractCode: string; bizType: 'rent' | 'sale' | 'management'; customerId: number | null;
   customerName: string; customerPhone?: string; propertyId: number; roomId?: number;
   propertyCode: string; propertyName: string; signedAt: string;
   amount: number | null; deposit: number | null; leaseStart?: string; leaseEnd?: string; paymentMethod?: string;
@@ -25,7 +26,7 @@ export function createCustomerAppointment(id: number, data: { propertyId: number
   return post(`${workflowUrl(id)}/appointments`, data);
 }
 export function getCustomerSigningContext(id: number, appointmentId: number) {
-  return get<{ bizType: string; rooms: { id: number; roomNo: string; status: string }[] }>(`${workflowUrl(id)}/appointments/${appointmentId}/signing-context`);
+  return get<{ bizType: string; workflowType?: 'regular' | 'tenant'; propertyAddress?: string; rooms: { id: number; roomNo: string; status: string }[] }>(`${workflowUrl(id)}/appointments/${appointmentId}/signing-context`);
 }
 export function signCustomer(id: number, data: Partial<RentalAppointmentSignInput> & { appointmentId: number; amount?: number }) {
   return post(`${workflowUrl(id)}/sign`, data);

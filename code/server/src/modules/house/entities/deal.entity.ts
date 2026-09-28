@@ -1,4 +1,5 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { ContractDetails, contractDetailsTransformer } from './contract-details';
 
 /** 成交合同快照；金额为合同约定，不代表实收或退款。历史记录不随客户编辑而变化。 */
 @Entity('house_deal')
@@ -7,6 +8,8 @@ export class Deal {
   @Index({ unique: true })
   @Column({ name: 'contract_code', length: 50 }) contractCode: string;
   @Column({ name: 'biz_type', length: 10 }) bizType: string;
+  @Column({ name: 'workflow_type', length: 20, default: 'regular' }) workflowType: string;
+  @Column({ type: 'text', nullable: true, transformer: contractDetailsTransformer }) details: ContractDetails;
   @Column({ name: 'customer_id', type: 'integer', nullable: true }) customerId: number | null;
   @Column({ name: 'customer_name', length: 100 }) customerName: string;
   @Column({ name: 'customer_phone', length: 20, nullable: true }) customerPhone: string;

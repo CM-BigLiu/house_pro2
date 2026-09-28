@@ -71,8 +71,11 @@ describe('客户分类和约看、签约、解约', () => {
     button(root, '确认签约').click(); await flush(); expect(signCustomer).not.toHaveBeenCalled();
     await select(root, '关联约看', '10'); await input(root, '租期开始', '2026-10-01'); await input(root, '租期结束', '2027-09-30');
     await input(root, '月租金（元/月）', '3000.50'); await input(root, '押金（元）', '3000'); await select(root, '付款方式', 'monthly');
+    button(root, '确认签约').click(); await flush(); expect(signCustomer).not.toHaveBeenCalled();
+    for (const [label, value] of [['业主姓名', '业主'], ['业主身份证', '110101199001011234'], ['业主通讯地址', '业主地址'], ['业主电话', '13800001111'], ['房屋地址', '测试房源地址'], ['客户身份证', '110101199001011235'], ['客户通讯地址', '客户地址']]) await input(root, label, value);
     button(root, '确认签约').click(); await flush();
     expect(signCustomer).toHaveBeenCalledWith(1, expect.objectContaining({ appointmentId: 10, rent: 3000.5, deposit: 3000, paymentMethod: 'monthly', leaseStart: '2026-10-01', leaseEnd: '2027-09-30' }));
+    expect(vi.mocked(signCustomer).mock.calls[0][1]).toHaveProperty('details.customerAddress', '客户地址');
     app!.unmount(); app = undefined; root.remove();
     const saleRoot = await mount(CustomerWorkflowDialog, { visible: true, customer: buyer, action: 'sign' });
     expect(saleRoot.textContent).toContain('成交总价（元，非万元）'); await select(saleRoot, '关联约看', '10'); await input(saleRoot, '成交总价（元，非万元）', '2200000');

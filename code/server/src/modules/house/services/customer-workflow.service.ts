@@ -13,13 +13,15 @@ import { RentalAppointment } from '../entities/rental-appointment.entity';
 import { CustomerService } from './customer.service';
 import { RentalAppointmentService, SignRentalAppointmentInput } from './rental-appointment.service';
 import { CheckoutService } from './checkout.service';
+import { BusinessWorkflowService } from '../../finance/services/business-workflow.service';
 
 export type CustomerSigningInput = Partial<SignRentalAppointmentInput> & { appointmentId: number; amount?: number };
 
 @Injectable()
 export class CustomerWorkflowService {
   constructor(@InjectRepository(Deal) private deals: Repository<Deal>,
-    private customers: CustomerService, private rentals: RentalAppointmentService, private checkouts: CheckoutService) {}
+    private customers: CustomerService, private rentals: RentalAppointmentService, private checkouts: CheckoutService,
+    private business?: BusinessWorkflowService) {}
 
   private scoped<T extends { id: number }>(repo: Repository<T>, user: CurrentUserPayload) {
     const qb = repo.createQueryBuilder('record');
@@ -113,6 +115,10 @@ export class CustomerWorkflowService {
     if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 999999999999.99 || !/^\d+(\.\d{1,2})?$/.test(String(input.amount))) {
       throw new BadRequestException('成交总价须大于零，最多两位小数（单位：元）');
     }
+    if (input.details) {
+      this.business?.validateDetails(input.details);
+      if (input.details.entryEmployeeId || input.details.closingEmployeeId) throw new BadRequestException('员工分配须通过受权限控制的手工买卖入口提交');
+    }
     try {
       return await this.deals.manager.transaction(async manager => {
         const repo = manager.getRepository(SaleAppointment);
@@ -125,10 +131,10 @@ export class CustomerWorkflowService {
         if (!['selling', 'published', 'bargain', 'price_negotiation', 'quick_sale'].includes(property.status)) throw new ConflictException('该房源已成交或不可签约');
         const dealRepo = manager.getRepository(Deal);
         const deal = await dealRepo.save(dealRepo.create({ contractCode: input.contractCode?.trim() || `XS${Date.now()}${randomUUID().slice(0, 8)}`,
-          bizType: 'sale', customerId: id, customerName: customer.name, customerPhone: customer.mobile,
+          bizType: 'sale', workflowType: 'sale', details: input.details, customerId: id, customerName: customer.name, customerPhone: customer.mobile,
           propertyId: property.id, propertyCode: property.code, propertyName: property.title || property.code,
           saleAppointmentId: appointment.id, signedAt: new Date(), amount: input.amount, deposit: 0,
-          responsibleEmployeeId: appointment.responsibleEmployeeId, responsibleEmployeeName: appointment.responsibleEmployeeName,
+          responsibleEmployeeId: user.employeeId, responsibleEmployeeName: user.name,
           storeId: property.storeId, groupId: appointment.groupId, previousPropertyStatus: property.status,
           status: 'active', remark: input.remark?.trim() || null }));
         property.status = 'sold'; await manager.getRepository(SaleProperty).save(property);

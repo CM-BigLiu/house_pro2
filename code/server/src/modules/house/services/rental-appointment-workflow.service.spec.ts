@@ -29,6 +29,12 @@ const user: any = { employeeId: 7, name: '当前经纪人', dataScope: 'self', s
 const contract = { leaseStart: '2026-10-01', leaseEnd: '2027-09-30', rent: 4500, deposit: 4500, paymentMethod: 'monthly' };
 
 describe('Rental appointment workflow', () => {
+  it('returns the authorized customer contact and selects managed-tenant contract fields', async () => {
+    const test = setup({ rental: { isManaged: true }, appointment: { customerName: '旧姓名', propertyName: '约看房屋地址' } });
+    const result = await test.service.signingContext(5, user);
+    expect(test.findOne).toHaveBeenCalledWith(42, user);
+    expect(result).toMatchObject({ customerName: '真实客户', customerPhone: '13800001234', workflowType: 'tenant', propertyAddress: '约看房屋地址' });
+  });
   it('checks record scope before creating a follow-up', async () => {
     const test = setup({ appointment: null });
     await expect(test.service.followUp(5, '客户满意', user)).rejects.toMatchObject({ status: 403 });

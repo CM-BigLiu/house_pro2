@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { Building2, RefreshCw, Search } from 'lucide-vue-next';
 import { getManagedProperties, getManagedTenants, type ManagedProperty, type ManagedTenant } from '@/api/property-management';
 import { useDictStore } from '@/stores/dict';
+import PropertyConfigurationDialog from '@/components/PropertyConfigurationDialog.vue';
 
 const router = useRouter();
 const dictStore = useDictStore();
@@ -13,6 +14,9 @@ const tenants = ref<ManagedTenant[]>([]);
 const total = ref(0);
 const loading = ref(false);
 const loadError = ref(false);
+const configurationProperty = ref<ManagedProperty | null>(null);
+const configurationVisible = ref(false);
+function configure(item: ManagedProperty) { configurationProperty.value = item; configurationVisible.value = true; }
 const query = reactive({ keyword: '', page: 1, pageSize: 20 });
 let requestId = 0;
 const showingProperties = computed(() => activeTab.value === 'properties');
@@ -99,7 +103,7 @@ onMounted(() => { load(); void dictStore.ensureLoaded(['room_status']).catch(() 
       <div v-if="loadError" class="load-error" role="alert">数据加载失败，请重试。<button class="btn btn-default btn-sm" @click="load">重试</button></div>
       <div v-else-if="showingProperties" id="properties-panel" role="tabpanel" aria-labelledby="properties-tab" v-loading="loading" class="management-table-shell">
         <table class="management-table property-table">
-          <thead><tr><th>基本信息</th><th>房源状态</th><th>租赁期限（与房东）</th><th>下一次给房东的房租支付时间</th></tr></thead>
+          <thead><tr><th>基本信息</th><th>房源状态</th><th>租赁期限（与房东）</th><th>下一次给房东的房租支付时间</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-for="item in properties" :key="item.id" class="property-row" @dblclick="router.push(`/house/rent/detail/${item.id}`)">
               <td><div class="property-info"><div class="property-icon"><Building2 :size="24" /></div><div>
@@ -111,8 +115,9 @@ onMounted(() => { load(); void dictStore.ensureLoaded(['room_status']).catch(() 
               <td><span :class="['status-pill', { rented: item.status === 'rented' }]">{{ statusLabel(item.status) }}</span></td>
               <td><template v-if="item.leaseStart || item.leaseEnd"><div>{{ item.leaseStart || '开始日期未登记' }}</div><div class="date-end">至 {{ item.leaseEnd || '结束日期未登记' }}</div></template><span v-else class="muted">租期未登记</span></td>
               <td><span v-if="item.nextLandlordPaymentDate" :class="{ 'payment-overdue': overdue(item.nextLandlordPaymentDate) }">{{ item.nextLandlordPaymentDate }}<small v-if="overdue(item.nextLandlordPaymentDate)" class="overdue-tag">逾期</small></span><span v-else class="muted">未生成租金账单</span></td>
+              <td><button v-permission="['renting:edit']" class="btn btn-ghost btn-sm" @click.stop="configure(item)">配置</button></td>
             </tr>
-            <tr v-if="!loading && !properties.length"><td colspan="4" class="empty-state">暂无符合条件的托管房源</td></tr>
+            <tr v-if="!loading && !properties.length"><td colspan="5" class="empty-state">暂无符合条件的托管房源</td></tr>
           </tbody>
         </table>
       </div>
@@ -127,6 +132,7 @@ onMounted(() => { load(); void dictStore.ensureLoaded(['room_status']).catch(() 
       </div>
       <footer class="management-pagination"><el-pagination v-model:current-page="query.page" v-model:page-size="query.pageSize" :total="total" :page-sizes="[20, 50, 100]" layout="total, sizes, prev, pager, next" @current-change="load" @size-change="search" /></footer>
     </section>
+    <PropertyConfigurationDialog v-model:visible="configurationVisible" :property-id="configurationProperty?.id || null" :property-name="configurationProperty ? propertyName(configurationProperty) : ''" @completed="load" />
   </div>
 </template>
 

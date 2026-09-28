@@ -21,7 +21,7 @@ function isMutatingMethod(method: string): boolean {
 function sanitizeSnapshot(data: any): any {
   if (data === null || data === undefined) return data;
   if (typeof data !== 'object') return data;
-  const sensitive = ['password', 'token'];
+  const sensitive = ['password', 'token', 'ownerIdCard', 'customerIdCard', 'payerAccount', 'payeeAccount'];
   if (Array.isArray(data)) {
     return data.map((item) => sanitizeSnapshot(item));
   }

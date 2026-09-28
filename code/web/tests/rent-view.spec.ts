@@ -295,7 +295,7 @@ describe('约看记录业务操作', () => {
 
   it('将跟进内容保存到当前约看记录', async () => {
     const root = await openRecords();
-    [...root.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent?.trim() === '约看后跟进')!.click();
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent?.trim() === '约看结束 / 跟进')!.click();
     await nextTick();
     const dialog = root.querySelector('section[aria-label="约看后跟进"]')!;
     const input = dialog.querySelector<HTMLTextAreaElement>('textarea')!;
@@ -309,9 +309,9 @@ describe('约看记录业务操作', () => {
 
   it('签约提交租期和金额，并使用原约看的客户', async () => {
     const root = await openRecords();
-    [...root.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent?.trim() === '签约')!.click();
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent?.trim() === '成交')!.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const dialog = root.querySelector('section[aria-label="约看签约"]')!;
+    const dialog = root.querySelector('section[aria-label="普租成交"]')!;
     expect(dialog.querySelector('form')?.getAttribute('data-label-position')).toBe('top');
     expect(dialog.querySelectorAll('.sign-form-section')).toHaveLength(2);
     expect(dialog.textContent).toContain('合同与收款信息');
@@ -322,6 +322,10 @@ describe('约看记录业务操作', () => {
     rent.value = '6000'; rent.dispatchEvent(new Event('input'));
     const payment = dialog.querySelector<HTMLSelectElement>('select')!;
     payment.value = 'quarterly'; payment.dispatchEvent(new Event('change'));
+    for (const [label, value] of [['业主姓名', '业主'], ['业主身份证', '110101199001011234'], ['业主通讯地址', '业主地址'], ['业主电话', '13800001111'], ['房屋地址', '测试房源地址'], ['客户身份证', '110101199001011235'], ['客户通讯地址', '客户地址']]) {
+      const field = [...dialog.querySelectorAll('label')].find(el => el.textContent?.trim() === label)!.querySelector<HTMLInputElement>('input')!;
+      field.value = value; field.dispatchEvent(new Event('input'));
+    }
     dialog.querySelector<HTMLButtonElement>('.btn-primary')!.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(signRentalAppointment).toHaveBeenCalledWith(5, expect.objectContaining({ leaseStart: '2026-10-01', leaseEnd: '2027-09-30',

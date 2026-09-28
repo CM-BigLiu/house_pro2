@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { ContractDetails } from '../entities/contract-details';
 import { Audit } from '../../../common/decorators/audit.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
@@ -41,6 +42,7 @@ export class FollowUpRentalAppointmentDto {
 }
 
 export class SignRentalAppointmentDto {
+  @IsOptional() @IsObject() details?: ContractDetails;
   @IsInt()
   @Min(1)
   @IsOptional()

@@ -12,6 +12,20 @@ let generation = 0;
 const statusLabel = (value: string) => ({ active: '合同生效', termination_pending: '解约待审批', terminated: '已解约' }[value] || value);
 const currency = (value: number | null) => value == null ? '未登记' : `¥${Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const dateTime = (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false });
+const businessName = (row: Deal) => row.bizType === 'management' ? '委托' : row.bizType === 'sale' ? '买卖' : row.workflowType === 'tenant' ? '承租' : '普租';
+const contractFields = computed(() => {
+  const d = detail.value?.details;
+  if (!d) return [];
+  return [
+    ['业主姓名', d.ownerName], ['业主身份证', d.ownerIdCard], ['业主通讯地址', d.ownerAddress], ['业主电话', d.ownerPhone],
+    ['房屋地址', d.propertyAddress], ['客户身份证', d.customerIdCard], ['客户通讯地址', d.customerAddress],
+    ['押金情况', d.depositNote], ['首期付款日期', d.paymentDate], ['收款人', d.payee], ['收款账号', d.payeeAccount],
+    ['居住人数', detail.value?.workflowType === 'tenant' ? `${d.occupants} / 最多 ${d.maxOccupants}` : ''],
+    ['佣金', detail.value?.bizType === 'rent' ? currency(d.commissionAmount) : ''],
+    ['绩效分成 / 提成比例', `${d.performanceRatio ?? 100}% / ${d.commissionRatio ?? 0}%`],
+    ['年度免租天数', detail.value?.bizType === 'management' ? d.freeDays?.join(' / ') : ''],
+  ].filter(([, value]) => value != null && value !== '');
+});
 async function load() {
   const current = ++generation; loading.value = true; failed.value = false;
   try { const result = await getDeals(query); if (current === generation) { rows.value = result.list; total.value = result.total; stats.value = result.stats; } }
@@ -28,7 +42,7 @@ onMounted(async () => { await dict.ensureLoaded(['payment_method']); await load(
     <div class="page-header"><div><div class="page-title">成交管理</div><div class="page-desc">租售合同统一归档，签约和解约由客户管理发起</div></div><button class="btn btn-default" @click="load">刷新</button></div>
     <div class="filter-bar">
       <input v-model="query.keyword" class="input keyword" placeholder="合同编号 / 客户 / 房源 / 负责人" @keyup.enter="search" />
-      <select v-model="query.bizType" class="select"><option value="">全部业务</option><option value="rent">租房成交</option><option value="sale">买房成交</option></select>
+      <select v-model="query.bizType" class="select"><option value="">全部业务</option><option value="rent">租房成交</option><option value="sale">买房成交</option><option value="management">委托合同</option></select>
       <select v-model="query.status" class="select"><option value="">全部状态</option><option value="active">合同生效</option><option value="termination_pending">解约待审批</option><option value="terminated">已解约</option></select>
       <label class="date-filter">签约时间<input v-model="query.startDate" type="date" class="input" /><span>至</span><input v-model="query.endDate" type="date" class="input" /></label>
       <button class="btn btn-primary btn-sm" @click="search">筛选</button><button class="btn btn-ghost btn-sm" @click="reset">重置</button>
@@ -43,6 +57,7 @@ onMounted(async () => { await dict.ensureLoaded(['payment_method']); await load(
     <div class="table-footer"><span>共 {{ total }} 条</span><div class="pagination"><button class="page-btn" :disabled="query.page <= 1 || loading" @click="query.page--; load()">上一页</button><span class="page-info">第 {{ query.page }} 页 / 共 {{ pageCount }} 页</span><button class="page-btn" :disabled="query.page >= pageCount || loading" @click="query.page++; load()">下一页</button></div></div>
     <el-dialog :model-value="!!detail" title="成交详情" width="min(680px, 94vw)" @update:model-value="(value: boolean) => { if (!value) detail = null; }">
       <el-descriptions v-if="detail" :column="2" border><el-descriptions-item label="合同编号" :span="2">{{ detail.contractCode }}</el-descriptions-item><el-descriptions-item label="客户">{{ detail.customerName }}</el-descriptions-item><el-descriptions-item label="联系电话">{{ detail.customerPhone || '未登记' }}</el-descriptions-item><el-descriptions-item label="房源" :span="2">{{ detail.propertyName }} · {{ detail.propertyCode }}</el-descriptions-item><el-descriptions-item label="签约时间" :span="2">{{ dateTime(detail.signedAt) }}</el-descriptions-item><el-descriptions-item label="合同状态">{{ statusLabel(detail.status) }}</el-descriptions-item><el-descriptions-item label="负责人">{{ detail.responsibleEmployeeName }}</el-descriptions-item><el-descriptions-item :label="detail.bizType === 'rent' ? '月租金' : '成交总价'">{{ currency(detail.amount) }}</el-descriptions-item><el-descriptions-item label="押金">{{ currency(detail.deposit) }}</el-descriptions-item><template v-if="detail.bizType === 'rent'"><el-descriptions-item label="租赁期限" :span="2">{{ detail.leaseStart || '未登记' }} 至 {{ detail.leaseEnd || '未登记' }}</el-descriptions-item><el-descriptions-item label="付款方式" :span="2">{{ detail.paymentMethod ? dict.getLabel('payment_method', detail.paymentMethod) : '未登记' }}</el-descriptions-item></template><el-descriptions-item v-if="detail.terminatedOn" label="解约日期">{{ detail.terminatedOn }}</el-descriptions-item><el-descriptions-item v-if="detail.terminationReason" label="解约原因" :span="2">{{ detail.terminationReason }}</el-descriptions-item><el-descriptions-item label="备注" :span="2">{{ detail.remark || '—' }}</el-descriptions-item></el-descriptions>
+      <el-descriptions v-if="detail?.details" :column="2" border><el-descriptions-item label="业务类型">{{businessName(detail)}}</el-descriptions-item><el-descriptions-item v-for="[label,value] in contractFields" :key="label" :label="label">{{value}}</el-descriptions-item></el-descriptions>
       <template #footer><el-button v-if="detail?.customerId" v-permission="['house:customer']" @click="router.push({ path: '/house/customer', query: { keyword: detail.customerName } })">前往客户管理</el-button><el-button @click="detail = null">关闭</el-button></template>
     </el-dialog>
   </div>

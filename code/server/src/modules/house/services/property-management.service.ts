@@ -12,7 +12,7 @@ export interface PropertyManagementQuery {
 }
 
 // 只读取未结清的租金账单，不把押金、其他费用或已支付账单当作下次租金。
-function nextRentDate(code: string, setId: string, tenantName?: string): string {
+function nextRentDate(code: string, setId: string, tenantName?: string, roomId = 'NULL::integer'): string {
   const landlord = !tenantName;
   const direction = landlord
     ? `(b.status = 'pending_pay' OR (b.status IN ('partial', 'due', 'overdue') AND b.payee = rs."landlordName"))`
@@ -20,10 +20,15 @@ function nextRentDate(code: string, setId: string, tenantName?: string): string 
   const link = landlord
     ? `(b."bizId" IN (rs.id::text, rs.code) OR b."roomCode" = rs.code)`
     : `(b."roomCode" = ${code} OR b."bizId" = ${code}${setId ? ` OR b."bizId" = ${setId}` : ''})`;
-  return `(SELECT MIN(b."dueDate")::text FROM fin_bill b
+  const scheduled = `(SELECT MIN(s."dueDate")::text FROM fin_contract_schedule s JOIN house_deal d ON d.id = s.deal_id
+    WHERE s.property_id = rs.id AND s.status = 'pending' AND d.status IN ('active', 'termination_pending')
+      AND s.direction = '${landlord ? 'pay' : 'receive'}'
+      AND d.workflow_type = '${landlord ? 'management' : 'tenant'}'
+      ${landlord ? '' : `AND d.customer_name = ${tenantName} AND d.room_id IS NOT DISTINCT FROM ${roomId}`})`;
+  return `COALESCE(${scheduled}, (SELECT MIN(b."dueDate")::text FROM fin_bill b
     WHERE b."bizType" = 'rent' AND b.store_id = rs.store_id
       AND b."billSource" IN ('rent', '${landlord ? 'landlord_rent' : 'tenant_rent'}')
-      AND b.amount > COALESCE(b."actualAmount", 0) AND ${direction} AND ${link})`;
+      AND b.amount > COALESCE(b."actualAmount", 0) AND ${direction} AND ${link}))`;
 }
 
 function signedAt(roomId: string, tenantName: string, leaseStart: string, leaseEnd: string): string {
@@ -76,7 +81,7 @@ export class PropertyManagementService {
       rr."tenantName" AS "tenantName", rr."tenantPhone" AS "tenantPhone",
       rs.creator_id, rs.store_id, rs.group_id,
       ${signedAt('rr.id', 'rr."tenantName"', 'rr."leaseStart"', 'rr."leaseEnd"')} AS "signedAt",
-      ${nextRentDate(`(rs.code || '-' || rr."roomNo")`, '', 'rr."tenantName"')} AS "nextRentPaymentDate"
+      ${nextRentDate(`(rs.code || '-' || rr."roomNo")`, '', 'rr."tenantName"', 'rr.id')} AS "nextRentPaymentDate"
       FROM house_rental_set rs INNER JOIN house_rental_room rr ON rr.set_id = rs.id
       WHERE rs.is_managed = true AND rs."bizType" = 'shared' AND NULLIF(TRIM(rr."tenantName"), '') IS NOT NULL`;
     const qb = this.rentalRepo.manager.createQueryBuilder().from(`(${source})`, 'tenant');

@@ -39,6 +39,9 @@ import { formatHouseAddress, formatBuilding, formatUnit } from '@/utils/address'
 import { downloadCsv } from '@/utils/csv';
 import { formatMoney } from '@/utils/format';
 import { formatDate } from '@/utils/rental-schedule';
+import ContractBusinessFields from '@/components/ContractBusinessFields.vue';
+import PropertyDelegationDialog from '@/components/PropertyDelegationDialog.vue';
+import { emptyContractDetails, validateContractDetails } from '@/api/business';
 
 type SortValue = 'created_desc' | 'rent_desc' | 'rent_asc' | 'lease_end';
 const router = useRouter();
@@ -61,7 +64,10 @@ const appointmentSubmitting = ref(false);
 const appointmentLoading = ref(false);
 const appointmentList = ref<RentalAppointment[]>([]);
 const appointmentTotal = ref(0);
+const appointmentPropertyId = ref<number>();
 const selectedRental = ref<RentalSet>();
+const delegationProperty = ref<RentalSet | null>(null);
+const delegationVisible = ref(false);
 const recommendSource = ref<RentalAppointment>();
 const recommendOptions = ref<RentalSet[]>([]);
 const recommendLoading = ref(false);
@@ -79,7 +85,7 @@ const signingContextLoading = ref(false);
 const signingContextError = ref(false);
 const workflowSubmitting = ref(false);
 const signForm = reactive({ rentalRoomId: undefined as number | undefined, contractCode: '', tenantName: '', tenantPhone: '',
-  leaseStart: '', leaseEnd: '', rent: '', deposit: '0', paymentMethod: '', remark: '' });
+  leaseStart: '', leaseEnd: '', rent: '', deposit: '0', paymentMethod: '', remark: '', details: emptyContractDetails() });
 const appointmentForm = reactive<{ scheduledAt: Date | null; customerId?: number; remark: string }>({ scheduledAt: null, remark: '' });
 const appointmentCustomers = ref<Customer[]>([]);
 const appointmentCustomersLoading = ref(false);
@@ -336,7 +342,8 @@ async function submitFollowUp() {
 async function openSign(record: RentalAppointment) {
   workflowRecord.value = record;
   Object.assign(signForm, { rentalRoomId: record.rentalRoomId, contractCode: '', tenantName: '', tenantPhone: '',
-    leaseStart: '', leaseEnd: '', rent: '', deposit: '0', paymentMethod: '', remark: '' });
+    leaseStart: '', leaseEnd: '', rent: '', deposit: '0', paymentMethod: '', remark: '', details: emptyContractDetails() });
+  signForm.details.propertyAddress = record.propertyName;
   signingContext.value = undefined;
   signingContextError.value = false;
   signingContextLoading.value = true;
@@ -348,6 +355,8 @@ async function openSign(record: RentalAppointment) {
 
 async function submitSign() {
   if (workflowSubmitting.value || signingContextLoading.value || signingContextError.value || !workflowRecord.value) return;
+  const detailsError = validateContractDetails(signForm.details, signingContext.value?.workflowType === 'tenant' ? 'tenant' : 'regular');
+  if (detailsError) { ElMessage.info(detailsError); return; }
   if (!signForm.leaseStart || !signForm.leaseEnd || signForm.leaseStart > signForm.leaseEnd) {
     ElMessage.info('请选择有效的租期'); return;
   }
@@ -413,7 +422,7 @@ function selectRecommendRental(id: number) {
 async function loadAppointments() {
   appointmentLoading.value = true;
   try {
-    const result = await getRentalAppointments({ page: 1, pageSize: 100 });
+    const result = await getRentalAppointments({ page: 1, pageSize: 100, rentalSetId: appointmentPropertyId.value });
     appointmentList.value = result.list;
     appointmentTotal.value = result.total;
   } finally {
@@ -421,7 +430,8 @@ async function loadAppointments() {
   }
 }
 
-async function openAppointmentRecords() {
+async function openAppointmentRecords(propertyId?: number) {
+  appointmentPropertyId.value = typeof propertyId === 'number' ? propertyId : undefined;
   appointmentRecordsVisible.value = true;
   await loadAppointments();
 }
@@ -620,7 +630,7 @@ function exportCurrent() {
         <p>一套一房间两层结构，支持整租与合租房源全生命周期管理</p>
       </div>
       <div class="page-actions">
-        <button v-permission="['renting:appointment:view']" class="btn btn-default" @click="openAppointmentRecords">
+        <button v-permission="['renting:appointment:view']" class="btn btn-default" @click="openAppointmentRecords()">
           <CalendarClock :size="15" /> 约看记录
         </button>
         <button class="btn btn-default" @click="showBatchHint('偏好设置')"><Settings2 :size="15" /> 偏好设置</button>
@@ -770,6 +780,7 @@ function exportCurrent() {
           <div class="operation-cell">
             <button class="action-link" @click="openDetail(item)">详情</button>
             <button v-permission="['renting:appointment:create']" class="action-link appointment-link" @click="openAppointment(item)">约看</button>
+            <button v-if="item.canViewLandlordInfo !== false" v-permission="['renting:edit']" class="action-link" @click="delegationProperty = item; delegationVisible = true">房管房</button>
             <button v-permission="['renting:edit']" class="action-link" @click="editSet(item)">编辑</button>
             <button v-if="item.bizType === 'entire'" v-permission="['renting:checkout']" class="action-link" :disabled="checkoutDisabled(item)" @click="checkout(item)">{{ item.status === 'checkout' ? '退租待审批' : '退租' }}</button>
             <button v-permission="['renting:delete']" class="action-link danger-text" :disabled="!canDelete(item) || deletingId === item.id" :title="canDelete(item) ? '删除房源' : '已有租客或业务记录的房源不能删除'" @click="removeSet(item)">删除</button>
@@ -863,6 +874,7 @@ function exportCurrent() {
         <button class="btn btn-primary" :disabled="appointmentSubmitting" @click="submitAppointment">
           {{ appointmentSubmitting ? '提交中…' : recommendSource ? '确认推荐' : '确认约看' }}
         </button>
+        <button v-if="!recommendSource" v-permission="['renting:appointment:view']" class="btn btn-default" @click="appointmentDialogVisible = false; openAppointmentRecords(selectedRental?.id)">约看结束 / 填写跟进</button>
       </template>
     </el-dialog>
 
@@ -894,8 +906,8 @@ function exportCurrent() {
                 </td>
                 <td>
                   <div class="appointment-actions">
-                    <button v-permission="['renting:appointment:follow-up']" type="button" class="action-link" :disabled="record.status === 'cancelled'" @click="openFollowUp(record)">约看后跟进</button>
-                    <button v-permission="['renting:appointment:sign']" type="button" class="action-link" :disabled="['signed', 'cancelled'].includes(record.status)" @click="openSign(record)">签约</button>
+                    <button v-permission="['renting:appointment:follow-up']" type="button" class="action-link" :disabled="['signed','cancelled'].includes(record.status)" @click="openFollowUp(record)">约看结束 / 跟进</button>
+                    <button v-permission="['renting:appointment:sign']" type="button" class="action-link" :disabled="['signed', 'cancelled'].includes(record.status)" @click="openSign(record)">成交</button>
                     <button v-permission="['renting:appointment:recommend']" type="button" class="action-link" :disabled="['signed', 'cancelled'].includes(record.status)" @click="openRecommend(record)">再次推荐</button>
                   </div>
                 </td>
@@ -918,10 +930,12 @@ function exportCurrent() {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="signVisible" title="约看签约" width="min(760px, 94vw)" top="6vh" destroy-on-close>
+    <PropertyDelegationDialog v-model:visible="delegationVisible" :property="delegationProperty" @completed="load" />
+    <el-dialog v-model="signVisible" :title="signingContext?.workflowType === 'tenant' ? '承租成交' : '普租成交'" width="min(760px, 94vw)" top="6vh" destroy-on-close>
       <el-form v-loading="signingContextLoading" :model="signForm" label-position="top" class="signing-form" @submit.prevent>
-        <div class="appointment-property"><strong>{{ workflowRecord?.propertyName }}</strong><small>客户：{{ workflowRecord?.customerName || '请填写租客信息' }}</small></div>
+        <div class="appointment-property"><strong>{{ workflowRecord?.propertyName }}</strong><small>客户：{{ signingContext?.customerName || workflowRecord?.customerName || '请填写租客信息' }} · {{ signingContext?.customerPhone || '电话未登记' }}</small></div>
         <p v-if="signingContextError" role="alert">签约信息加载失败，请关闭后重试。</p>
+        <ContractBusinessFields :details="signForm.details" :mode="signingContext?.workflowType === 'tenant' ? 'tenant' : 'regular'" />
         <section class="sign-form-section">
           <div class="sign-section-heading"><span class="sign-section-index">01</span><div><strong>租客与房源</strong><small>关联约看客户，确认本次签约房间</small></div></div>
           <el-row :gutter="12">
@@ -940,7 +954,7 @@ function exportCurrent() {
         <section class="sign-form-section">
           <div class="sign-section-heading"><span class="sign-section-index">02</span><div><strong>合同与收款信息</strong><small>填写租赁期限、租金及付款方式</small></div></div>
           <el-row :gutter="12">
-            <el-col :span="24"><el-form-item label="合同编号"><el-input v-model="signForm.contractCode" maxlength="50" placeholder="留空自动生成" /></el-form-item></el-col>
+            <el-col :span="24"><el-form-item label="成交合同号"><el-input disabled placeholder="电子编码提交后自动生成" /></el-form-item></el-col>
             <el-col :xs="24" :sm="12"><el-form-item label="租期开始" required><el-date-picker v-model="signForm.leaseStart" aria-label="租期开始" type="date" value-format="YYYY-MM-DD" placeholder="选择开始日期" /></el-form-item></el-col>
             <el-col :xs="24" :sm="12"><el-form-item label="租期结束" required><el-date-picker v-model="signForm.leaseEnd" aria-label="租期结束" type="date" value-format="YYYY-MM-DD" placeholder="选择结束日期" :disabled-date="(date: Date) => !!signForm.leaseStart && date < new Date(`${signForm.leaseStart}T00:00:00`)" /></el-form-item></el-col>
             <el-col :xs="24" :sm="12"><el-form-item label="月租金" required><el-input v-model="signForm.rent" type="number" min="0" step="0.01" placeholder="元/月"><template #append>元/月</template></el-input></el-form-item></el-col>

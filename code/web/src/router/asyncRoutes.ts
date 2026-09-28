@@ -141,31 +141,31 @@ export const asyncRoutes: RouteRecordRaw[] = [
   {
     path: '/finance/performance',
     name: 'FinancePerformance',
-    component: () => import('@/views/finance/PerformanceView.vue'),
+    component: () => import('@/views/finance/BusinessPerformanceView.vue'),
     meta: { title: '业绩核算', permission: 'finance:performance' },
   },
   {
     path: '/finance/accounting',
     name: 'FinanceAccounting',
-    component: () => import('@/views/finance/AccountingView.vue'),
-    meta: { title: '财务核算', permission: 'finance:accounting' },
+    component: () => import('@/views/finance/BusinessReviewView.vue'),
+    meta: { title: '财务管理', permission: 'finance:accounting' },
   },
   {
     path: '/finance/arrears',
     name: 'FinanceArrears',
-    component: () => import('@/views/finance/ArrearsView.vue'),
-    meta: { title: '欠款统计', permission: 'finance:arrears' },
+    component: () => import('@/views/finance/ManagedBusinessView.vue'),
+    meta: { title: '房管房业务', permission: 'finance:arrears' },
   },
   {
     path: '/finance/plan',
     name: 'FinancePlan',
-    component: () => import('@/views/finance/PlanView.vue'),
-    meta: { title: '收支计划', permission: 'finance:plan' },
+    component: () => import('@/views/finance/CashFlowView.vue'),
+    meta: { title: '公司现金流', permission: 'finance:plan' },
   },
   {
     path: '/finance/plan/create',
     name: 'FinancePlanCreate',
-    component: () => import('@/views/finance/PlanFormView.vue'),
+    redirect: '/finance/plan',
     meta: { title: '新增计划', permission: 'finance:plan', actionPermission: 'finance:plan:modify', hidden: true },
   },
   {
@@ -190,7 +190,7 @@ export const asyncRoutes: RouteRecordRaw[] = [
   {
     path: '/finance/plan/edit/:id',
     name: 'FinancePlanEdit',
-    component: () => import('@/views/finance/PlanFormView.vue'),
+    redirect: '/finance/plan',
     meta: { title: '编辑计划', permission: 'finance:plan', actionPermission: 'finance:plan:modify', hidden: true },
   },
   {

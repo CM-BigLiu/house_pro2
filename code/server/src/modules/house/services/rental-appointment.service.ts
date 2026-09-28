@@ -11,6 +11,8 @@ import { RentalAppointmentAction } from '../entities/rental-appointment-action.e
 import { RentalRoom } from '../entities/rental-room.entity';
 import { Deal } from '../entities/deal.entity';
 import { Customer } from '../entities/customer.entity';
+import { ContractDetails } from '../entities/contract-details';
+import { BusinessWorkflowService } from '../../finance/services/business-workflow.service';
 
 type CreateRentalAppointmentInput = {
   rentalSetId: number;
@@ -31,6 +33,7 @@ export type SignRentalAppointmentInput = {
   deposit: number;
   paymentMethod: string;
   remark?: string;
+  details?: ContractDetails;
 };
 
 @Injectable()
@@ -41,6 +44,7 @@ export class RentalAppointmentService {
     @InjectRepository(RentalSet)
     private rentalSetRepo: Repository<RentalSet>,
     private customerService: CustomerService,
+    private business?: BusinessWorkflowService,
   ) {}
 
   private scoped(repo: Repository<RentalAppointment>, user: CurrentUserPayload) {
@@ -165,7 +169,10 @@ export class RentalAppointmentService {
     applyDataScope(qb, user, 'rentalSet', { ownerField: 'creatorId', groupField: 'groupId', storeField: 'storeId' });
     const rental = await qb.leftJoinAndSelect('rentalSet.rooms', 'rooms').getOne();
     if (!rental) throw new ForbiddenException('房源不存在或无权签约');
-    return { bizType: rental.bizType, rooms: (rental.rooms || []).map((room) => ({ id: room.id, roomNo: room.roomNo, status: room.status })) };
+    const customer = appointment.customerId ? await this.customerService.findOne(appointment.customerId, user) : null;
+    return { bizType: rental.bizType, workflowType: rental.isManaged ? 'tenant' : 'regular', propertyAddress: appointment.propertyName,
+      customerName: customer?.name || appointment.customerName, customerPhone: customer?.mobile || null,
+      rooms: (rental.rooms || []).map((room) => ({ id: room.id, roomNo: room.roomNo, status: room.status })) };
   }
 
   async recommend(id: number, input: CreateRentalAppointmentInput, user: CurrentUserPayload) {
@@ -188,6 +195,7 @@ export class RentalAppointmentService {
   }
 
   async sign(id: number, input: SignRentalAppointmentInput, user: CurrentUserPayload) {
+    if (input.details) this.business?.validateDetails(input.details);
     const validDate = (value: string) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
       Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
     if (!validDate(input.leaseStart) || !validDate(input.leaseEnd) || input.leaseStart > input.leaseEnd) {
@@ -215,6 +223,7 @@ export class RentalAppointmentService {
         applyDataScope(qb, user, 'rentalSet', { ownerField: 'creatorId', groupField: 'groupId', storeField: 'storeId' });
         const rental = await qb.setLock('pessimistic_write').getOne();
         if (!rental) throw new ForbiddenException('房源不存在或无权签约');
+        if (this.business) this.business.validateRentalDetails(input.details || {}, rental.isManaged);
         if (!['active', 'vacant', 'reserved', 'rented'].includes(rental.status)) throw new BadRequestException('该房源当前状态不能签约');
         const roomId = appointment.rentalRoomId || input.rentalRoomId;
         if (appointment.rentalRoomId && input.rentalRoomId && appointment.rentalRoomId !== input.rentalRoomId) {
@@ -240,7 +249,7 @@ export class RentalAppointmentService {
         rental.status = 'rented';
         await setRepo.save(rental);
         appointment.status = 'signed';
-        appointment.contractCode = input.contractCode?.trim() || `HT${Date.now()}${randomUUID().slice(0, 8)}`;
+        appointment.contractCode = input.details ? `HT${Date.now()}${randomUUID().slice(0, 8)}` : input.contractCode?.trim() || `HT${Date.now()}${randomUUID().slice(0, 8)}`;
         appointment.signedAt = new Date();
         appointment.customerName = tenantName;
         await repo.save(appointment);
@@ -249,14 +258,20 @@ export class RentalAppointmentService {
           rent: input.rent, deposit: input.deposit, paymentMethod: input.paymentMethod,
         });
         const dealRepo = manager.getRepository(Deal);
-        await dealRepo.save(dealRepo.create({ contractCode: appointment.contractCode, bizType: 'rent',
+        const deal = await dealRepo.save(dealRepo.create({ contractCode: appointment.contractCode, bizType: 'rent',
+          workflowType: rental.isManaged ? 'tenant' : 'regular', details: input.details,
           customerId: appointment.customerId, customerName: tenantName, customerPhone: tenantPhone,
           propertyId: rental.id, roomId: appointment.rentalRoomId || null, propertyCode: appointment.propertyCode,
           propertyName: appointment.propertyName, rentalAppointmentId: appointment.id, signedAt: appointment.signedAt,
           amount: input.rent, deposit: input.deposit, leaseStart: input.leaseStart, leaseEnd: input.leaseEnd,
-          paymentMethod: input.paymentMethod, responsibleEmployeeId: appointment.responsibleEmployeeId,
-          responsibleEmployeeName: appointment.responsibleEmployeeName, storeId: appointment.storeId, groupId: appointment.groupId,
+          paymentMethod: input.paymentMethod, responsibleEmployeeId: user.employeeId,
+          responsibleEmployeeName: user.name, storeId: appointment.storeId, groupId: appointment.groupId,
           status: 'active', remark: input.remark?.trim() || null }));
+        if (rental.isManaged && this.business) {
+          const management = await dealRepo.createQueryBuilder('management').where('management.propertyId = :propertyId AND management.workflowType = :type AND management.status = :status AND management.leaseStart <= :leaseStart AND management.leaseEnd >= :leaseEnd', { propertyId: rental.id, type: 'management', status: 'active', leaseStart: input.leaseStart, leaseEnd: input.leaseEnd }).getOne();
+          if (!management || input.leaseStart < management.leaseStart || input.leaseEnd > management.leaseEnd) throw new BadRequestException('承租期限须在生效委托合同的租期内，请先登记房管房委托合同');
+          await this.business.createSchedules(manager, deal, 'receive');
+        }
         if (appointment.customerId) await manager.getRepository(Customer).update(appointment.customerId,
           { status: 'done', relatedPropertyCode: appointment.propertyCode, contractEndDate: input.leaseEnd });
         return appointment;

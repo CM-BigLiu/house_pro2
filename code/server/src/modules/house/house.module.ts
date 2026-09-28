@@ -42,9 +42,11 @@ import { Deal } from './entities/deal.entity';
 import { SaleAppointment } from './entities/sale-appointment.entity';
 import { CustomerWorkflowService } from './services/customer-workflow.service';
 import { CustomerWorkflowController, DealsController } from './controllers/customer-workflow.controller';
+import { FinanceModule } from '../finance/finance.module';
 
 @Module({
   imports: [
+    FinanceModule,
     SystemModule,
     TypeOrmModule.forFeature([
       Community, Building, Unit, Floor, RoomCode,

@@ -24,6 +24,9 @@ const SENSITIVE_FIELDS = new Set([
   'landlordBankCard',
   'tenantPhone',
   'customerPhone',
+  'customerIdCard',
+  'payerAccount',
+  'payeeAccount',
   'tenantIdCard',
 ]);
 
@@ -32,8 +35,8 @@ function maskValue(key: string, value: unknown): unknown {
   if (['mobile', 'ownerPhone', 'ownerPhoneBackup', 'landlordPhone', 'tenantPhone', 'customerPhone'].includes(key)) {
     return maskPhone(value);
   }
-  if (['idCard', 'ownerIdCard', 'landlordIdCard', 'tenantIdCard'].includes(key)) return maskIdCard(value);
-  if (key === 'bankCard' || key === 'landlordBankCard') return maskBankCard(value);
+  if (['idCard', 'ownerIdCard', 'landlordIdCard', 'tenantIdCard', 'customerIdCard'].includes(key)) return maskIdCard(value);
+  if (['bankCard', 'landlordBankCard', 'payerAccount', 'payeeAccount'].includes(key)) return maskBankCard(value);
   return value;
 }
 

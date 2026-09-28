@@ -164,6 +164,7 @@ export interface RentalAppointmentAction {
 }
 
 export interface RentalAppointmentSignInput {
+  details?: import('./business').ContractDetails;
   rentalRoomId?: number;
   contractCode?: string;
   tenantName?: string;
@@ -213,7 +214,7 @@ export function followUpRentalAppointment(id: number, content: string) {
 }
 
 export function getRentalAppointmentSigningContext(id: number) {
-  return get<{ bizType: string; rooms: Pick<RentalRoom, 'id' | 'roomNo' | 'status'>[] }>(`/house/rental-appointments/${id}/signing-context`);
+  return get<{ bizType: string; workflowType?: 'regular' | 'tenant'; propertyAddress?: string; customerName?: string; customerPhone?: string; rooms: Pick<RentalRoom, 'id' | 'roomNo' | 'status'>[] }>(`/house/rental-appointments/${id}/signing-context`);
 }
 
 export function signRentalAppointment(id: number, data: RentalAppointmentSignInput) {
