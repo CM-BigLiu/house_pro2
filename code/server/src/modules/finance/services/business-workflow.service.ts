@@ -392,11 +392,22 @@ export class BusinessWorkflowService {
     const contracts = new Map(deals.map(deal => [deal.id, deal]));
     const withContract = (row: ContractSchedule) => { const deal = contracts.get(row.dealId);
       const breakdown = deal && validDate(deal.leaseStart) && validDate(deal.leaseEnd) ? leaseBreakdown(deal.leaseStart, deal.leaseEnd, Number(deal.amount), row.periodStart, addDays(row.periodEnd, 1), row.direction === 'pay' ? deal.details?.freeDays : undefined, row.direction === 'pay' ? deal.details?.freeRentRanges : undefined) : undefined;
-      return { ...row, billType: 'rent', categoryLabel: '租金', grossRent: breakdown?.grossRent, freeRentDays: breakdown?.freeRentDays, freeRentAmount: breakdown?.freeRentAmount, amount: Number(row.amount), settledAmount: Number(row.settledAmount),
+      return { ...row, billType: 'rent', categoryLabel: '租金', counterparty: contracts.get(row.dealId)?.customerName || '', grossRent: breakdown?.grossRent, freeRentDays: breakdown?.freeRentDays, freeRentAmount: breakdown?.freeRentAmount, amount: Number(row.amount), settledAmount: Number(row.settledAmount),
       remaining: money(cents(row.amount) - cents(row.settledAmount)), contractCode: contracts.get(row.dealId)?.contractCode,
       paymentMethod: contracts.get(row.dealId)?.paymentMethod, monthlyRent: Number(contracts.get(row.dealId)?.amount || 0), roomId: contracts.get(row.dealId)?.roomId,
+      chargeDetails: row.direction === 'receive' ? chargeDetailsByDeal.get(row.dealId) || [] : undefined,
     }; };
     const extra = charges.map(row => chargeCalendarRow(row, contracts.get(row.dealId)?.contractCode));
+    /** 租客收款信息需展示押金、租金、佣金全部明细：按合同聚合该房源应收的押金与佣金（含已结清），附加到 receive 方向的租金行。 */
+    const receiveDealIds = [...new Set(rows.filter(row => row.direction === 'receive').map(row => row.dealId))];
+    const chargeDetails = receiveDealIds.length ? await this.ds.getRepository(BusinessCharge).find({ where: { dealId: In(receiveDealIds), direction: 'receive' } }) : [];
+    const chargeDetailsByDeal = new Map<number, any[]>();
+    for (const charge of chargeDetails) {
+      if (!['tenant_deposit', 'commission'].includes(charge.category)) continue;
+      const list = chargeDetailsByDeal.get(charge.dealId!) || [];
+      list.push({ ...chargeCalendarRow(charge, contracts.get(charge.dealId!)?.contractCode), amount: Number(charge.amount), settledAmount: Number(charge.settledAmount) });
+      chargeDetailsByDeal.set(charge.dealId!, list);
+    }
     const buckets = ['pay', 'receive'].flatMap((direction) =>
       [period, addCalendarMonths(start, 1).slice(0, 7)].map((month) => {
         const list = rows

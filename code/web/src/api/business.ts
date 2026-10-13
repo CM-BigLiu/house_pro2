@@ -54,6 +54,7 @@ export interface ContractSchedule {
   grossRent?: number;
   freeRentDays?: number;
   freeRentAmount?: number;
+  chargeDetails?: CalendarChargeDetail[];
   id: number;
   dealId: number;
   propertyId: number;
@@ -70,6 +71,17 @@ export interface ContractSchedule {
   paymentMethod?: string;
   monthlyRent?: number;
   roomId?: number | null;
+}
+export interface CalendarChargeDetail {
+  id: number;
+  categoryLabel: string;
+  dueDate: string;
+  amount: number;
+  settledAmount: number;
+  remaining: number;
+  status: string;
+  counterparty?: string;
+  remark?: string;
 }
 export interface CalendarBucket {
   direction: 'pay' | 'receive';

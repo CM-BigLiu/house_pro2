@@ -235,9 +235,11 @@ describe('房管房支付、现金与财务审核界面', () => {
     expect(root.textContent).not.toContain('第0期');
     button(root, '支付').click(); await flush();
     const dialog = root.querySelector('section[aria-label="登记支付"]')!;
-    await fill(dialog, '支付账号', '公司账户'); await fill(dialog, '收款账号', '服务账户');
+    expect(dialog.textContent).not.toContain('支付账号');
+    expect(dialog.textContent).not.toContain('收款账号');
+    expect(dialog.textContent).not.toContain('付款人');
     button(dialog, '提交').click(); await flush();
-    expect(settleCharge).toHaveBeenCalledWith(row.id, expect.objectContaining({ amount: 150, payee: '维修师傅' }));
+    expect(settleCharge).toHaveBeenCalledWith(row.id, expect.objectContaining({ amount: 150, payee: '维修师傅', payer: '报送人', payerAccount: '建设银行', payeeAccount: '维修师傅' }));
     expect(settleSchedule).not.toHaveBeenCalled();
   });
   it('按年月日编辑年度免租，取消不会覆盖原免租天数', async () => {
@@ -324,8 +326,6 @@ describe('房管房支付、现金与财务审核界面', () => {
     await flush();
     expect(settleSchedule).not.toHaveBeenCalled();
     await fill(dialog, '支付金额', '40');
-    await fill(dialog, '支付账号', '公司银行账户');
-    await fill(dialog, '收款账号', '业主账户');
     await fill(dialog, '收款人', '业主');
     vi.mocked(settleSchedule).mockRejectedValueOnce(new Error('network'));
     button(dialog, '提交').click();

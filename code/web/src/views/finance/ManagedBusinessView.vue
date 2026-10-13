@@ -48,9 +48,8 @@ const form = reactive({
   payeeAccount: '',
   payee: '',
 });
-const accountOptions = computed(() => Object.values(accountNames));
 const partyOptions = computed(() => [
-  ...new Set([user.name, form.payer, form.payee].filter(Boolean)),
+  ...new Set([user.name, selected.value?.counterparty || '', form.payee].filter(Boolean)),
 ]);
 let generation = 0;
 async function load() {
@@ -80,15 +79,30 @@ function openPayment(row: ContractSchedule) {
     paymentDate: new Date().toLocaleDateString('sv-SE'),
     amount: row.remaining,
     accountCode: 'bank_ccb',
-    payerAccount: '',
-    payer: row.direction === 'pay' ? user.name : row.counterparty || '',
-    payeeAccount: '',
+    payer: '',
     payee: row.direction === 'receive' ? user.name : row.counterparty || '',
   });
   paymentVisible.value = true;
 }
+/** 弹窗不再录入支付账号、付款人、收款账号；按收付方向用公司账户与对方名称自动补齐后端必填字段。 */
+function autoFillParties() {
+  const row = selected.value;
+  if (!row) return;
+  const company = accountNames[form.accountCode] || '公司账户';
+  const counterparty = row.counterparty || '对方';
+  if (row.direction === 'pay') {
+    form.payer = user.name;
+    form.payerAccount = company;
+    form.payeeAccount = counterparty;
+  } else {
+    form.payer = counterparty;
+    form.payerAccount = counterparty;
+    form.payeeAccount = company;
+  }
+}
 async function pay() {
   if (busy.value || !selected.value) return;
+  autoFillParties();
   if (
     !form.paymentDate ||
     form.amount <= 0 ||
@@ -98,7 +112,7 @@ async function pay() {
     )
   )
     return ElMessage.warning(
-      '请补齐双方资料，金额须大于零且不超过本期未结金额',
+      '请填写支付日期、金额与收款人，金额须大于零且不超过本期未结金额',
     );
   busy.value = true;
   try {
@@ -190,7 +204,7 @@ watch(() => [route.query.propertyId, route.query.roomId], load);
               prop="propertyName"
               label="房屋地址"
               min-width="200"
-            ><template #default="{ row }"><div>{{ row.propertyName }}</div><small class="bill-note">{{ billDescription(row) }}</small><small v-if="row.billType !== 'charge'" class="bill-note">月租 {{ formatMoney(row.monthlyRent) }} · {{ dict.getLabel('payment_method', row.paymentMethod) }}</small><small v-else class="bill-note">{{ row.contractCode || '房源费用' }}{{ row.remark ? ` · ${row.remark}` : '' }}</small></template></el-table-column><el-table-column label="账单期间" width="166"><template #default="{ row }">{{ row.periodStart }}<template v-if="row.billType !== 'charge'"><br>至 {{ row.periodEnd }}</template></template></el-table-column><el-table-column
+            ><template #default="{ row }"><div>{{ row.propertyName }}</div><small class="bill-note">{{ billDescription(row) }}</small><small v-if="row.billType !== 'charge'" class="bill-note">月租 {{ formatMoney(row.monthlyRent) }} · {{ dict.getLabel('payment_method', row.paymentMethod) }}</small><small v-else class="bill-note">{{ row.contractCode || '房源费用' }}{{ row.remark ? ` · ${row.remark}` : '' }}</small><template v-if="direction === 'receive' && row.chargeDetails?.length"><small v-for="detail in row.chargeDetails" :key="detail.id" class="bill-note charge-detail">{{ detail.categoryLabel }} {{ formatMoney(detail.amount) }} · 已收 {{ formatMoney(detail.settledAmount) }} · {{ detail.status === 'paid' ? '已结清' : `未结 ${formatMoney(detail.remaining)}` }}{{ detail.dueDate ? ` · ${detail.dueDate}` : '' }}</small></template></template></el-table-column><el-table-column label="账单期间" width="166"><template #default="{ row }">{{ row.periodStart }}<template v-if="row.billType !== 'charge'"><br>至 {{ row.periodEnd }}</template></template></el-table-column><el-table-column
               prop="dueDate"
               label="支付日期"
               width="110"
@@ -284,45 +298,19 @@ watch(() => [route.query.propertyId, route.query.roomId], load);
               :value="code"
               :label="name" /></el-select
         ></el-form-item>
-        <el-row :gutter="14"
-          ><el-col
-            v-for="field in [
-              {
-                key: 'payerAccount',
-                label: '支付账号',
-                options: accountOptions,
-              },
-              { key: 'payer', label: '付款人', options: partyOptions },
-              {
-                key: 'payeeAccount',
-                label: '收款账号',
-                options: accountOptions,
-              },
-              { key: 'payee', label: '收款人', options: partyOptions },
-            ]"
-            :key="field.key"
-            :span="12"
-            ><el-form-item :label="field.label" required
-              ><el-select
-                v-model="
-                  form[
-                    field.key as
-                      | 'payerAccount'
-                      | 'payer'
-                      | 'payeeAccount'
-                      | 'payee'
-                  ]
-                "
-                filterable
-                allow-create
-                default-first-option
-                placeholder="手填或下拉选择"
-                ><el-option
-                  v-for="value in field.options"
-                  :key="value"
-                  :label="value"
-                  :value="value" /></el-select></el-form-item></el-col
-        ></el-row> </el-form
+        <el-form-item label="收款人" required
+          ><el-select
+            v-model="form.payee"
+            filterable
+            allow-create
+            default-first-option
+            placeholder="手填或下拉选择"
+            ><el-option
+              v-for="value in partyOptions"
+              :key="value"
+              :label="value"
+              :value="value" /></el-select></el-form-item
+        ></el-form
       ><template #footer
         ><el-button :disabled="busy" @click="paymentVisible = false"
           >取消</el-button
@@ -379,6 +367,7 @@ watch(() => [route.query.propertyId, route.query.roomId], load);
   font-size: 20px;
 }
 .free-note { display:block; color:#0b815b; font-size:11px; line-height:1.7; overflow-wrap:anywhere; }
+.charge-detail { color:var(--ink-700); }
 .bill-note { display:block; color:var(--ink-500); font-size:11px; line-height:1.7; overflow-wrap:anywhere; }.month-card :deep(.cell) { line-height:1.65; }.month-card b { color:var(--ink-900); }
 h2 {
   font-size: 17px;

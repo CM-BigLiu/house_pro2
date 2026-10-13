@@ -109,6 +109,26 @@ describe('合同账单日历', () => {
     expect(repo.qb.andWhere).toHaveBeenCalledWith('deal.roomId = :roomId', { roomId: 21 });
     expect(repo.qb.andWhere).toHaveBeenCalledWith('record.employeeId = :employeeId', { employeeId: 7 });
   });
+  it('租客收款行附带应收押金与佣金全部明细，含已结清项', async () => {
+    const ctx = setup();
+    ctx.repos.get(ContractSchedule).qb.getMany.mockResolvedValueOnce([
+      { id: 5, dealId: 9, propertyId: 8, direction: 'receive', sequence: 1, dueDate: '2026-10-01', periodStart: '2026-10-01', periodEnd: '2026-10-31', amount: 3000, settledAmount: 0 },
+    ]).mockResolvedValueOnce([]);
+    ctx.repos.get(BusinessCharge).qb.getMany.mockResolvedValue([]);
+    ctx.repos.get(BusinessCharge).find.mockImplementation(async ({ where }: any) => {
+      if (where?.direction !== 'receive') return [];
+      return [
+        { id: 11, dealId: 9, propertyId: 8, direction: 'receive', category: 'tenant_deposit', dueDate: '2026-10-01', amount: 2000, settledAmount: 2000, status: 'paid', counterparty: '租客' },
+        { id: 12, dealId: 9, propertyId: 8, direction: 'receive', category: 'commission', dueDate: '2026-10-01', amount: 1500, settledAmount: 500, status: 'pending', counterparty: '租客' },
+      ];
+    });
+    ctx.repos.get(Deal).find.mockResolvedValue([{ id: 9, amount: 3000, leaseStart: '2026-10-01', leaseEnd: '2027-09-30', customerName: '租客' }]);
+    const result = await ctx.service.calendar('2026-10', user);
+    const receive = result.buckets.find(bucket => bucket.direction === 'receive' && bucket.period === '2026-10');
+    expect(receive.list[0].chargeDetails).toHaveLength(2);
+    expect(receive.list[0].chargeDetails[0]).toMatchObject({ categoryLabel: '租房押金', amount: 2000, settledAmount: 2000, remaining: 0, status: 'paid' });
+    expect(receive.list[0].chargeDetails[1]).toMatchObject({ categoryLabel: '佣金', amount: 1500, settledAmount: 500, remaining: 1000, status: 'pending' });
+  });
   it('拒绝无效房源编号', async () => { const ctx = setup(); await expect(ctx.service.calendar('2026-10', user, { propertyId: -1 })).rejects.toThrow('编号无效'); });
 });
 const details = {
