@@ -22,7 +22,13 @@ function getKey(): Buffer {
   return Buffer.from(envKey, 'base64');
 }
 
-const KEY = getKey();
+let resolvedKey: Buffer | undefined;
+
+// 延迟解析：ConfigModule 加载 .env 晚于模块导入，若在导入期读取会拿不到密钥而退回开发兜底密钥。
+function getKeyOnce(): Buffer {
+  if (!resolvedKey) resolvedKey = getKey();
+  return resolvedKey;
+}
 
 export function encryptField(plain: string | null | undefined): string | null | undefined {
   if (plain === null || plain === undefined || plain === '') return plain as null | undefined;
@@ -30,7 +36,7 @@ export function encryptField(plain: string | null | undefined): string | null | 
 
   const iv = randomBytes(IV_LENGTH);
   const salt = randomBytes(SALT_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, KEY, iv);
+  const cipher = createCipheriv(ALGORITHM, getKeyOnce(), iv);
   const encrypted = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
   const authTag = cipher.getAuthTag();
 
@@ -48,7 +54,7 @@ export function decryptField(cipher: string | null | undefined): string | null |
   const authTag = raw.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH);
   const encrypted = raw.subarray(SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH);
 
-  const decipher = createDecipheriv(ALGORITHM, KEY, iv);
+  const decipher = createDecipheriv(ALGORITHM, getKeyOnce(), iv);
   decipher.setAuthTag(authTag);
   const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
   return decrypted.toString('utf8');
