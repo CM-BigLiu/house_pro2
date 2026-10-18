@@ -192,8 +192,8 @@ watch(() => [route.query.propertyId, route.query.roomId], load);
         >
           <header>
             <h3>
-              {{ bucket.period === period ? '本月' : '下月'
-              }}{{ direction === 'pay' ? '需支付' : '需收款' }} ·
+              {{ bucket.period === period ? '本期' : '下期'
+              }}{{ direction === 'pay' ? '账单' : '收款' }} ·
               {{ bucket.period }}
             </h3>
             <strong>{{ formatMoney(bucketTotal(bucket)) }}</strong

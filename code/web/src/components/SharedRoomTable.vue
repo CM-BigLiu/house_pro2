@@ -29,8 +29,23 @@ function period(years: number) {
   if (!activeRoom.value) return;
   const range = buildLeasePeriod(activeRoom.value.leaseStart, years);
   if (range) Object.assign(activeRoom.value, { leaseStart: range.start, leaseEnd: range.end });
+  onScheduleSourceChange();
 }
 const payments = computed(() => activeRoom.value ? buildPaymentSchedule(activeRoom.value.leaseStart, activeRoom.value.leaseEnd, activeRoom.value.paymentMethod) : []);
+// 每期默认日期由规则生成，用户可逐期改；改动后完整写回房间的 paymentDates，保存时随房源落库。
+function paymentDate(period: number, fallback: string) {
+  return activeRoom.value?.paymentDates?.[period - 1] || fallback;
+}
+function setPaymentDate(period: number, fallback: string, value: string | null) {
+  const room = activeRoom.value;
+  if (!room) return;
+  const list = payments.value.map((row, index) => room.paymentDates?.[index] || row.date);
+  list[period - 1] = value || fallback;
+  room.paymentDates = list;
+}
+function onScheduleSourceChange() {
+  if (activeRoom.value) activeRoom.value.paymentDates = [];
+}
 </script>
 <template>
   <div class="room-toolbar">
@@ -62,18 +77,23 @@ const payments = computed(() => activeRoom.value ? buildPaymentSchedule(activeRo
         <el-col :sm="12" :xs="24"><el-form-item label="房间状态"><el-select v-model="activeRoom.status"><el-option v-for="item in dict.getItems('room_status')" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
         <el-col :sm="12" :xs="24"><el-form-item label="成交租金" :prop="`rooms.${activeIndex}.rentPrice`"><MoneyInput v-model="activeRoom.rentPrice" /></el-form-item></el-col>
         <el-col :sm="12" :xs="24"><el-form-item label="押金" :prop="`rooms.${activeIndex}.depositAmount`"><MoneyInput v-model="activeRoom.depositAmount" /></el-form-item></el-col>
-        <el-col :sm="12" :xs="24"><el-form-item label="付款方式" :prop="`rooms.${activeIndex}.paymentMethod`"><el-select v-model="activeRoom.paymentMethod"><el-option v-for="item in dict.getItems('payment_method')" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
+        <el-col :sm="12" :xs="24"><el-form-item label="付款方式" :prop="`rooms.${activeIndex}.paymentMethod`"><el-select v-model="activeRoom.paymentMethod" @change="onScheduleSourceChange"><el-option v-for="item in dict.getItems('payment_method')" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item></el-col>
         <el-col :sm="12" :xs="24"><el-form-item label="租客姓名" :prop="`rooms.${activeIndex}.tenantName`"><el-input v-model="activeRoom.tenantName" /></el-form-item></el-col>
         <el-col :sm="12" :xs="24"><el-form-item label="租客电话" :prop="`rooms.${activeIndex}.tenantPhone`"><el-input v-model="activeRoom.tenantPhone" /></el-form-item></el-col>
         <el-col :sm="12" :xs="24"><el-form-item label="租客身份证" :prop="`rooms.${activeIndex}.tenantIdCard`"><el-input v-model="activeRoom.tenantIdCard" maxlength="18" /></el-form-item></el-col>
         <el-col :sm="12" :xs="24"><el-form-item label="装修进度"><el-input v-model="activeRoom.renovationProgress" /></el-form-item></el-col>
       </el-row>
       <el-form-item label="租期" :prop="`rooms.${activeIndex}.leaseDateRange`"><div class="room-dates">
-        <el-date-picker v-model="activeRoom.leaseStart" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" />至
-        <el-date-picker v-model="activeRoom.leaseEnd" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" />
+        <el-date-picker v-model="activeRoom.leaseStart" type="date" value-format="YYYY-MM-DD" placeholder="开始日期" @change="onScheduleSourceChange" />至
+        <el-date-picker v-model="activeRoom.leaseEnd" type="date" value-format="YYYY-MM-DD" placeholder="结束日期" @change="onScheduleSourceChange" />
         <el-button v-for="years in [1, 3, 5]" :key="years" @click="period(years)">{{ years }}年</el-button>
       </div></el-form-item>
-      <div v-if="payments.length" class="room-dates"><span v-for="row in payments" :key="row.period">第{{ row.period }}期：{{ row.date }}</span></div>
+      <el-form-item label="缴费日期"><div v-if="payments.length" class="room-payments">
+        <div v-for="row in payments" :key="row.period" class="room-payment">
+          <span>第{{ row.period }}期</span>
+          <el-date-picker :model-value="paymentDate(row.period, row.date)" type="date" value-format="YYYY-MM-DD" placeholder="缴费日期" @update:model-value="(value: string | null) => setPaymentDate(row.period, row.date, value)" />
+        </div>
+      </div></el-form-item>
     </template>
     <template #footer><span class="hint">随房源一起保存</span><el-button type="primary" @click="activeRoom = null">完成</el-button></template>
   </el-dialog>
@@ -102,6 +122,9 @@ const payments = computed(() => activeRoom.value ? buildPaymentSchedule(activeRo
 .room-actions :deep(.el-button + .el-button) { margin-left:0; }
 .room-configuration { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .room-dates { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.room-payments { display:flex; flex-direction:column; gap:8px; }
+.room-payment { display:flex; align-items:center; gap:10px; }
+.room-payment > span { width:60px; color:var(--ink-500); }
 .sort-room { display:flex; align-items:center; gap:10px; margin:14px 0; }
 .sort-room > span { flex:1; }
 .hint { margin-right:16px; color:var(--ink-500); }

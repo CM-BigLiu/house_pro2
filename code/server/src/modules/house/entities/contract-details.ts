@@ -9,6 +9,7 @@ export interface ContractDetails {
   customerAddress?: string;
   propertyAddress?: string;
   paymentDate?: string;
+  paymentDates?: string[];
   payee?: string;
   payeeAccount?: string;
   depositNote?: string;

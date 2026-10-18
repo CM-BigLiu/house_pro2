@@ -164,6 +164,11 @@ async function render() {
   return root;
 }
 
+async function showTableView(root: HTMLElement) {
+  root.querySelector<HTMLButtonElement>('button[aria-label="表格显示"]')!.click();
+  await nextTick();
+}
+
 describe('租房管理页面', () => {
   it('切换卡片后合租先展示房源再展示房间，房间操作关联正确记录，切回表格保留筛选', async () => {
     const root = await render(), calls = vi.mocked(getRentalSets).mock.calls.length;
@@ -187,6 +192,7 @@ describe('租房管理页面', () => {
       defaults: { tenantName: '测试客户', tenantPhone: '13800001234', leaseStart: '2026-10-01', leaseEnd: '2027-09-30', rent: 3200.5, deposit: 3200,
         paymentMethod: 'quarterly', details: { ownerName: '测试业主', ownerIdCard: '110101199001011234', ownerPhone: '13800001111', ownerAddress: '业主地址', customerIdCard: '110101199001011235', customerAddress: '客户地址' } } });
     const root = await render();
+    await showTableView(root);
     const buttons = root.querySelectorAll<HTMLButtonElement>('.sign-link');
     expect([...buttons].some(button => button.disabled)).toBe(true);
     [...buttons].find(button => !button.disabled)!.click();
@@ -200,6 +206,7 @@ describe('租房管理页面', () => {
   });
   it('同时展示整租、合租房间，并对联系电话脱敏', async () => {
     const root = await render();
+    await showTableView(root);
 
     expect(root.textContent).toContain('租房管理');
     expect(root.textContent).toContain('张江汤臣豪园');
@@ -211,6 +218,9 @@ describe('租房管理页面', () => {
 
   it('只保留租房业务并使用列表视图展示', async () => {
     const root = await render();
+
+    expect(root.querySelector('.resource-table')).toBeNull();
+    await showTableView(root);
 
     expect(root.textContent).not.toContain('二手房');
     expect(root.textContent).not.toContain('房东信息');
@@ -250,6 +260,7 @@ describe('租房管理页面', () => {
 
   it('双击房源行进入详情，并展示约看入口', async () => {
     const root = await render();
+    await showTableView(root);
     const row = root.querySelector<HTMLElement>('.resource-row');
 
     expect(root.textContent).toContain('约看记录');
@@ -260,6 +271,7 @@ describe('租房管理页面', () => {
 
   it('保存下拉选择的客户 ID，并在下次约看时清空选择', async () => {
     const root = await render();
+    await showTableView(root);
     root.querySelector<HTMLButtonElement>('.appointment-link')!.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     const dialog = root.querySelector<HTMLElement>('section[aria-label="创建约看"]')!;
@@ -285,6 +297,7 @@ describe('租房管理页面', () => {
       list: Array.from({ length: 20 }, (_, i) => ({ id: i + 1, name: `客户${i + 1}`, mobile: '' } as Customer)), total: 21,
     }).mockResolvedValueOnce({ list: [{ id: 21, name: '下一页客户', mobile: '' } as Customer], total: 21 });
     const root = await render();
+    await showTableView(root);
     root.querySelector<HTMLButtonElement>('.appointment-link')!.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     root.querySelector<HTMLButtonElement>('.customer-load-more')!.click();
@@ -296,6 +309,7 @@ describe('租房管理页面', () => {
 
   it('搜索时忽略迟到的旧结果，防止覆盖最新客户列表', async () => {
     const root = await render();
+    await showTableView(root);
     root.querySelector<HTMLButtonElement>('.appointment-link')!.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     let resolveOld!: (value: { list: Customer[]; total: number }) => void;

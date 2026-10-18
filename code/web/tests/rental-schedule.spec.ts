@@ -3,12 +3,19 @@ import { durationDays, durationParts, leaseDuration, leaseEnd, buildLeasePeriod,
 
 describe('rental payment schedule', () => {
   it.each([
-    ['monthly', '2026-02-28'], ['bi_monthly', '2026-03-31'],
-    ['quarterly', '2026-04-30'], ['four_month', '2026-05-31'],
-    ['half_year', '2026-07-31'], ['yearly', '2027-01-31'],
-    ['two_year', '2028-01-31'], ['three_year', '2029-01-31'], ['four_year', '2030-01-31'],
-  ])('uses the dictionary interval for %s', (method, nextDate) => {
+    ['monthly', '2026-02-28'], ['bi_monthly', '2026-02-28'],
+    ['quarterly', '2026-03-31'], ['four_month', '2026-04-30'],
+    ['half_year', '2026-06-30'], ['yearly', '2026-12-31'],
+    ['two_year', '2027-12-31'], ['three_year', '2028-12-31'], ['four_year', '2029-12-31'],
+  ])('第2期日期按周期推算，周期≥2个月提前一个月：%s', (method, nextDate) => {
     expect(buildPaymentSchedule('2026-01-31', '2031-01-30', method)[1].date).toBe(nextDate);
+  });
+
+  it('月付按周期整月递增，季付第2期起提前一个月', () => {
+    expect(buildPaymentSchedule('2026-01-31', '2026-12-30', 'monthly').slice(0, 3).map(item => item.date))
+      .toEqual(['2026-01-31', '2026-02-28', '2026-03-31']);
+    expect(buildPaymentSchedule('2026-07-15', '2027-07-14', 'quarterly').slice(0, 4).map(item => item.date))
+      .toEqual(['2026-07-15', '2026-09-15', '2026-12-15', '2027-03-15']);
   });
 
   it('treats full payment as one installment and does not invent irregular schedules', () => {

@@ -85,6 +85,13 @@ export class CreateRentalRoomDto {
   @IsOptional()
   paymentMethod?: string;
 
+  @IsArray()
+  @ArrayMaxSize(30)
+  @IsString({ each: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true })
+  @IsOptional()
+  paymentDates?: string[];
+
   @IsString()
   @IsOptional()
   leaseTerm?: string;

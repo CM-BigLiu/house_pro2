@@ -36,6 +36,7 @@ async function render() {
 describe('房管房管理页面', () => {
   it('默认展示所有租房类型、房东租期和实际应付账单日期', async () => {
     const root = await render();
+    root.querySelector<HTMLButtonElement>('button[aria-label="表格显示"]')!.click(); await flush();
     expect(root.querySelectorAll('[role="tab"]')).toHaveLength(2);
     expect(root.querySelector('[aria-selected="true"]')?.textContent).toBe('房管管理');
     expect(root.textContent).toContain('整租'); expect(root.textContent).toContain('合租');

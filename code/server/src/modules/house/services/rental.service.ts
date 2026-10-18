@@ -254,7 +254,7 @@ export class RentalService {
 
         const allowedRoomFields: (keyof RentalRoom)[] = [
           'roomNo', 'roomType', 'rentPrice', 'listedPrice', 'status', 'leaseEnd',
-          'paymentMethod', 'leaseTerm', 'renovationProgress', 'cohabitantIds',
+          'paymentMethod', 'paymentDates', 'leaseTerm', 'renovationProgress', 'cohabitantIds',
           'leaseDuration', 'arrearDays', 'depositAmount', 'paymentStatus', 'tenantId',
           'leaseStart', 'tenantName', 'tenantPhone', 'tenantIdCard',
           'privateBathroom', 'balcony', 'airConditioner', 'interiorArea', 'orientation', 'facilities', 'sortOrder',

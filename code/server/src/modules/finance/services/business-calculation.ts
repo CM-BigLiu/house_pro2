@@ -115,16 +115,18 @@ export function leaseBreakdown(
     if (a >= until || a > end) break;
     const left = [a, from].sort().pop()!, right = [b, until, addDays(end, 1)].sort()[0];
     if (left >= right) continue;
+    const span = days(a, b), kept = days(left, right);
     const exempt = ranges.reduce((sum, range) => {
       const x = [left, range.start].sort().pop()!, y = [right, addDays(range.end, 1)].sort()[0];
       return sum + (x < y ? days(x, y) : 0);
     }, 0);
-    gross += cents(rent) * days(left, right) / days(a, b);
-    freeDaysInPeriod += exempt;
+    gross += cents(rent) * kept / span;
+    // 免租天数按 30 天/月折算：整月免租按 30 天计，不足整月按实际天数计。
+    freeDaysInPeriod += exempt >= kept ? 30 * kept / span : exempt;
   }
   // 整期基础租金按合同月计，零散租期按实际日历；免租扣款统一使用月租÷30。
   const deduction = Math.min(gross, cents(rent) * freeDaysInPeriod / 30);
-  return { grossRent: money(gross), freeRentDays: freeDaysInPeriod, freeRentAmount: money(deduction), amount: money(gross - deduction) };
+  return { grossRent: money(gross), freeRentDays: Math.round(freeDaysInPeriod * 100) / 100, freeRentAmount: money(deduction), amount: money(gross - deduction) };
 }
 export function leaseAmount(start: string, end: string, rent: number, from: string, until: string, freeDays: number[] = [], freeRentRanges: FreeRentRange[] = []) {
   return leaseBreakdown(start, end, rent, from, until, freeDays, freeRentRanges).amount;
@@ -134,6 +136,7 @@ export function buildContractSchedule(input: {
   leaseEnd: string;
   paymentMethod: string;
   paymentDate: string;
+  paymentDates?: string[];
   amount: number;
   freeDays?: number[];
   freeRentRanges?: FreeRentRange[];
@@ -158,6 +161,8 @@ export function buildContractSchedule(input: {
     ? PAYMENT_MONTHS[input.paymentMethod]
     : 0;
   if (!interval) throw new BadRequestException('请选择支持的租金付款周期');
+  // 月付保持按周期整月递增；周期≥2个月时第2期起默认提前一个月。
+  const earlyByMonth = interval >= 2 ? 1 : 0;
   const result: {
     sequence: number;
     dueDate: string;
@@ -172,9 +177,14 @@ export function buildContractSchedule(input: {
       addMonths(input.leaseStart, (index + 1) * interval),
       addDays(input.leaseEnd, 1),
     ].sort()[0];
+    const custom = input.paymentDates?.[index];
     result.push({
       sequence: index + 1,
-      dueDate: addMonths(input.paymentDate, index * interval),
+      // 存在自定义缴费日期时按其落账；否则第1期取付款日期，月付按周期整月递增，周期≥2个月时第2期起默认提前一个月。
+      dueDate:
+        custom && validDate(custom)
+          ? custom
+          : addMonths(input.paymentDate, index * interval - (index === 0 ? 0 : earlyByMonth)),
       periodStart: start,
       periodEnd: addDays(until, -1),
       amount: leaseAmount(

@@ -52,6 +52,53 @@ describe('合同金额与收付款周期', () => {
     expect(quarterly[3].periodEnd).toBe('2027-09-25');
   });
 
+  it('周期≥2个月时第2期起默认提前一个月，月付保持按整月递增', () => {
+    const rows = buildContractSchedule({
+      leaseStart: '2026-07-15',
+      leaseEnd: '2027-07-14',
+      paymentDate: '2026-07-15',
+      paymentMethod: 'quarterly',
+      amount: 3000,
+    });
+    expect(rows.map((row) => row.dueDate)).toEqual([
+      '2026-07-15',
+      '2026-09-15',
+      '2026-12-15',
+      '2027-03-15',
+    ]);
+    const monthly = buildContractSchedule({
+      leaseStart: '2026-07-15',
+      leaseEnd: '2026-12-14',
+      paymentDate: '2026-07-15',
+      paymentMethod: 'monthly',
+      amount: 3000,
+    });
+    expect(monthly.map((row) => row.dueDate)).toEqual([
+      '2026-07-15',
+      '2026-08-15',
+      '2026-09-15',
+      '2026-10-15',
+      '2026-11-15',
+    ]);
+  });
+
+  it('存在自定义缴费日期时按其落账', () => {
+    const rows = buildContractSchedule({
+      leaseStart: '2026-07-15',
+      leaseEnd: '2027-07-14',
+      paymentDate: '2026-07-15',
+      paymentDates: ['2026-07-20', '2026-08-01'],
+      paymentMethod: 'quarterly',
+      amount: 3000,
+    });
+    expect(rows.map((row) => row.dueDate)).toEqual([
+      '2026-07-20',
+      '2026-08-01',
+      '2026-12-15',
+      '2027-03-15',
+    ]);
+  });
+
   it('月底和闰年也按真实日历推算付款日期', () => {
     const rows = buildContractSchedule({
       ...contract,
@@ -142,11 +189,11 @@ describe('合同金额与收付款周期', () => {
     ).toBe(5800);
   });
 
-  it('免租扣款上限为本期租金，二月按实际免租天数除以30计算', () => {
+  it('免租扣款上限为本期租金，整月免租按30天折算', () => {
     const rows = buildContractSchedule({ ...contract, freeDays: [365, 0, 0, 0, 0] });
     expect(rows.every(row => row.amount >= 0)).toBe(true);
     expect(rows[0].amount).toBe(0);
-    expect(rows.find(row => row.periodStart === '2027-02-01').amount).toBe(206.67);
+    expect(rows.find(row => row.periodStart === '2027-02-01').amount).toBe(0);
   });
 
   it.each([

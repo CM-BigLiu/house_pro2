@@ -31,16 +31,21 @@ export function buildLeasePeriod(startStr: string | undefined, years: number, to
   return { start: formatDate(start), end: formatDate(end) };
 }
 
-export function buildPaymentSchedule(startStr?: string, endStr?: string, method?: string) {
+export function buildPaymentSchedule(startStr?: string, endStr?: string, method?: string, firstPaymentDate?: string) {
   const list: { period: number; date: string }[] = [];
   if (!startStr || !method || (!PAYMENT_MONTHS[method] && method !== 'full')) return list;
   const start = localDate(startStr);
   const end = endStr ? localDate(endStr) : null;
   if (isNaN(start.getTime()) || (end && (isNaN(end.getTime()) || end < start))) return list;
+  // 首期默认取起租日，也可由调用方指定首期缴费日期；其余各期在首期基础上按周期推算。
+  const anchor = firstPaymentDate && !isNaN(localDate(firstPaymentDate).getTime()) ? firstPaymentDate : startStr;
+  const months = PAYMENT_MONTHS[method] || 0;
   for (let index = 0; index < (method === 'full' ? 1 : 120); index++) {
-    const date = localDate(calendarMonths(startStr, index * (PAYMENT_MONTHS[method] || 0)));
-    if (end && date > end) break;
-    list.push({ period: index + 1, date: formatDate(date) });
+    const boundary = localDate(calendarMonths(startStr, index * months));
+    if (end && boundary > end) break;
+    // 月付按周期整月递增（期n = 期1 + (n−1) 个月）；周期≥2个月时第2期起默认提前一个月。
+    const monthOffset = index === 0 ? 0 : index * months - (months >= 2 ? 1 : 0);
+    list.push({ period: index + 1, date: calendarMonths(anchor, monthOffset) });
   }
   return list;
 }

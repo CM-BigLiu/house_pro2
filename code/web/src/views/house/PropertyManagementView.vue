@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { Building2, RefreshCw, Search } from 'lucide-vue-next';
+import { Building2, LayoutGrid, RefreshCw, Search, Table2 } from 'lucide-vue-next';
 import { getManagedProperties, getManagedTenants, type ManagedProperty, type ManagedTenant } from '@/api/property-management';
 import { useDictStore } from '@/stores/dict';
 import PropertyConfigurationDialog from '@/components/PropertyConfigurationDialog.vue';
@@ -10,6 +10,7 @@ import PropertyDelegationDialog from '@/components/PropertyDelegationDialog.vue'
 const router = useRouter();
 const dictStore = useDictStore();
 const activeTab = ref<'properties' | 'tenants'>('properties');
+const viewMode = ref<'table' | 'card'>('card');
 const properties = ref<ManagedProperty[]>([]);
 const tenants = ref<ManagedTenant[]>([]);
 const total = ref(0);
@@ -104,11 +105,15 @@ onMounted(() => { load(); void dictStore.ensureLoaded(['room_status']).catch(() 
         <button class="btn btn-primary" :disabled="loading" @click="search"><Search :size="14" />查询</button>
         <button class="btn btn-default" :disabled="loading" @click="reset">重置</button>
         <span class="record-count">共 {{ total }} {{ showingProperties ? '套房源' : '份租约' }}</span>
+        <div v-if="showingProperties" class="display-switch" role="group" aria-label="房源显示方式">
+          <button :class="{ active: viewMode === 'table' }" :aria-pressed="viewMode === 'table'" aria-label="表格显示" title="表格显示" @click="viewMode = 'table'"><Table2 :size="17" /></button>
+          <button :class="{ active: viewMode === 'card' }" :aria-pressed="viewMode === 'card'" aria-label="卡片显示" title="卡片显示" @click="viewMode = 'card'"><LayoutGrid :size="17" /></button>
+        </div>
       </div>
       <p class="management-tip">仅显示已托管房源，记录仅填写人和管理员可见；可在租房编辑页取消托管。{{ showingProperties ? '租赁期限为与房东签订的租期。' : '展示已录入的实际租客，不包含意向客户；未通过系统签约的记录显示“未登记”。' }}付款日期取未结清租金账单的最早应付日，已逾期账单优先展示。</p>
       <div v-if="loadError" class="load-error" role="alert">数据加载失败，请重试。<button class="btn btn-default btn-sm" @click="load">重试</button></div>
       <div v-else-if="showingProperties" id="properties-panel" role="tabpanel" aria-labelledby="properties-tab" v-loading="loading" class="management-table-shell">
-        <table class="management-table property-table">
+        <table v-if="viewMode === 'table'" class="management-table property-table">
           <thead><tr><th>基本信息</th><th>房源状态</th><th>租赁期限（与房东）</th><th>下一次给房东的房租支付时间</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-for="item in properties" :key="item.id" class="property-row" @dblclick="router.push(rentalRoute(item))">
@@ -130,6 +135,30 @@ onMounted(() => { load(); void dictStore.ensureLoaded(['room_status']).catch(() 
             <tr v-if="!loading && !properties.length"><td colspan="5" class="empty-state">暂无符合条件的托管房源</td></tr>
           </tbody>
         </table>
+        <div v-else-if="properties.length > 0" class="property-card-grid">
+          <article v-for="item in properties" :key="item.id" class="property-card" title="双击查看详情" @dblclick="router.push(rentalRoute(item))">
+            <div class="property-card-head">
+              <div class="property-icon"><Building2 :size="24" /></div>
+              <div class="property-card-title">
+                <button class="property-link" @click="router.push(rentalRoute(item))">{{ propertyName(item) }}</button>
+                <div class="property-meta">{{ item.address || '地址未登记' }}</div>
+                <div class="property-meta">{{ item.bizType === 'shared' ? '合租' : '整租' }} · {{ item.layout || '户型未登记' }}<template v-if="item.buildingArea"> · {{ item.buildingArea }}㎡</template></div>
+                <small class="property-code">{{ item.code }}</small>
+              </div>
+            </div>
+            <dl class="property-card-fields">
+              <div><dt>房源状态</dt><dd><span :class="['status-pill', { rented: item.status === 'rented' }]">{{ statusLabel(item.status) }}</span></dd></div>
+              <div><dt>租赁期限（与房东）</dt><dd><template v-if="item.leaseStart || item.leaseEnd"><div>{{ item.leaseStart || '开始日期未登记' }}</div><div class="date-end">至 {{ item.leaseEnd || '结束日期未登记' }}</div></template><span v-else class="muted">租期未登记</span></dd></div>
+              <div><dt>下一次给房东的房租支付时间</dt><dd><span v-if="item.nextLandlordPaymentDate" :class="{ 'payment-overdue': overdue(item.nextLandlordPaymentDate) }">{{ item.nextLandlordPaymentDate }}<small v-if="overdue(item.nextLandlordPaymentDate)" class="overdue-tag">逾期</small></span><span v-else class="muted">未生成租金账单</span></dd></div>
+            </dl>
+            <div class="management-actions property-card-actions" @dblclick.stop>
+              <button v-permission="['renting:edit']" class="btn btn-default btn-sm" @click.stop="router.push(rentalRoute(item, 'edit'))">编辑</button>
+              <button v-permission="['renting:edit']" class="btn btn-default btn-sm" @click.stop="delegationProperty = item; delegationVisible = true">成交</button>
+              <button v-permission="['renting:edit']" class="btn btn-default btn-sm" @click.stop="configure(item)">配置</button>
+            </div>
+          </article>
+        </div>
+        <div v-else-if="!loading" class="empty-state property-card-empty">暂无符合条件的托管房源</div>
       </div>
       <div v-else id="tenants-panel" role="tabpanel" aria-labelledby="tenants-tab" v-loading="loading" class="management-table-shell">
         <table class="management-table tenant-table">
@@ -160,6 +189,9 @@ onMounted(() => { load(); void dictStore.ensureLoaded(['room_status']).catch(() 
 .management-toolbar { display: flex; align-items: center; gap: 10px; padding: 20px 20px 12px; }
 .management-toolbar :deep(.el-input) { max-width: 400px; }
 .record-count { margin-left: auto; white-space: nowrap; font-size: 13px; color: var(--ink-500); }
+.display-switch { display: flex; border: 1px solid var(--ink-200); border-radius: 6px; overflow: hidden; }
+.display-switch button { display: grid; place-items: center; width: 34px; height: 29px; color: var(--ink-500); background: #fff; border: 0; cursor: pointer; }
+.display-switch button.active { color: var(--primary); background: var(--primary-soft); }
 .management-tip { margin: 0 20px 18px; padding: 10px 12px; background: #f6f9ff; color: var(--ink-500); border-radius: 6px; font-size: 12px; line-height: 1.7; }
 .management-table-shell { overflow-x: auto; }
 .management-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
@@ -173,6 +205,17 @@ onMounted(() => { load(); void dictStore.ensureLoaded(['room_status']).catch(() 
 .property-link:hover { color: #2e6bf0; }
 .property-meta { color: var(--ink-500); font-size: 12px; margin-top: 3px; }
 .property-code { color: var(--ink-400); font-size: 11px; }
+.property-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; padding: 4px 20px 20px; }
+.property-card { display: grid; gap: 12px; padding: 16px; background: #fff; border: 1px solid var(--ink-200); border-radius: 10px; }
+.property-card:hover { border-color: var(--primary); box-shadow: 0 4px 12px rgb(15 23 42 / 6%); }
+.property-card-head { display: flex; align-items: flex-start; gap: 12px; }
+.property-card-title { min-width: 0; }
+.property-card .property-icon { width: 48px; height: 48px; }
+.property-card-fields { display: grid; gap: 10px; margin: 0; padding-top: 12px; border-top: 1px solid #edf1f7; }
+.property-card-fields > div { display: grid; gap: 4px; }
+.property-card-fields dt { color: var(--ink-500); font-size: 12px; }
+.property-card-fields dd { margin: 0; color: var(--ink-700); font-size: 13px; line-height: 1.6; }
+.property-card-actions { justify-content: flex-end; min-width: 0; }
 .status-pill { display: inline-block; padding: 3px 10px; border-radius: 999px; color: #159955; background: #eafbf2; white-space: nowrap; font-size: 12px; }
 .status-pill.rented { color: #2e6bf0; background: #edf3ff; }
 .date-end { color: var(--ink-500); font-size: 12px; margin-top: 4px; }
@@ -180,6 +223,7 @@ onMounted(() => { load(); void dictStore.ensureLoaded(['room_status']).catch(() 
 .payment-overdue { color: #e45a55; }
 .overdue-tag { display: block; font-size: 11px; }
 .management-table .empty-state { text-align: center; padding: 64px 20px; color: var(--ink-400); }
+.property-card-empty { text-align: center; padding: 64px 20px; color: var(--ink-400); }
 .management-pagination { display: flex; justify-content: flex-end; padding: 16px 20px; overflow-x: auto; }
 .load-error { display: flex; align-items: center; justify-content: center; gap: 12px; color: #e45a55; padding: 64px 20px; }
 @media (max-width: 640px) { .management-toolbar { flex-wrap: wrap; } .management-toolbar :deep(.el-input) { max-width: 100%; } .record-count { margin-left: 0; } .property-icon { display: none; } }

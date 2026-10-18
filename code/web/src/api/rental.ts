@@ -99,6 +99,7 @@ export interface RentalRoom {
   leaseStart?: string;
   leaseEnd?: string;
   paymentMethod?: string;
+  paymentDates?: string[];
   leaseTerm?: string;
   leaseDuration?: string;
   renovationProgress?: string;

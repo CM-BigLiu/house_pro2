@@ -28,7 +28,8 @@ export function freeRentDiscount(ranges: FreeRentRange[], start: string, end: st
     const a = Date.parse(calendarMonths(start, month)), b = Date.parse(calendarMonths(start, month + 1));
     if (a > Date.parse(end)) break;
     const exempt = merged.reduce((sum, range) => sum + Math.max(0, Math.min(b, range.end) - Math.max(a, range.start)), 0);
-    total += Math.round(rent * 100) * exempt / (30 * 86400000);
+    // 免租天数按 30 天/月折算：整月免租按 30 天计，不足整月按实际天数计。
+    total += Math.round(rent * 100) * (exempt >= b - a ? 30 * 86400000 : exempt) / (30 * 86400000);
   }
   return Math.round(total) / 100;
 }

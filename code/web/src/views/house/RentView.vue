@@ -62,7 +62,7 @@ const loading = ref(false);
 const deletingId = ref<number>();
 const checkoutSubmitting = ref(new Set<string>());
 const sortBy = ref<SortValue>('created_desc');
-const viewMode = ref<'table' | 'card'>('table');
+const viewMode = ref<'table' | 'card'>('card');
 const configurationProperty = ref<RentalSet | null>(null), configurationVisible = ref(false);
 const storeOptions = ref<Store[]>([]);
 const employeeOptions = ref<Employee[]>([]);

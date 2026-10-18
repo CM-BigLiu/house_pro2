@@ -12,6 +12,7 @@ import { applyDataScope } from '../../../common/data-scope/data-scope.util';
 import { isRentalAdministrator } from '../../../common/utils/rental-privacy.util';
 import { Deal } from '../../house/entities/deal.entity';
 import { RentalSet } from '../../house/entities/rental-set.entity';
+import { RentalRoom } from '../../house/entities/rental-room.entity';
 import { ContractDetails } from '../../house/entities/contract-details';
 import { Employee } from '../../system/entities/employee.entity';
 import { Deposit } from '../../house/entities/deposit.entity';
@@ -202,12 +203,21 @@ export class BusinessWorkflowService {
     deal: Deal,
     direction: 'pay' | 'receive',
   ) {
+    // 优先使用合同内自定义缴费日期；没有时读取签约房间上保存的自定义缴费日期，保证账单与界面一致。
+    let paymentDates = deal.details?.paymentDates;
+    if ((!paymentDates || !paymentDates.length) && deal.roomId) {
+      const room = await manager
+        .getRepository(RentalRoom)
+        .findOne({ where: { id: deal.roomId } });
+      if (room?.paymentDates?.length) paymentDates = room.paymentDates;
+    }
     const data = buildContractSchedule({
       leaseStart: deal.leaseStart,
       leaseEnd: deal.leaseEnd,
       amount: Number(deal.amount),
       paymentMethod: deal.paymentMethod,
       paymentDate: deal.details?.paymentDate || deal.leaseStart,
+      paymentDates,
       freeDays: direction === 'pay' ? deal.details?.freeDays : undefined,
       freeRentRanges: direction === 'pay' ? deal.details?.freeRentRanges : undefined,
     });

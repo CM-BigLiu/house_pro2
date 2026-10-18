@@ -69,6 +69,9 @@ export class RentalRoom {
   @Column({ length: 50, nullable: true })
   paymentMethod: string;
 
+  @Column({ name: 'payment_dates', type: 'jsonb', nullable: true })
+  paymentDates: string[];
+
   @Column({ length: 50, nullable: true })
   leaseTerm: string;
 
