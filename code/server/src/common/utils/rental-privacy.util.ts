@@ -3,7 +3,8 @@ import { CurrentUserPayload } from '../decorators/current-user.decorator';
 export const RENTAL_LANDLORD_FIELDS = [
   'landlordId', 'landlordName', 'landlordPhone', 'landlordPhoneBackup',
   'landlordIdCard', 'landlordBankName', 'landlordBankCard', 'landlordRent',
-  'landlordDeposit', 'leaseStart', 'leaseEnd', 'landlordPaymentMethod',
+  'landlordDeposit', 'leaseStart', 'leaseEnd', 'landlordPaymentMethod', 'landlordPaymentDate',
+  'landlordPaymentDates',
   'rentFreePeriod', 'freeRentRanges', 'landlordRemark', 'emergencyContacts', 'viewingTime',
   'viewingTimeAlt', 'followUpContent', 'isManaged',
 ] as const;

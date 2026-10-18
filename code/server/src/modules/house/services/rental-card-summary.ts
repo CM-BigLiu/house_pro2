@@ -24,6 +24,8 @@ export async function attachRentalCardSummaries(manager: EntityManager, rentals:
   const cashPlans = cash.some(entry => entry.scheduleId) ? await scoped(ContractSchedule).andWhere('record.propertyId IN (:...ids)', { ids }).getMany() : [];
   const byPlan = new Map([...plans, ...cashPlans].map(plan => [plan.id, plan])), byCharge = new Map(charges.map(charge => [charge.id, charge])), byDeal = new Map(deals.map(deal => [deal.id, deal]));
   const sum = (rows: any[], select: (row: any) => number) => money(rows.reduce((total, row) => total + select(row), 0));
+  // 委托合同（房管房）：存在生效/待终止（active/termination_pending）的 management 合同即视为已提交委托，与 delegate 的重叠校验口径一致。
+  const isDelegated = (rental: any) => deals.some(deal => deal.propertyId === rental.id && deal.workflowType === 'management' && ['active', 'termination_pending'].includes(deal.status));
   const summary = (rental: any, roomId?: number) => {
     const matches = (propertyId: number, room: number | null | undefined) => propertyId === rental.id && (roomId == null || room === roomId);
     const duePlans = plans.filter(plan => matches(plan.propertyId, byDeal.get(plan.dealId)?.roomId));
@@ -35,12 +37,22 @@ export async function attachRentalCardSummaries(manager: EntityManager, rentals:
     if (rental.canViewLandlordInfo === true) { result.pendingExpense = total('pay'); result.paid = sum(entries.filter(entry => entry.direction === 'pay'), entry => cents(entry.amount)); }
     const subject = roomId == null ? rental : rental.rooms.find((room: any) => room.id === roomId);
     if (['vacant', 'active'].includes(subject.status)) {
-      const latest = checkouts.filter(checkout => checkout.rentalSetId === rental.id && (roomId == null ? !checkout.rentalRoomId : checkout.rentalRoomId === roomId)).map(checkout => checkout.checkoutDate).filter(validDate).sort().pop();
       const created = subject.createdAt instanceof Date ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(subject.createdAt) : String(subject.createdAt || '').slice(0, 10);
-      const since = latest || created;
-      if (validDate(since)) { result.vacantDays = Math.max(0, days(since, today)); result.vacancySource = latest ? 'checkout' : 'registered'; result.vacantSince = since; }
+      // 历次已确认/已完成退租日即为该房源/房间历次空置的起点，按时间接续排序。
+      const checkoutDates = checkouts.filter(checkout => checkout.rentalSetId === rental.id && (roomId == null ? !checkout.rentalRoomId : checkout.rentalRoomId === roomId)).map(checkout => checkout.checkoutDate).filter(validDate).sort();
+      const vacantSince = checkoutDates.length ? checkoutDates[checkoutDates.length - 1] : created;
+      if (validDate(vacantSince)) {
+        // 空置终点取退租日之后最近一份合同的起租日；其后无新合同则一直空置到今天。
+        const leaseStarts = deals.filter(deal => matches(deal.propertyId, deal.roomId)).map(deal => deal.leaseStart).filter(validDate).sort();
+        const spans = checkoutDates.length
+          ? checkoutDates.map(date => Math.max(0, days(date, leaseStarts.find(leaseStart => leaseStart > date) || today)))
+          : [Math.max(0, days(created, today))];
+        result.vacantDays = Math.round(spans.reduce((total, span) => total + span, 0));
+        result.vacancySource = checkoutDates.length ? 'checkout' : 'registered';
+        result.vacantSince = vacantSince;
+      }
     }
     return result;
   };
-  return rentals.map(rental => ({ ...rental, financialSummary: summary(rental), rooms: (rental.rooms || []).map((room: any) => ({ ...room, financialSummary: summary(rental, room.id) })) }));
+  return rentals.map(rental => ({ ...rental, delegated: isDelegated(rental), financialSummary: summary(rental), rooms: (rental.rooms || []).map((room: any) => ({ ...room, financialSummary: summary(rental, room.id) })) }));
 }

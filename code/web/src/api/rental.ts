@@ -5,6 +5,7 @@ export interface RentalSet {
   id: number;
   creatorId?: number;
   isManaged?: boolean;
+  delegated?: boolean;     // 是否已提交过委托（存在生效/待终止的房管房合同），已提交则不再展示「委托」按钮
   canViewLandlordInfo?: boolean;
   code: string;
   bizType: string;
@@ -39,6 +40,8 @@ export interface RentalSet {
   leaseStart?: string;     // 承租期开始
   leaseEnd?: string;       // 承租期结束
   landlordPaymentMethod?: string;
+  landlordPaymentDate?: string;
+  landlordPaymentDates?: string[];
   leaseTerm?: string;
   rentFreePeriod?: string;
   freeRentRanges?: import('@/utils/free-rent').FreeRentRange[];
@@ -258,5 +261,6 @@ export function createRentalProperty(data: Partial<RentalSet>) {
 
 export interface RentalFinancialSummary {
   period: string; pendingIncome: number; pendingExpense?: number; received: number; paid?: number;
+  // 累计实际空置天数：历次空置区间（退租日→下一份合同起租日）之和 + 当前空置区间（退租日/登记日→今天）。
   vacantDays?: number; vacantSince?: string; vacancySource?: "checkout" | "registered";
 }

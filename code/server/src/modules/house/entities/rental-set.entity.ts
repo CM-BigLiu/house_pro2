@@ -171,6 +171,12 @@ export class RentalSet {
   @Column({ length: 50, nullable: true })
   landlordPaymentMethod: string;
 
+  @Column({ name: 'landlord_payment_date', type: 'date', nullable: true })
+  landlordPaymentDate: string;
+
+  @Column({ name: 'landlord_payment_dates', type: 'jsonb', nullable: true })
+  landlordPaymentDates: string[];
+
   @Column({ length: 50, nullable: true })
   leaseTerm: string;
 

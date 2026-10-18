@@ -161,6 +161,30 @@ describe('RentalService.createSet', () => {
   });
 });
 
+describe('RentalService.findSet', () => {
+  const user = { employeeId: 1, dataScope: 'company', permissions: ['*'] } as any;
+  const managedSet = { id: 11, creatorId: 1, isManaged: true, bizType: 'entire', code: 'ZJ-11', rooms: [], freeRentRanges: [], leaseStart: '2026-10-01', leaseEnd: '2029-09-30' };
+  it('托管房源未维护免租区间时回退到生效委托合同的免租日期', async () => {
+    const qb = queryBuilderMock();
+    qb.getOne = jest.fn().mockResolvedValue({ ...managedSet });
+    const dealRepo = { findOne: jest.fn().mockResolvedValue({ leaseStart: '2026-10-01', leaseEnd: '2029-09-30', details: { freeRentRanges: [{ start: '2026-10-01', end: '2026-10-25' }] } }) };
+    const setRepo = { createQueryBuilder: jest.fn().mockReturnValue(qb), manager: { getRepository: jest.fn(() => dealRepo) } };
+    const service = new RentalService(setRepo as any, {} as any);
+    expect((await service.findSet(11, user)).freeRentRanges).toEqual([{ start: '2026-10-01', end: '2026-10-25' }]);
+    expect(dealRepo.findOne).toHaveBeenCalled();
+  });
+
+  it('非托管房源不查询委托合同', async () => {
+    const qb = queryBuilderMock();
+    qb.getOne = jest.fn().mockResolvedValue({ ...managedSet, isManaged: false });
+    const dealRepo = { findOne: jest.fn() };
+    const setRepo = { createQueryBuilder: jest.fn().mockReturnValue(qb), manager: { getRepository: jest.fn(() => dealRepo) } };
+    const service = new RentalService(setRepo as any, {} as any);
+    await service.findSet(11, user);
+    expect(dealRepo.findOne).not.toHaveBeenCalled();
+  });
+});
+
 describe('RentalService.removeSet', () => {
   it('deletes only an unoccupied rental and removes its rooms first', async () => {
     const existing = { id: 3, status: 'vacant', rooms: [{ id: 30, status: 'vacant' }] } as any;

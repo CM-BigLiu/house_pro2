@@ -379,6 +379,17 @@ export class CreateRentalSetDto {
 
   @IsString()
   @IsOptional()
+  landlordPaymentDate?: string;
+
+  @IsArray()
+  @ArrayMaxSize(60)
+  @IsString({ each: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true })
+  @IsOptional()
+  landlordPaymentDates?: string[];
+
+  @IsString()
+  @IsOptional()
   rentFreePeriod?: string;
 
   @IsNumber()

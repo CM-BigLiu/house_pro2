@@ -35,6 +35,7 @@ describe('Rental form validation', () => {
     landlordIdCard: '310101197801011234', landlordBankCard: '6227001234567890123', landlordBankName: 'QA银行',
     tenantIdCard: '310101199201011234',
     tenantPhone: '13000000001', tenantPaymentMethod: 'monthly', landlordDeposit: '5000', deposit: '1200',
+    landlordPaymentDate: '2026-09-09', landlordPaymentDates: ['2026-09-09', '2026-12-09'],
     rooms: [{ roomNo: 'A', roomType: 'master', privateBathroom: false, balcony: true, leaseStart: '2026-09-09', tenantName: 'QA合租客', tenantPhone: '13000000002', tenantIdCard: '310101199301011234', rentPrice: '900' }],
   };
 
@@ -47,8 +48,15 @@ describe('Rental form validation', () => {
       tenantName: input.tenantName, tenantPhone: input.tenantPhone,
       tenantIdCard: input.tenantIdCard,
       tenantPaymentMethod: 'monthly', landlordDeposit: 5000, deposit: 1200,
+      landlordPaymentDate: '2026-09-09', landlordPaymentDates: ['2026-09-09', '2026-12-09'],
       rooms: [{ leaseStart: '2026-09-09', tenantName: 'QA合租客', tenantPhone: '13000000002', tenantIdCard: '310101199301011234', rentPrice: 900 }],
     });
+  });
+
+  it('rejects malformed landlord per-period payment dates', async () => {
+    await expect(pipe.transform({ ...input, landlordPaymentDates: ['2026-9-9'] }, {
+      type: 'body', metatype: CreateRentalSetDto,
+    })).rejects.toMatchObject({ status: 400 });
   });
 
   it('rejects blank nested room numbers and negative rent', async () => {

@@ -3,7 +3,7 @@ import { freeRentError } from './free-rent';
 export const rentalLandlordFields = [
   'landlordId', 'landlordName', 'landlordPhone', 'landlordPhoneBackup', 'landlordIdCard',
   'landlordBankName', 'landlordBankCard', 'landlordRent', 'landlordDeposit', 'leaseStart',
-  'leaseEnd', 'landlordPaymentMethod', 'rentFreePeriod', 'freeRentRanges', 'landlordRemark', 'emergencyContacts',
+  'leaseEnd', 'landlordPaymentMethod', 'landlordPaymentDate', 'landlordPaymentDates', 'rentFreePeriod', 'freeRentRanges', 'landlordRemark', 'emergencyContacts',
   'viewingTime', 'viewingTimeAlt', 'followUpContent', 'isManaged',
 ] as const;
 

@@ -3,12 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, In, Repository } from 'typeorm';
 import { RentalSet } from '../entities/rental-set.entity';
 import { RentalRoom } from '../entities/rental-room.entity';
+import { Deal } from '../entities/deal.entity';
 import { Checkout } from '../entities/checkout.entity';
 import { applyDataScope } from '../../../common/data-scope/data-scope.util';
 import { CurrentUserPayload } from '../../../common/decorators/current-user.decorator';
 import { BEIJING_DISTRICTS } from '../../../common/constants/beijing-districts';
 import { canAccessRentalLandlord, filterRentalLandlord, isRentalAdministrator, RENTAL_LANDLORD_FIELDS } from '../../../common/utils/rental-privacy.util';
-import { normalizeFreeRentRanges } from '../../finance/services/business-calculation';
+import { contractFreeRentRanges, normalizeFreeRentRanges, validDate } from '../../finance/services/business-calculation';
 import { syncLandlordFreeRent } from '../../finance/services/landlord-free-rent';
 import { attachRentalCardSummaries } from './rental-card-summary';
 
@@ -159,7 +160,29 @@ export class RentalService {
   }
 
   async findSet(id: number, user: CurrentUserPayload) {
-    return this.mapSet(await this.findScopedSet(id, user), user);
+    const mapped: any = this.mapSet(await this.findScopedSet(id, user), user);
+    // 房源自身未维护免租区间时，回退到生效委托合同的免租口径，保证编辑表单与详情页展示一致。
+    if (mapped.canViewLandlordInfo && mapped.isManaged && !(mapped.freeRentRanges || []).length) {
+      const dealRepo = this.setRepo.manager?.getRepository?.(Deal);
+      const contract = dealRepo
+        ? await dealRepo.findOne({
+            where: {
+              propertyId: id,
+              workflowType: 'management',
+              status: In(['active', 'termination_pending']),
+            },
+            order: { signedAt: 'DESC', id: 'DESC' },
+          })
+        : null;
+      if (contract?.details && validDate(contract.leaseStart) && validDate(contract.leaseEnd))
+        mapped.freeRentRanges = contractFreeRentRanges(
+          contract.leaseStart,
+          contract.leaseEnd,
+          contract.details.freeDays,
+          contract.details.freeRentRanges,
+        );
+    }
+    return mapped;
   }
 
   async updateSet(
@@ -191,7 +214,7 @@ export class RentalService {
       'propertyType', 'orientation', 'elevator', 'decoration', 'sourceChannel', 'tags', 'description',
       'title', 'communityIntro', 'nearbySchool', 'taxDescription', 'advantages', 'facilities',
       'landlordRent', 'landlordDeposit', 'rent', 'leaseStart', 'leaseEnd',
-      'landlordPaymentMethod', 'rentFreePeriod', 'freeRentRanges', 'status',
+      'landlordPaymentMethod', 'landlordPaymentDate', 'landlordPaymentDates', 'rentFreePeriod', 'freeRentRanges', 'status',
       'storeId', 'groupId', 'landlordId', 'salesmanId', 'housekeeperId',
       'tenantLeaseStart', 'tenantLeaseEnd',
       'landlordName', 'landlordPhone', 'landlordPhoneBackup', 'landlordRemark', 'emergencyContacts',
@@ -203,7 +226,7 @@ export class RentalService {
     ];
     const setChanges: Partial<RentalSet> = {};
     const nullableDateFields = new Set<keyof RentalSet>([
-      'leaseStart', 'leaseEnd', 'tenantLeaseStart', 'tenantLeaseEnd',
+      'leaseStart', 'leaseEnd', 'tenantLeaseStart', 'tenantLeaseEnd', 'landlordPaymentDate',
     ]);
     for (const field of allowedSetFields) {
       if (data[field] !== undefined) {
@@ -301,7 +324,7 @@ export class RentalService {
       delete setData.operationStatus;
       delete setData.businessStatus;
       delete setData.leaseTerm;
-      for (const field of ['leaseStart', 'leaseEnd', 'tenantLeaseStart', 'tenantLeaseEnd']) {
+      for (const field of ['leaseStart', 'leaseEnd', 'tenantLeaseStart', 'tenantLeaseEnd', 'landlordPaymentDate']) {
         if (setData[field] === '') setData[field] = null;
       }
       const saved = await setRepo.save(setRepo.create({

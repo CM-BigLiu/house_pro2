@@ -18,6 +18,11 @@ describe('rental payment schedule', () => {
       .toEqual(['2026-07-15', '2026-09-15', '2026-12-15', '2027-03-15']);
   });
 
+  it('房东侧（earlyByMonth=0）季付不提前一个月，逐期按周期递增', () => {
+    expect(buildPaymentSchedule('2026-07-15', '2027-07-14', 'quarterly', '2026-07-15', 0).slice(0, 4).map(item => item.date))
+      .toEqual(['2026-07-15', '2026-10-15', '2027-01-15', '2027-04-15']);
+  });
+
   it('treats full payment as one installment and does not invent irregular schedules', () => {
     expect(buildPaymentSchedule('2026-01-01', '2026-12-31', 'full')).toHaveLength(1);
     expect(buildPaymentSchedule('2026-01-01', '2026-12-31', 'irregular')).toEqual([]);

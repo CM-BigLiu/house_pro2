@@ -99,6 +99,38 @@ describe('合同金额与收付款周期', () => {
     ]);
   });
 
+  it('房东侧（earlyByMonth=0）季付不提前一个月，逐期按周期递增', () => {
+    const rows = buildContractSchedule({
+      leaseStart: '2026-07-15',
+      leaseEnd: '2027-07-14',
+      paymentDate: '2026-07-15',
+      paymentMethod: 'quarterly',
+      amount: 3000,
+      earlyByMonth: 0,
+    });
+    expect(rows.map((row) => row.dueDate)).toEqual([
+      '2026-07-15',
+      '2026-10-15',
+      '2027-01-15',
+      '2027-04-15',
+    ]);
+    const custom = buildContractSchedule({
+      leaseStart: '2026-07-15',
+      leaseEnd: '2027-07-14',
+      paymentDate: '2026-07-15',
+      paymentDates: ['2026-07-18', '2026-10-20'],
+      paymentMethod: 'quarterly',
+      amount: 3000,
+      earlyByMonth: 0,
+    });
+    expect(custom.map((row) => row.dueDate)).toEqual([
+      '2026-07-18',
+      '2026-10-20',
+      '2027-01-15',
+      '2027-04-15',
+    ]);
+  });
+
   it('月底和闰年也按真实日历推算付款日期', () => {
     const rows = buildContractSchedule({
       ...contract,
@@ -161,6 +193,22 @@ describe('合同金额与收付款周期', () => {
       amount: 6000,
     });
     expect(rows[1].amount).toBe(12000);
+  });
+
+  it('整月免租按30天折算，季付三个月免一个月后应付两整月租金', () => {
+    const rows = buildContractSchedule({
+      leaseStart: '2026-07-01',
+      leaseEnd: '2029-06-30',
+      paymentDate: '2026-07-01',
+      paymentMethod: 'quarterly',
+      amount: 7300,
+      freeDays: [0, 0, 0, 0, 0],
+      freeRentRanges: [{ start: '2028-07-01', end: '2028-07-31' }],
+    });
+    // 2028-07-01 至 2028-09-30：基础租金三个整月 21900，整月免租按 30 天折算扣 7300。
+    const row = rows.find((entry) => entry.periodStart === '2028-07-01')!;
+    expect(row).toMatchObject({ periodEnd: '2028-09-30', amount: 14600 });
+    expect(row.amount).toBe(21900 - 7300);
   });
 
   it.each([

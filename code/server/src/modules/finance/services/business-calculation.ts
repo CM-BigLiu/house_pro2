@@ -140,6 +140,8 @@ export function buildContractSchedule(input: {
   amount: number;
   freeDays?: number[];
   freeRentRanges?: FreeRentRange[];
+  /** 周期≥2个月时第2期起的提前月数，缺省为1（租客侧）；房东侧传0表示不提前。 */
+  earlyByMonth?: number;
 }) {
   if (
     !validDate(input.leaseStart) ||
@@ -161,8 +163,8 @@ export function buildContractSchedule(input: {
     ? PAYMENT_MONTHS[input.paymentMethod]
     : 0;
   if (!interval) throw new BadRequestException('请选择支持的租金付款周期');
-  // 月付保持按周期整月递增；周期≥2个月时第2期起默认提前一个月。
-  const earlyByMonth = interval >= 2 ? 1 : 0;
+  // 月付保持按周期整月递增；周期≥2个月时第2期起默认提前一个月，房东侧可通过 earlyByMonth=0 关闭提前。
+  const earlyByMonth = input.earlyByMonth ?? (interval >= 2 ? 1 : 0);
   const result: {
     sequence: number;
     dueDate: string;

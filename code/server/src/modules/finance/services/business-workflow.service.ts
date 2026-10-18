@@ -163,16 +163,15 @@ export class BusinessWorkflowService {
 
   validateRentalDetails(details: ContractDetails, managed: boolean) {
     this.validateDetails(details);
+    // 客户身份证、客户通讯地址、居住人数已从表单删除，服务端不再作为必填项。
     const required = managed
-      ? ['customerIdCard', 'customerAddress', 'propertyAddress', 'paymentDate']
+      ? ['propertyAddress', 'paymentDate']
       : [
           'ownerName',
           'ownerIdCard',
           'ownerAddress',
           'ownerPhone',
           'propertyAddress',
-          'customerIdCard',
-          'customerAddress',
         ];
     if (
       required.some(
@@ -203,13 +202,24 @@ export class BusinessWorkflowService {
     deal: Deal,
     direction: 'pay' | 'receive',
   ) {
-    // 优先使用合同内自定义缴费日期；没有时读取签约房间上保存的自定义缴费日期，保证账单与界面一致。
+    // 优先使用合同内自定义缴费日期；没有时按方向读取房源/房间上保存的自定义缴费日期，保证账单与界面一致。
     let paymentDates = deal.details?.paymentDates;
-    if ((!paymentDates || !paymentDates.length) && deal.roomId) {
-      const room = await manager
-        .getRepository(RentalRoom)
-        .findOne({ where: { id: deal.roomId } });
-      if (room?.paymentDates?.length) paymentDates = room.paymentDates;
+    if (!paymentDates || !paymentDates.length) {
+      if (direction === 'pay') {
+        // 房东侧取房源上逐期保存的给房东缴费日期。
+        const rental = deal.propertyId
+          ? await manager
+              .getRepository(RentalSet)
+              .findOne({ where: { id: deal.propertyId } })
+          : null;
+        if (rental?.landlordPaymentDates?.length)
+          paymentDates = rental.landlordPaymentDates;
+      } else if (deal.roomId) {
+        const room = await manager
+          .getRepository(RentalRoom)
+          .findOne({ where: { id: deal.roomId } });
+        if (room?.paymentDates?.length) paymentDates = room.paymentDates;
+      }
     }
     const data = buildContractSchedule({
       leaseStart: deal.leaseStart,
@@ -218,6 +228,8 @@ export class BusinessWorkflowService {
       paymentMethod: deal.paymentMethod,
       paymentDate: deal.details?.paymentDate || deal.leaseStart,
       paymentDates,
+      // 房东侧默认不提前一个月；租客侧保持默认（周期≥2个月第2期起提前一个月）。
+      earlyByMonth: direction === 'pay' ? 0 : undefined,
       freeDays: direction === 'pay' ? deal.details?.freeDays : undefined,
       freeRentRanges: direction === 'pay' ? deal.details?.freeRentRanges : undefined,
     });
@@ -253,7 +265,8 @@ export class BusinessWorkflowService {
       details: { ownerName: rental.landlordName || '', ownerPhone: rental.landlordPhone || '',
         ownerIdCard: rental.landlordIdCard || '', payee: rental.landlordName || '', payeeAccount: rental.landlordBankCard || '',
         propertyAddress: [rental.address, rental.building && `${rental.building}栋`, rental.unit && `${rental.unit}单元`, rental.roomNo && `${rental.roomNo}室`].filter(Boolean).join(' '),
-        ...latest?.details, freeRentRanges: rental.freeRentRanges || latest?.details?.freeRentRanges || [] },
+        ...latest?.details, freeRentRanges: rental.freeRentRanges || latest?.details?.freeRentRanges || [],
+        paymentDate: latest?.details?.paymentDate || rental.landlordPaymentDates?.[0] || rental.landlordPaymentDate || rental.leaseStart || '' },
     };
   }
 
@@ -296,6 +309,8 @@ export class BusinessWorkflowService {
       paymentDate: input.details.paymentDate,
       freeDays: input.details.freeDays,
       freeRentRanges: input.details.freeRentRanges,
+      // 委托合同为房东侧（pay），默认不提前一个月。
+      earlyByMonth: 0,
     });
     return this.ds.transaction(async (manager) => {
       const rental = await this.property(propertyId, user, manager, true);
@@ -369,16 +384,21 @@ export class BusinessWorkflowService {
     };
     const period = this.period(periodValue),
       start = `${period}-01`,
+      nextStart = addCalendarMonths(start, 1),
       end = addCalendarMonths(start, 2);
-    const rows = await filterQuery(this.scoped(
-      this.ds.getRepository(ContractSchedule),
-      user,
-    )
-      .innerJoin(Deal, 'deal', 'deal.id = record.dealId'))
-      .andWhere('deal.status IN (:...active)', {
-        active: ['active', 'termination_pending'],
-      })
-      .andWhere('record.status = :status', { status: 'pending' })
+    const scheduleQuery = () =>
+      filterQuery(
+        this.scoped(this.ds.getRepository(ContractSchedule), user).innerJoin(
+          Deal,
+          'deal',
+          'deal.id = record.dealId',
+        ),
+      )
+        .andWhere('deal.status IN (:...active)', {
+          active: ['active', 'termination_pending'],
+        })
+        .andWhere('record.status = :status', { status: 'pending' });
+    const rows = await scheduleQuery()
       .andWhere('record.dueDate >= :start AND record.dueDate < :end', {
         start,
         end,
@@ -386,30 +406,75 @@ export class BusinessWorkflowService {
       .orderBy('record.dueDate', 'ASC')
       .addOrderBy('record.id', 'ASC')
       .getMany();
-    const overdue = await filterQuery(this.scoped(this.ds.getRepository(ContractSchedule), user).innerJoin(Deal, 'deal', 'deal.id = record.dealId'))
-      .andWhere('deal.status IN (:...active)', { active: ['active', 'termination_pending'] })
-      .andWhere('record.status = :status AND record.dueDate < :start', { status: 'pending', start })
-      .orderBy('record.dueDate', 'ASC').getMany();
+    const overdue = await scheduleQuery()
+      .andWhere('record.dueDate < :start', { start })
+      .orderBy('record.dueDate', 'ASC')
+      .getMany();
+    // 「下期」取该方向真实账单期次中大于当前月的最小月份；没有更晚期次时回落到日历下月。
+    const directions = ['pay', 'receive'] as const;
+    const nextCalendarMonth = addCalendarMonths(start, 1).slice(0, 7);
+    const nextMonth = new Map<string, string>();
+    for (const direction of directions) {
+      const upcoming = await scheduleQuery()
+        .andWhere(
+          'record.dueDate >= :nextStart AND record.direction = :direction',
+          { nextStart, direction },
+        )
+        .orderBy('record.dueDate', 'ASC')
+        .addOrderBy('record.id', 'ASC')
+        .take(1)
+        .getMany();
+      if (upcoming.length)
+        nextMonth.set(direction, upcoming[0].dueDate.slice(0, 7));
+    }
+    const nextPeriods = directions.map(
+      (direction) => nextMonth.get(direction) || nextCalendarMonth,
+    );
+    // 真实下期晚于日历下月时，该期账单不在基础窗口内，按其所处月份补取。
+    const forwardRows: ContractSchedule[] = [];
+    for (const month of [...new Set(nextPeriods)].filter(
+      (value) => value !== nextCalendarMonth,
+    )) {
+      const monthStart = `${month}-01`;
+      forwardRows.push(
+        ...(await scheduleQuery()
+          .andWhere(
+            'record.dueDate >= :monthStart AND record.dueDate < :monthEnd',
+            { monthStart, monthEnd: addCalendarMonths(monthStart, 1) },
+          )
+          .orderBy('record.dueDate', 'ASC')
+          .addOrderBy('record.id', 'ASC')
+          .getMany()),
+      );
+    }
+    const scheduleRows = rows.concat(forwardRows);
+    // 费用窗口延伸到最晚的下期月份，保证下期卡片能带出该期费用。
+    const chargesEnd = addCalendarMonths(
+      `${[period, ...nextPeriods].sort().slice(-1)[0]}-01`,
+      1,
+    );
     const chargeQuery = this.scoped(this.ds.getRepository(BusinessCharge), user)
       .leftJoin(Deal, 'chargeDeal', 'chargeDeal.id = record.dealId')
-      .andWhere('record.status = :status AND record.dueDate < :end', { status: 'pending', end })
+      .andWhere('record.status = :status AND record.dueDate < :end', { status: 'pending', end: chargesEnd })
       .andWhere('(record.category != :deposit OR chargeDeal.status IN (:...depositActive))', { deposit: 'tenant_deposit', depositActive: ['active', 'termination_pending'] });
     if (filter.propertyId) chargeQuery.andWhere('record.propertyId = :propertyId', { propertyId: filter.propertyId });
     if (filter.roomId) chargeQuery.andWhere('record.roomId = :roomId', { roomId: filter.roomId });
     const charges = await chargeQuery.orderBy('record.dueDate', 'ASC').addOrderBy('record.id', 'ASC').getMany();
-    const dealIds = [...new Set<number>([...rows, ...overdue, ...charges].map(row => row.dealId).filter((id): id is number => id != null))];
+    const dealIds = [...new Set<number>([...rows, ...forwardRows, ...overdue, ...charges].map(row => row.dealId).filter((id): id is number => id != null))];
     const deals = dealIds.length ? await this.ds.getRepository(Deal).find({ where: { id: In(dealIds) } }) : [];
     const contracts = new Map(deals.map(deal => [deal.id, deal]));
     const withContract = (row: ContractSchedule) => { const deal = contracts.get(row.dealId);
       const breakdown = deal && validDate(deal.leaseStart) && validDate(deal.leaseEnd) ? leaseBreakdown(deal.leaseStart, deal.leaseEnd, Number(deal.amount), row.periodStart, addDays(row.periodEnd, 1), row.direction === 'pay' ? deal.details?.freeDays : undefined, row.direction === 'pay' ? deal.details?.freeRentRanges : undefined) : undefined;
-      return { ...row, billType: 'rent', categoryLabel: '租金', counterparty: contracts.get(row.dealId)?.customerName || '', grossRent: breakdown?.grossRent, freeRentDays: breakdown?.freeRentDays, freeRentAmount: breakdown?.freeRentAmount, amount: Number(row.amount), settledAmount: Number(row.settledAmount),
-      remaining: money(cents(row.amount) - cents(row.settledAmount)), contractCode: contracts.get(row.dealId)?.contractCode,
+      // 账单金额以当前免租规则实时重算为准，避免展示旧规则快照与实时免租说明自相矛盾；已结金额仍取存量。
+      const amount = breakdown ? breakdown.amount : Number(row.amount);
+      return { ...row, billType: 'rent', categoryLabel: '租金', counterparty: contracts.get(row.dealId)?.customerName || '', grossRent: breakdown?.grossRent, freeRentDays: breakdown?.freeRentDays, freeRentAmount: breakdown?.freeRentAmount, amount, settledAmount: Number(row.settledAmount),
+      remaining: money(cents(amount) - cents(row.settledAmount)), contractCode: contracts.get(row.dealId)?.contractCode,
       paymentMethod: contracts.get(row.dealId)?.paymentMethod, monthlyRent: Number(contracts.get(row.dealId)?.amount || 0), roomId: contracts.get(row.dealId)?.roomId,
       chargeDetails: row.direction === 'receive' ? chargeDetailsByDeal.get(row.dealId) || [] : undefined,
     }; };
     const extra = charges.map(row => chargeCalendarRow(row, contracts.get(row.dealId)?.contractCode));
     /** 租客收款信息需展示押金、租金、佣金全部明细：按合同聚合该房源应收的押金与佣金（含已结清），附加到 receive 方向的租金行。 */
-    const receiveDealIds = [...new Set(rows.filter(row => row.direction === 'receive').map(row => row.dealId))];
+    const receiveDealIds = [...new Set(scheduleRows.filter(row => row.direction === 'receive').map(row => row.dealId))];
     const chargeDetails = receiveDealIds.length ? await this.ds.getRepository(BusinessCharge).find({ where: { dealId: In(receiveDealIds), direction: 'receive' } }) : [];
     const chargeDetailsByDeal = new Map<number, any[]>();
     for (const charge of chargeDetails) {
@@ -418,9 +483,9 @@ export class BusinessWorkflowService {
       list.push({ ...chargeCalendarRow(charge, contracts.get(charge.dealId!)?.contractCode), amount: Number(charge.amount), settledAmount: Number(charge.settledAmount) });
       chargeDetailsByDeal.set(charge.dealId!, list);
     }
-    const buckets = ['pay', 'receive'].flatMap((direction) =>
-      [period, addCalendarMonths(start, 1).slice(0, 7)].map((month) => {
-        const list = rows
+    const buckets = directions.flatMap((direction, index) =>
+      [period, nextPeriods[index]].map((month) => {
+        const list = scheduleRows
           .filter(
             (row) =>
               row.direction === direction && row.dueDate.startsWith(month),

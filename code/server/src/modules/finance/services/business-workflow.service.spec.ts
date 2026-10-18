@@ -129,7 +129,59 @@ describe('合同账单日历', () => {
     expect(receive.list[0].chargeDetails[0]).toMatchObject({ categoryLabel: '租房押金', amount: 2000, settledAmount: 2000, remaining: 0, status: 'paid' });
     expect(receive.list[0].chargeDetails[1]).toMatchObject({ categoryLabel: '佣金', amount: 1500, settledAmount: 500, remaining: 1000, status: 'pending' });
   });
+  it('付租方向账单金额按当前免租规则实时重算，与旧快照不一致时以重算结果为准', async () => {
+    const ctx = setup();
+    ctx.repos.get(ContractSchedule).qb.getMany.mockResolvedValueOnce([
+      { id: 71, dealId: 37, propertyId: 10, direction: 'pay', sequence: 9, dueDate: '2028-07-01', periodStart: '2028-07-01', periodEnd: '2028-09-30', amount: 14356.67, settledAmount: 0 },
+    ]).mockResolvedValueOnce([]);
+    ctx.repos.get(BusinessCharge).qb.getMany.mockResolvedValue([]);
+    ctx.repos.get(Deal).find.mockResolvedValue([
+      { id: 37, contractCode: 'WT37', customerName: '业主', paymentMethod: 'quarterly', amount: 7300, leaseStart: '2026-07-01', leaseEnd: '2029-06-30', details: { freeDays: [0, 0, 0, 0, 0], freeRentRanges: [{ start: '2028-07-01', end: '2028-07-31' }] } },
+    ]);
+    const result = await ctx.service.calendar('2028-07', user);
+    const row = result.buckets.find(bucket => bucket.direction === 'pay' && bucket.period === '2028-07')!.list[0];
+    expect(row).toMatchObject({ grossRent: 21900, freeRentDays: 30, freeRentAmount: 7300, amount: 14600, settledAmount: 0, remaining: 14600 });
+    expect(row.amount).toBe(row.grossRent - row.freeRentAmount);
+  });
+  it('租客收款方向账单金额不受免租影响，仍等于未扣免租的基础租金', async () => {
+    const ctx = setup();
+    ctx.repos.get(ContractSchedule).qb.getMany.mockResolvedValueOnce([
+      { id: 12, dealId: 9, propertyId: 8, direction: 'receive', sequence: 1, dueDate: '2026-10-01', periodStart: '2026-10-01', periodEnd: '2026-10-31', amount: 3000, settledAmount: 0 },
+    ]).mockResolvedValueOnce([]);
+    ctx.repos.get(BusinessCharge).qb.getMany.mockResolvedValue([]);
+    ctx.repos.get(Deal).find.mockResolvedValue([{ id: 9, contractCode: 'C9', customerName: '租客', paymentMethod: 'monthly', amount: 3000, leaseStart: '2026-10-01', leaseEnd: '2027-09-30', details: { freeDays: [10, 0, 0, 0, 0] } }]);
+    const result = await ctx.service.calendar('2026-10', user);
+    const row = result.buckets.find(bucket => bucket.direction === 'receive' && bucket.period === '2026-10')!.list[0];
+    expect(row).toMatchObject({ amount: 3000, remaining: 3000, grossRent: 3000, freeRentAmount: 0 });
+  });
   it('拒绝无效房源编号', async () => { const ctx = setup(); await expect(ctx.service.calendar('2026-10', user, { propertyId: -1 })).rejects.toThrow('编号无效'); });
+  it('下期取该方向更晚的真实账单期次，而不是日历下月', async () => {
+    const ctx = setup(), repo = ctx.repos.get(ContractSchedule);
+    const oct = { id: 21, dealId: 31, propertyId: 8, direction: 'pay', sequence: 1, dueDate: '2026-10-05', periodStart: '2026-10-01', periodEnd: '2026-12-31', amount: 21900, settledAmount: 0 };
+    const jan = { id: 22, dealId: 31, propertyId: 8, direction: 'pay', sequence: 2, dueDate: '2027-01-05', periodStart: '2027-01-01', periodEnd: '2027-03-31', amount: 21900, settledAmount: 0 };
+    repo.qb.getMany
+      .mockResolvedValueOnce([oct]).mockResolvedValueOnce([])
+      .mockResolvedValueOnce([jan]).mockResolvedValueOnce([])
+      .mockResolvedValueOnce([jan]);
+    ctx.repos.get(Deal).find.mockResolvedValue([{ id: 31, contractCode: 'WT31', paymentMethod: 'quarterly', amount: 7300, leaseStart: '2026-10-01', leaseEnd: '2027-09-30' }]);
+    const result = await ctx.service.calendar('2026-10', user);
+    expect(result.buckets.filter(row => row.direction === 'pay').map(row => row.period)).toEqual(['2026-10', '2027-01']);
+    expect(result.buckets.filter(row => row.direction === 'receive').map(row => row.period)).toEqual(['2026-10', '2026-11']);
+    const forward = result.buckets.find(row => row.direction === 'pay' && row.period === '2027-01')!;
+    expect(forward.amount).toBe(21900);
+    expect(forward.list[0]).toMatchObject({ id: 22, dueDate: '2027-01-05', paymentMethod: 'quarterly', contractCode: 'WT31' });
+  });
+  it('没有更晚的真实期次时下期回落日历下月', async () => {
+    const ctx = setup(), repo = ctx.repos.get(ContractSchedule);
+    repo.qb.getMany
+      .mockResolvedValueOnce([{ id: 41, dealId: 9, propertyId: 8, direction: 'pay', sequence: 1, dueDate: '2026-10-01', periodStart: '2026-10-01', periodEnd: '2026-10-31', amount: 8000, settledAmount: 0 }])
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    ctx.repos.get(Deal).find.mockResolvedValue([{ id: 9, amount: 8000, leaseStart: '2026-10-01', leaseEnd: '2027-09-30' }]);
+    const result = await ctx.service.calendar('2026-10', user);
+    expect(result.buckets.filter(row => row.direction === 'pay').map(row => row.period)).toEqual(['2026-10', '2026-11']);
+    expect(result.buckets.filter(row => row.direction === 'receive').map(row => row.period)).toEqual(['2026-10', '2026-11']);
+    expect(result.buckets.find(row => row.direction === 'pay' && row.period === '2026-11')!.list).toEqual([]);
+  });
 });
 const details = {
   ownerName: '业主',
@@ -574,5 +626,50 @@ describe('业务工作流校验与记账', () => {
     await expect(service.review(1, 'save', '', user)).rejects.toThrow(
       '已经处理',
     );
+  });
+});
+
+describe('委托合同付款日期口径', () => {
+  const rental = { id: 8, code: 'ZJ-8', creatorId: 7, landlordName: '房东', leaseStart: '2026-10-01', leaseEnd: '2027-09-30', landlordRent: 3000 };
+  const contextOf = async (rentalOverrides: Record<string, any>, latest: Record<string, any> | null) => {
+    const { service, repos } = setup();
+    repos.get(RentalSet).qb.getOne.mockResolvedValue({ ...rental, ...rentalOverrides });
+    repos.get(Deal).findOne.mockResolvedValue(latest);
+    return (await service.delegationContext(8, user)).details?.paymentDate;
+  };
+  it('委托合同详情已填付款日期时优先于房东档案字段', async () => {
+    expect(await contextOf({ landlordPaymentDate: '2026-11-05' }, { details: { paymentDate: '2026-10-15' } })).toBe('2026-10-15');
+  });
+  it('详情未填时取房东档案的给房东支付日期', async () => {
+    expect(await contextOf({ landlordPaymentDate: '2026-11-05' }, { details: {} })).toBe('2026-11-05');
+  });
+  it('都没有时回落到承租期起租日', async () => {
+    expect(await contextOf({}, null)).toBe('2026-10-01');
+  });
+  it('房东档案逐期缴费日期列表优先于单值支付日期', async () => {
+    expect(await contextOf({ landlordPaymentDates: ['2026-12-01'], landlordPaymentDate: '2026-11-05' }, { details: {} })).toBe('2026-12-01');
+  });
+});
+
+describe('房东侧账单日期', () => {
+  const deal = (overrides: Record<string, any>) => ({
+    id: 1, propertyId: 11, leaseStart: '2026-07-15', leaseEnd: '2027-07-14',
+    amount: 3000, paymentMethod: 'quarterly', details: {}, ...overrides,
+  }) as any;
+  it('pay 方向默认不提前一个月，并取房源上逐期保存的缴费日期', async () => {
+    const { service, repos, manager } = setup();
+    repos.get(RentalSet).findOne.mockResolvedValue({ id: 11, landlordPaymentDates: ['2026-07-18'] });
+    await service.createSchedules(manager, deal({}), 'pay');
+    const rows = repos.get(ContractSchedule).save.mock.calls[0][0] as any[];
+    expect(rows.map(row => row.dueDate)).toEqual(['2026-07-18', '2026-10-15', '2027-01-15', '2027-04-15']);
+    expect(rows.every(row => row.direction === 'pay')).toBe(true);
+  });
+  it('receive 方向保持提前一个月，且不读取房东逐期缴费日期', async () => {
+    const { service, repos, manager } = setup();
+    repos.get(RentalSet).findOne.mockResolvedValue({ id: 11, landlordPaymentDates: ['2026-07-18'] });
+    await service.createSchedules(manager, deal({ id: 2 }), 'receive');
+    const rows = repos.get(ContractSchedule).save.mock.calls[0][0] as any[];
+    expect(rows.map(row => row.dueDate)).toEqual(['2026-07-15', '2026-09-15', '2026-12-15', '2027-03-15']);
+    expect(repos.get(RentalSet).findOne).not.toHaveBeenCalled();
   });
 });

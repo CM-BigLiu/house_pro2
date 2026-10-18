@@ -100,6 +100,8 @@ function createEmptyForm(): FormState {
     leaseStart: '',
     leaseEnd: '',
     landlordPaymentMethod: '',
+    landlordPaymentDate: '',
+    landlordPaymentDates: [],
     rentFreePeriod: '',
     freeRentRanges: [],
     rent: 0,
@@ -242,6 +244,8 @@ async function loadData(id: string) {
       leaseStart: data.leaseStart ?? '',
       leaseEnd: data.leaseEnd ?? '',
       landlordPaymentMethod: data.landlordPaymentMethod ?? '',
+      landlordPaymentDate: data.landlordPaymentDate ?? '',
+      landlordPaymentDates: [...(data.landlordPaymentDates ?? [])],
       freeRentRanges: (data.freeRentRanges || []).map(range => ({ ...range })),
       rentFreePeriod: data.rentFreePeriod ?? '',
       rent: data.rent ?? 0,
@@ -432,6 +436,7 @@ function applyLeasePreset(years: number, event: MouseEvent) {
   form.leaseDateRange = [start, end];
   form.leaseStart = formatDate(start);
   form.leaseEnd = formatDate(end);
+  form.landlordPaymentDates = [];
 }
 
 function applyTenantLeasePreset(years: number, event: MouseEvent) {
@@ -454,6 +459,7 @@ function onDateRangeChange(val: [Date, Date] | null) {
     form.leaseStart = '';
     form.leaseEnd = '';
   }
+  form.landlordPaymentDates = [];
 }
 
 function onTenantDateRangeChange(val: [Date, Date] | null) {
@@ -470,6 +476,22 @@ function onTenantDateRangeChange(val: [Date, Date] | null) {
 const tenantPaymentSchedule = computed(() =>
   buildPaymentSchedule(form.tenantLeaseStart, form.tenantLeaseEnd, form.tenantPaymentMethod),
 );
+
+// 房东侧缴费计划：默认不提前一个月，逐期可改并随房源落库（第1期写回标量 landlordPaymentDate）。
+const landlordPaymentSchedule = computed(() =>
+  buildPaymentSchedule(form.leaseStart, form.leaseEnd, form.landlordPaymentMethod, form.landlordPaymentDate, 0),
+);
+function landlordPaymentDateFor(period: number, fallback: string) {
+  return form.landlordPaymentDates?.[period - 1] || fallback;
+}
+function setLandlordPaymentDate(period: number, fallback: string, value: string | null) {
+  const list = landlordPaymentSchedule.value.map((row, index) => form.landlordPaymentDates?.[index] || row.date);
+  list[period - 1] = value || fallback;
+  form.landlordPaymentDates = list;
+}
+function onLandlordScheduleSourceChange() {
+  form.landlordPaymentDates = [];
+}
 
 async function submit(manage = false) {
   if (submitting.value || loading.value || loadError.value) return;
@@ -496,6 +518,12 @@ async function submit(manage = false) {
     form.images = form.images.map(item => item.trim()).filter(Boolean);
     form.emergencyContacts = form.emergencyContacts.filter(item => item.name.trim() || item.phone.trim());
     form.title = form.title?.trim();
+    // 逐期房东缴费日按当前规则补齐后落库，第1期同步写回标量字段。
+    const landlordList = landlordPaymentSchedule.value.map((row, index) => form.landlordPaymentDates?.[index] || row.date);
+    if (landlordList.length) {
+      form.landlordPaymentDates = landlordList;
+      form.landlordPaymentDate = landlordList[0];
+    }
     const rooms = form.rooms.map(({ leaseDateRange: _l, ...room }, index) => ({
       ...room,
       roomNo: room.roomNo?.trim(),
@@ -847,9 +875,21 @@ async function toggleManagement() {
           </el-col>
           <el-col :span="12">
             <el-form-item label="房东缴费" prop="landlordPaymentMethod">
-              <el-select v-model="form.landlordPaymentMethod" clearable placeholder="选择缴费方式" style="width: 100%;">
+              <el-select v-model="form.landlordPaymentMethod" clearable placeholder="选择缴费方式" style="width: 100%;" @change="onLandlordScheduleSourceChange">
                 <el-option v-for="item in dictStore.getItems('payment_method')" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="给房东的支付日期" prop="landlordPaymentDate">
+              <div v-if="landlordPaymentSchedule.length" class="landlord-payments">
+                <div v-for="row in landlordPaymentSchedule" :key="row.period" class="landlord-payment">
+                  <span>第{{ row.period }}期</span>
+                  <el-date-picker :model-value="landlordPaymentDateFor(row.period, row.date)" type="date" value-format="YYYY-MM-DD" clearable placeholder="缴费日期" @update:model-value="(value: string | null) => setLandlordPaymentDate(row.period, row.date, value)" />
+                </div>
+                <p class="landlord-payment-hint">按承租期与房东缴费方式逐期生成，默认不提前一个月，可逐期修改；随房源保存。</p>
+              </div>
+              <el-date-picker v-else v-model="form.landlordPaymentDate" type="date" value-format="YYYY-MM-DD" clearable placeholder="留空按承租期起租日" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -962,7 +1002,7 @@ async function toggleManagement() {
         <template v-if="form.bizType === 'shared'">
           <section class="form-section">
             <div class="section-heading"><span class="section-index">03</span><div><strong>合租房间</strong><small>一行录入一间，配置与租赁资料点击编辑</small></div></div>
-            <SharedRoomTable :rooms="form.rooms" :facility-options="facilityOptions" :initial-room-id="Number(route.query.roomId) || undefined" @add="addRoom" @remove="removeRoom" />
+            <SharedRoomTable :rooms="form.rooms" :facility-options="facilityOptions" :initial-room-id="Number(route.query.roomId) || undefined" @add="addRoom" @remove="removeRoom" @complete="router.push('/house/rent')" />
             <el-form-item v-if="!form.rooms.length" prop="rooms"><span class="empty-room-tip">请先添加一个房间</span></el-form-item>
           </section>
         </template>
@@ -1223,6 +1263,10 @@ async function toggleManagement() {
   }
 }
 
+.landlord-payments { display:flex; flex-direction:column; gap:8px; width:100%; }
+.landlord-payment { display:flex; align-items:center; gap:10px; }
+.landlord-payment > span { width:60px; color:var(--ink-500); flex:none; }
+.landlord-payment-hint { margin:0; font-size:12px; color:var(--ink-500); }
 .legacy-free-note { margin:0 0 18px; font-size:12px; color:var(--ink-500); }
 @media (max-width: 620px) {
   .form-tip { align-items: flex-start; }
