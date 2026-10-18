@@ -43,40 +43,8 @@ defineProps<{
           v-model="details.propertyAddress"
           maxlength="255" /></el-form-item
     ></el-col>
-    <template v-if="mode !== 'management'">
-      <el-col :xs="24" :sm="12"
-        ><el-form-item label="客户身份证" required
-          ><el-input
-            v-model="details.customerIdCard"
-            maxlength="18" /></el-form-item
-      ></el-col>
-      <el-col :xs="24" :sm="12"
-        ><el-form-item label="客户通讯地址" required
-          ><el-input
-            v-model="details.customerAddress"
-            maxlength="255" /></el-form-item
-      ></el-col>
-    </template>
-    <template v-if="mode === 'tenant'">
-      <el-col :xs="24" :sm="12"
-        ><el-form-item label="常居人数" required
-          ><el-input-number
-            v-model="details.occupants"
-            :min="1"
-            :max="100"
-            :precision="0" /></el-form-item
-      ></el-col>
-      <el-col :xs="24" :sm="12"
-        ><el-form-item label="本房最多容纳人数" required
-          ><el-input-number
-            v-model="details.maxOccupants"
-            :min="1"
-            :max="100"
-            :precision="0" /></el-form-item
-      ></el-col>
-    </template>
     <el-col :span="24"
-      ><el-form-item label="押金情况"
+      ><el-form-item label="押金情况" required
         ><el-input
           v-model="details.depositNote"
           maxlength="255"

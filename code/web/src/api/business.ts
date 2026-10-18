@@ -233,6 +233,7 @@ export function validateContractDetails(
 ): string {
   const idCard = /^(\d{15}|\d{17}[\dXx])$/;
   if (!d.propertyAddress.trim()) return '请填写房屋地址';
+  if (!d.depositNote.trim()) return '请填写押金情况';
   if (
     mode !== 'tenant' &&
     (!d.ownerName.trim() ||
@@ -241,24 +242,11 @@ export function validateContractDetails(
       !/^1\d{10}$/.test(d.ownerPhone))
   )
     return '请补齐业主姓名、身份证、通讯地址和电话';
-  if (
-    mode !== 'management' &&
-    (!idCard.test(d.customerIdCard) || !d.customerAddress.trim())
-  )
-    return '请填写客户身份证和通讯地址';
   if (mode !== 'regular' && !d.paymentDate) return '请填写付款日期';
   if (mode === 'management' && (!d.payee.trim() || !d.payeeAccount.trim()))
     return '请填写收款人和收款账号';
   if (mode === 'management' && (d.freeDays.length !== 5 || d.freeDays.some(days => !Number.isInteger(days) || days < 0 || days > 366)))
     return '请填写五个年度的免租期，每年0至366天';
-  if (
-    mode === 'tenant' &&
-    (!Number.isInteger(d.occupants) ||
-      !Number.isInteger(d.maxOccupants) ||
-      d.occupants < 1 ||
-      d.maxOccupants < d.occupants)
-  )
-    return '请填写有效居住人数，常居人数不能超过容纳人数';
   if (!Number.isFinite(d.commissionAmount) || d.commissionAmount < 0)
     return '佣金金额无效';
   return '';

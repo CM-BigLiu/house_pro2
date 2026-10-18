@@ -89,19 +89,23 @@ describe('业务API及合同表单规则', () => {
       { amount: 100 },
     );
   });
-  it('不同合同类型要求相应身份资料，承租人数不能超过容量', () => {
+  it('不同合同类型要求相应身份资料，押金情况必填且不再校验客户证件与居住人数', () => {
     const d = emptyContractDetails();
     expect(validateContractDetails(d, 'regular')).not.toBe('');
     Object.assign(d, {
       propertyAddress: '房屋地址',
-      customerIdCard: '110101199001011234',
-      customerAddress: '地址',
       paymentDate: '2026-10-01',
     });
-    expect(validateContractDetails(d, 'tenant')).toBe('');
-    d.occupants = 2;
     expect(validateContractDetails(d, 'tenant')).not.toBe('');
-    d.occupants = 1;
+    d.depositNote = '押一个月，退租验收后返还';
+    expect(validateContractDetails(d, 'tenant')).toBe('');
+    Object.assign(d, {
+      customerIdCard: '',
+      customerAddress: '',
+      occupants: 5,
+      maxOccupants: 1,
+    });
+    expect(validateContractDetails(d, 'tenant')).toBe('');
     expect(validateContractDetails(d, 'regular')).not.toBe('');
     Object.assign(d, {
       ownerName: '业主',

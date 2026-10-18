@@ -6,8 +6,9 @@ import { buildLeasePeriod, buildPaymentSchedule } from '@/utils/rental-schedule'
 import MoneyInput from './MoneyInput.vue';
 type Room = Partial<RentalRoom> & { leaseDateRange?: [Date, Date] | null };
 const props = defineProps<{ rooms: Room[]; facilityOptions: string[]; initialRoomId?: number }>();
-const emit = defineEmits<{ add: [after?: number]; remove: [index: number] }>();
+const emit = defineEmits<{ add: [after?: number]; remove: [index: number]; complete: [] }>();
 const dict = useDictStore(), activeRoom = ref<Room | null>(null), numbering = ref(false), sorting = ref(false);
+const complete = () => { activeRoom.value = null; emit('complete'); };
 const numberPrefix = ref(''), firstNumber = ref(1);
 watch(() => [props.initialRoomId, props.rooms] as const, ([id, rooms]) => {
   if (id) activeRoom.value = rooms.find(room => room.id === id) || null;
@@ -95,7 +96,7 @@ function onScheduleSourceChange() {
         </div>
       </div></el-form-item>
     </template>
-    <template #footer><span class="hint">随房源一起保存</span><el-button type="primary" @click="activeRoom = null">完成</el-button></template>
+    <template #footer><span class="hint">随房源一起保存</span><el-button type="primary" @click="complete">完成</el-button></template>
   </el-dialog>
   <el-dialog v-model="numbering" title="房号设置" width="min(440px,94vw)" append-to-body>
     <p>按当前房间顺序统一编号。</p><el-form-item label="房号前缀"><el-input v-model="numberPrefix" maxlength="30" placeholder="如 A，可留空" /></el-form-item>

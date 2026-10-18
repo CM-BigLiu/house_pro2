@@ -317,6 +317,27 @@ describe('房管房支付、现金与财务审核界面', () => {
     expect(root.textContent).toContain('2026-12-31');
   });
 
+  it('下期卡片期次取自接口返回的真实账单期次，而非日历下月', async () => {
+    vi.mocked(getBusinessCalendar).mockResolvedValue({
+      period: '2026-10',
+      buckets: [
+        { direction: 'pay', period: '2026-10', amount: 100, count: 1, list: [row] },
+        { direction: 'pay', period: '2027-01', amount: 200, count: 1, list: [{ ...row, id: 4, dueDate: '2027-01-15', periodStart: '2027-01-01', periodEnd: '2027-03-31', remaining: 200 }] },
+        { direction: 'receive', period: '2026-10', amount: 0, count: 0, list: [] },
+        { direction: 'receive', period: '2027-01', amount: 0, count: 0, list: [] },
+      ],
+      overdue: [],
+    });
+    const root = await mount(ManagedBusinessView);
+    const titles = [...root.querySelectorAll('.month-card h3')].map((el) => (el.textContent || '').replace(/\s+/g, ' ').trim());
+    expect(titles).toContain('本期账单 · 2026-10');
+    expect(titles).toContain('下期账单 · 2027-01');
+    expect(titles).toContain('下期收款 · 2027-01');
+    expect(titles.some((title) => title.includes('2026-11'))).toBe(false);
+    const next = [...root.querySelectorAll('.month-card')].find((el) => el.querySelector('h3')?.textContent?.includes('下期账单'))!;
+    expect(next.querySelector('header')?.textContent).toContain('¥200.00');
+  });
+
   it('校验付款字段，重试沿用同一幂等编号，成功后刷新下一期', async () => {
     const root = await mount(ManagedBusinessView);
     button(root, '支付').click();

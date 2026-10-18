@@ -18,12 +18,12 @@ const contractFields = computed(() => {
   if (!d) return [];
   return [
     ['业主姓名', d.ownerName], ['业主身份证', d.ownerIdCard], ['业主通讯地址', d.ownerAddress], ['业主电话', d.ownerPhone],
-    ['房屋地址', d.propertyAddress], ['客户身份证', d.customerIdCard], ['客户通讯地址', d.customerAddress],
+    ['房屋地址', d.propertyAddress],
     ['押金情况', d.depositNote], ['首期付款日期', d.paymentDate], ['收款人', d.payee], ['收款账号', d.payeeAccount],
-    ['居住人数', detail.value?.workflowType === 'tenant' ? `${d.occupants} / 最多 ${d.maxOccupants}` : ''],
     ['佣金', detail.value?.bizType === 'rent' ? currency(d.commissionAmount) : ''],
     ['绩效分成 / 提成比例', `${d.performanceRatio ?? 100}% / ${d.commissionRatio ?? 0}%`],
-    ['年度免租天数', detail.value?.bizType === 'management' ? d.freeDays?.join(' / ') : ''],
+    ['年度免租天数', detail.value?.bizType === 'management' && d.freeDays?.some(value => value) ? d.freeDays.join(' / ') : ''],
+    ['免租区间', detail.value?.bizType === 'management' && d.freeRentRanges?.length ? d.freeRentRanges.map(range => `${range.start} ~ ${range.end}`).join(' / ') : ''],
   ].filter(([, value]) => value != null && value !== '');
 });
 async function load() {

@@ -199,7 +199,7 @@ watch(() => [route.query.propertyId, route.query.roomId], load);
             <strong>{{ formatMoney(bucketTotal(bucket)) }}</strong
             ><span>共 {{ bucket.count }} 套</span>
           </header>
-          <el-table :data="bucket.list" empty-text="本月暂无待办计划"
+          <el-table :data="bucket.list" empty-text="该期暂无待办计划"
             ><el-table-column
               prop="propertyName"
               label="房屋地址"

@@ -4,7 +4,7 @@ import RentFormView from '@/views/house/RentFormView.vue';
 import { createRentalSet, getRentalSet, updateRentalSet } from '@/api/rental';
 import { rentalFormErrors, rentalLandlordFields } from '@/utils/rental-form';
 
-const { route, replace, push } = vi.hoisted(() => ({ route: { params: { id: '1' }, query: {}, fullPath: '/house/rent/edit/1' }, replace: vi.fn(), push: vi.fn() }));
+const { route, replace, push } = vi.hoisted(() => ({ route: { params: { id: '1' }, query: {} as Record<string, string>, fullPath: '/house/rent/edit/1' }, replace: vi.fn(), push: vi.fn() }));
 vi.mock('vue-router', () => ({ useRoute: () => reactive(route), useRouter: () => ({ replace, push }) }));
 vi.mock('element-plus', () => ({ ElMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 vi.mock('@/stores/user', () => ({ useUserStore: () => ({ userInfo: { employeeId: 7, storeIds: [1] } }) }));
@@ -22,7 +22,7 @@ const base: any = { id: 1, code: 'ZJ-TEST', creatorId: 7, bizType: 'entire', com
 let app: App | undefined;
 const flush = async () => { await new Promise(resolve => setTimeout(resolve, 0)); await nextTick(); };
 beforeEach(() => {
-  vi.clearAllMocks(); route.params.id = '1'; route.fullPath = '/house/rent/edit/1';
+  vi.clearAllMocks(); route.params.id = '1'; route.query = {}; route.fullPath = '/house/rent/edit/1';
   vi.mocked(getRentalSet).mockResolvedValue({ ...base });
   vi.mocked(updateRentalSet).mockImplementation(async (_id, data) => ({ ...base, ...data }));
   vi.mocked(createRentalSet).mockResolvedValue({ ...base, id: 9, isManaged: true });
@@ -38,8 +38,11 @@ async function render() {
   app.component('ElTable', { template: '<div><slot /></div>' });
   app.component('ElTableColumn', { render: () => h('span') });
   app.component('ElFormItem', { props: ['label'], template: '<div :data-label="label">{{ label }}<slot /></div>' });
+  app.component('ElButton', { props: ['disabled'], template: '<button type="button" :disabled="disabled"><slot /></button>' });
+  app.component('ElDialog', { props: ['modelValue'], template: '<div v-if="modelValue"><slot /><slot name="footer" /></div>' });
   app.component('ElInput', { props: ['modelValue'], emits: ['update:modelValue'], template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' });
   app.component('ElSelect', { props: ['modelValue'], emits: ['update:modelValue', 'change'], template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.placeholder === \'选择小区\' ? Number($event.target.value) : $event.target.value)" @change="$emit(\'change\', $event.target.value)" />' });
+  app.component('ElDatePicker', { props: ['modelValue'], emits: ['update:modelValue'], template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' });
   app.config.warnHandler = () => {}; app.mount(root); await flush(); return root;
 }
 const button = (root: HTMLElement, label: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === label)!;
@@ -86,6 +89,43 @@ describe('租房托管表单', () => {
     expect(rentalFormErrors(hidden, '', '', false)).toEqual({});
   });
 
+  it('给房东的支付日期按承租期与房东缴费逐期生成，已保存的逐期日期回填并随保存提交', async () => {
+    vi.mocked(getRentalSet).mockResolvedValue({ ...base, landlordPaymentDates: ['2026-03-05', '2026-04-05'] });
+    const root = await render();
+    const field = root.querySelector<HTMLElement>('[data-label="给房东的支付日期"]')!;
+    expect(field.textContent).toContain('第1期');
+    const inputs = [...field.querySelectorAll<HTMLInputElement>('input')];
+    expect(inputs[0].value).toBe('2026-03-05');
+    expect(inputs[1].value).toBe('2026-04-05');
+    button(root, '保存').click(); await flush();
+    const payload = vi.mocked(updateRentalSet).mock.calls[0][1];
+    expect(payload.landlordPaymentDates?.[0]).toBe('2026-03-05');
+    expect(payload.landlordPaymentDate).toBe('2026-03-05');
+  });
+
+  it('逐期修改某期房东缴费日期后随保存落库', async () => {
+    vi.mocked(getRentalSet).mockResolvedValue({ ...base, landlordPaymentDate: '2026-01-01' });
+    const root = await render();
+    const field = root.querySelector<HTMLElement>('[data-label="给房东的支付日期"]')!;
+    const inputs = [...field.querySelectorAll<HTMLInputElement>('input')];
+    inputs[1].value = '2026-04-20';
+    inputs[1].dispatchEvent(new Event('input'));
+    await flush();
+    button(root, '保存').click(); await flush();
+    const payload = vi.mocked(updateRentalSet).mock.calls[0][1];
+    expect(payload.landlordPaymentDates?.[1]).toBe('2026-04-20');
+    expect(payload.landlordPaymentDate).toBe('2026-01-01');
+  });
+
+  it('已保存的免租期在编辑表单中回显', async () => {
+    vi.mocked(getRentalSet).mockResolvedValue({ ...base, isManaged: true, leaseStart: '2026-10-01', leaseEnd: '2029-09-30', freeRentRanges: [
+      { start: '2026-10-01', end: '2026-10-25' },
+      { start: '2027-10-01', end: '2027-10-30' },
+      { start: '2028-10-01', end: '2028-10-30' },
+    ] });
+    const root = await render();
+    expect(root.querySelector('[data-label="免租期"]')?.textContent).toContain('85');
+  });
   it('新房源托管后进入该房源编辑页，继续操作不会再次新建', async () => {
     route.params.id = ''; route.fullPath = '/house/rent/create';
     const root = await render();
@@ -116,5 +156,12 @@ describe('租房托管表单', () => {
     button(root, '取消托管').click(); await flush();
     expect(updateRentalSet).toHaveBeenLastCalledWith('9', { isManaged: false });
     expect(createRentalSet).toHaveBeenCalledTimes(1);
+  });
+  it('房间配置弹窗点击完成后跳转租房管理列表', async () => {
+    route.query = { roomId: '1' };
+    vi.mocked(getRentalSet).mockResolvedValue({ ...base, bizType: 'shared', rooms: [{ id: 1, roomNo: '101', facilities: [] }] });
+    const root = await render();
+    button(root, '完成').click(); await flush();
+    expect(push).toHaveBeenCalledWith('/house/rent');
   });
 });
