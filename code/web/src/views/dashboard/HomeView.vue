@@ -40,7 +40,7 @@ const detailVisible = ref(false), detailLoading = ref(false), detailError = ref(
 const detailItem = ref<KpiItem | null>(null), detailRows = ref<KpiDetailRow[]>([]);
 const detailPage = ref(1), detailTotal = ref(0), detailAmount = ref(0);
 let detailGeneration = 0;
-const financialDetail = computed(() => ['receivable', 'received'].includes(detailItem.value?.key || ''));
+const financialDetail = computed(() => ['receivable', 'received', 'payable'].includes(detailItem.value?.key || ''));
 async function showDetail(item: KpiItem) { detailItem.value = item; detailPage.value = 1; detailVisible.value = true; await loadDetail(); }
 async function loadDetail() {
   const key = detailItem.value?.key;
@@ -87,8 +87,8 @@ const colorMap: Record<string, 'pink' | 'yellow' | 'green' | 'blue' | 'purple'> 
 
 const kpis = computed(() => (overview.value?.kpis || []).filter(item => item.label !== '客户总数').map((item, index) => ({
   ...item,
-  key: item.key || ({ 在管房源: 'properties', 在租房间: 'rented', 空房间: 'vacant', 本月应收: 'receivable', 本月实收: 'received' } as Record<string, string>)[item.label],
-  color: colorMap[(item as { color?: string }).color || ''] || (['blue', 'green', 'yellow', 'purple', 'blue', 'green'][index] as 'blue'),
+  key: item.key || ({ 在管房源: 'properties', 在租房间: 'rented', 空房间: 'vacant', 本月应收: 'receivable', 本月实收: 'received', 本月应付: 'payable' } as Record<string, string>)[item.label],
+  color: colorMap[(item as { color?: string }).color || ''] || (['blue', 'green', 'yellow', 'purple', 'blue', 'green', 'pink'][index] as 'blue'),
 })));
 
 const rankEntries = computed<RankEntry[]>(() => (rankings.value.performance || []).map((item, index) => ({
@@ -289,7 +289,9 @@ onMounted(loadDashboard);
             <el-table-column v-if="!financialDetail" prop="propertyCode" label="房源编号" min-width="110" />
             <el-table-column prop="propertyName" label="房源 / 项目" min-width="200" show-overflow-tooltip />
             <template v-if="financialDetail">
-              <el-table-column prop="date" label="日期" width="115" /><el-table-column prop="source" label="来源" min-width="145" />
+              <el-table-column prop="date" label="日期" width="115" />
+              <el-table-column v-if="detailItem?.key === 'payable'" prop="category" label="支出项目" min-width="130" show-overflow-tooltip />
+              <el-table-column prop="source" label="来源" min-width="145" />
               <el-table-column prop="reference" label="关联单据" min-width="180" show-overflow-tooltip />
               <el-table-column label="金额" width="125" align="right"><template #default="{ row }">{{ formatMoney(row.amount) }}</template></el-table-column>
               <el-table-column v-if="detailItem?.key === 'receivable'" label="已缴" width="110" align="right"><template #default="{ row }">{{ formatMoney(row.settledAmount) }}</template></el-table-column>
@@ -300,7 +302,7 @@ onMounted(loadDashboard);
               <el-table-column prop="leaseEnd" label="租约到期" width="120" />
             </template>
             <el-table-column v-else prop="type" label="类型" width="115" />
-            <el-table-column v-if="detailItem?.key !== 'received'" label="状态" width="100"><template #default="{ row }">{{ statusName(row.status) }}</template></el-table-column>
+            <el-table-column v-if="!['received', 'payable'].includes(detailItem?.key || '')" label="状态" width="100"><template #default="{ row }">{{ statusName(row.status) }}</template></el-table-column>
           </el-table>
           <el-pagination v-model:current-page="detailPage" :page-size="10" :total="detailTotal" layout="prev, pager, next, total" @current-change="loadDetail" />
         </template>

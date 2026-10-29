@@ -12,6 +12,7 @@ const emit = defineEmits<{
   sign: [item: RentalSet, room?: RentalRoom]; checkout: [item: RentalSet, room?: RentalRoom];
   delegation: [item: RentalSet]; appointment: [item: RentalSet]; remove: [item: RentalSet];
   bills: [item: RentalSet, room?: RentalRoom]; configure: [item: RentalSet];
+  finances: [item: RentalSet, room: RentalRoom | undefined, section: 'pay' | 'receive'];
 }>();
 const dict = useDictStore();
 const address = (item: RentalSet) => formatHouseAddress({ community: item.communityName, building: item.building, unit: item.unit, roomNo: item.roomNo });
@@ -50,21 +51,21 @@ const groups = computed(() => {
           <article v-if="group.shared" class="unit-card owner-card" :aria-label="`${item.code}房源卡片`">
             <header><span>房源<span v-if="item.canViewLandlordInfo === true"> · {{ item.landlordName || '房东未登记' }}</span></span><span v-if="item.canViewLandlordInfo === true">{{ formatMoney(item.landlordRent || 0) }}/月</span></header>
             <div class="unit-body"><button class="unit-title" @click="emit('detail', item)">{{ item.roomNo }} · {{ item.layout || '户型未登记' }}</button><p>{{ item.code }}</p><p v-if="item.canViewLandlordInfo === true">房东租期至 {{ item.leaseEnd || '未登记' }}</p><div class="unit-tags"><span>合租 {{ item.rooms?.length || 0 }} 间</span><span>{{ label(item.status) }}</span></div></div>
-            <RentalFinancialTags class="card-finances" :summary="item.financialSummary" :vacant-count="item.vacantCount" :total-rooms="item.rooms?.length || 0" />
+            <RentalFinancialTags class="card-finances" :summary="item.financialSummary" :vacant-count="item.vacantCount" :total-rooms="item.rooms?.length || 0" @select="(section) => emit('finances', item, undefined, section)" />
             <footer><button v-permission="['finance:arrears']" @click="emit('bills', item)">账单</button><button v-if="item.canViewLandlordInfo === true && !item.delegated" v-permission="['renting:edit']" @click="emit('delegation', item)">委托</button><button v-permission="['renting:edit']" @click="emit('edit', item)">编辑</button><button v-permission="['renting:edit']" @click="emit('configure', item)">配置</button><button v-permission="['renting:delete']" class="danger" :disabled="!canDelete(item) || deletingId === item.id" @click="emit('remove', item)">删除</button></footer>
           </article>
           <template v-if="group.shared">
             <article v-for="room in item.rooms || []" :key="room.id" :class="['unit-card', room.status === 'rented' ? 'occupied' : 'available']" :aria-label="`${item.code}-${room.roomNo}房间卡片`">
               <header><span>{{ room.status === 'rented' ? room.tenantName || '租客未登记' : label(room.status) }}</span><span>{{ room.status === 'rented' ? '租金' : '定价' }} {{ formatMoney(room.status === 'rented' ? room.rentPrice || 0 : room.listedPrice || 0) }}</span></header>
               <div class="unit-body"><button class="unit-title" @click="emit('detail', item, room)">{{ /^\d+$/.test(room.roomNo) ? `${room.roomNo}号房` : room.roomNo }}</button><p>{{ room.roomType ? dict.getLabel('room_type', room.roomType) : '房型未登记' }}<span v-if="room.privateBathroom"> · 独卫</span></p><p>{{ room.status === 'rented' ? `租期至 ${room.leaseEnd || '未登记'}` : room.interiorArea ? `${room.interiorArea}㎡` : '面积未登记' }}</p><div class="unit-tags"><span>{{ label(room.status) }}</span><span v-if="room.paymentMethod">{{ dict.getLabel('payment_method', room.paymentMethod) }}</span><span v-if="room.arrearDays">欠 {{ room.arrearDays }} 天</span></div></div>
-              <RentalFinancialTags class="card-finances" :summary="room.financialSummary" />
+              <RentalFinancialTags class="card-finances" :summary="room.financialSummary" @select="(section) => emit('finances', item, room, section)" />
               <footer><button @click="emit('detail', item, room)">详情</button><button v-if="['vacant','reserved'].includes(room.status)" v-permission="['renting:appointment:sign']" :disabled="!canSign(item, room)" @click="emit('sign', item, room)">签约</button><button v-if="room.status === 'rented' || room.status === 'checkout'" v-permission="['renting:checkout']" :disabled="!canCheckout(item, room)" @click="emit('checkout', item, room)">退租</button><button v-permission="['renting:edit']" @click="emit('edit', item, room)">编辑</button><button v-permission="['finance:arrears']" @click="emit('bills', item, room)">账单</button></footer>
             </article>
           </template>
           <article v-else :class="['unit-card', item.status === 'rented' ? 'occupied' : 'available']" :aria-label="`${item.code}整租卡片`">
             <header><span>{{ item.status === 'rented' ? item.tenantName || '租客未登记' : label(item.status) }}</span><span>{{ item.status === 'rented' ? '租金' : '定价' }} {{ formatMoney(item.rent || 0) }}</span></header>
             <div class="unit-body"><button class="unit-title" @click="emit('detail', item)">{{ item.building }}栋{{ item.unit }}单元{{ item.roomNo }}</button><p>{{ item.layout || '户型未登记' }} · {{ item.buildingArea || '—' }}㎡</p><p>{{ item.status === 'rented' ? `租期至 ${item.tenantLeaseEnd || '未登记'}` : item.code }}</p><div class="unit-tags"><span>{{ label(item.status) }}</span><span v-if="item.tenantPaymentMethod">{{ dict.getLabel('payment_method', item.tenantPaymentMethod) }}</span></div></div>
-            <RentalFinancialTags class="card-finances" :summary="item.financialSummary" />
+            <RentalFinancialTags class="card-finances" :summary="item.financialSummary" @select="(section) => emit('finances', item, undefined, section)" />
             <footer><button @click="emit('detail', item)">详情</button><button v-permission="['renting:appointment:sign']" v-if="item.status !== 'rented' && item.status !== 'checkout'" :disabled="!canSign(item)" @click="emit('sign', item)">签约</button><button v-if="item.status === 'rented' || item.status === 'checkout'" v-permission="['renting:checkout']" :disabled="!canCheckout(item)" @click="emit('checkout', item)">退租</button><button v-permission="['renting:edit']" @click="emit('edit', item)">编辑</button><button v-permission="['renting:appointment:create']" @click="emit('appointment', item)">约看</button><button v-permission="['finance:arrears']" @click="emit('bills', item)">账单</button><button v-if="item.canViewLandlordInfo === true && !item.delegated" v-permission="['renting:edit']" @click="emit('delegation', item)">委托</button><button v-else-if="item.canViewLandlordInfo === true" v-permission="['renting:edit']" @click="emit('delegation', item)">房东</button></footer>
           </article>
         </template>

@@ -198,6 +198,10 @@ export class RentalService {
     if (data.isManaged !== undefined && typeof data.isManaged !== 'boolean') throw new BadRequestException('托管状态须为布尔值');
     if (data.freeRentRanges !== undefined) data.freeRentRanges = normalizeFreeRentRanges(data.freeRentRanges, data.leaseStart ?? existing.leaseStart ?? '', data.leaseEnd ?? existing.leaseEnd ?? '');
     else if (data.leaseStart !== undefined || data.leaseEnd !== undefined) normalizeFreeRentRanges(existing.freeRentRanges || [], data.leaseStart ?? existing.leaseStart ?? '', data.leaseEnd ?? existing.leaseEnd ?? '');
+    if (data.tenantRentSegments !== undefined) {
+      data.tenantRentSegments = this.normalizeRentSegments(data.tenantRentSegments);
+      if (data.tenantRentSegments.length) data.rent = data.tenantRentSegments[0].rent;
+    }
     if (data.isManaged === true) this.validateManagement({ ...existing, ...data });
     if (data.district !== undefined && data.district !== existing.district) this.validateDistrict(data.district);
     if (
@@ -213,7 +217,7 @@ export class RentalService {
       'floor', 'totalFloor', 'layout', 'buildingArea', 'interiorArea', 'businessCircle', 'district',
       'propertyType', 'orientation', 'elevator', 'decoration', 'sourceChannel', 'tags', 'description',
       'title', 'communityIntro', 'nearbySchool', 'taxDescription', 'advantages', 'facilities',
-      'landlordRent', 'landlordDeposit', 'rent', 'leaseStart', 'leaseEnd',
+      'landlordRent', 'landlordDeposit', 'rent', 'tenantRentSegments', 'leaseStart', 'leaseEnd',
       'landlordPaymentMethod', 'landlordPaymentDate', 'landlordPaymentDates', 'rentFreePeriod', 'freeRentRanges', 'status',
       'storeId', 'groupId', 'landlordId', 'salesmanId', 'housekeeperId',
       'tenantLeaseStart', 'tenantLeaseEnd',
@@ -309,6 +313,10 @@ export class RentalService {
 
   async createSet(data: RentalSetInput, user?: CurrentUserPayload) {
     if (data.freeRentRanges !== undefined) data.freeRentRanges = normalizeFreeRentRanges(data.freeRentRanges, data.leaseStart || '', data.leaseEnd || '');
+    if (data.tenantRentSegments !== undefined) {
+      data.tenantRentSegments = this.normalizeRentSegments(data.tenantRentSegments);
+      if (data.tenantRentSegments.length) data.rent = data.tenantRentSegments[0].rent;
+    }
     this.validateDistrict(data.district);
     if (data.isManaged !== undefined && typeof data.isManaged !== 'boolean') throw new BadRequestException('托管状态须为布尔值');
     if (data.isManaged === true) this.validateManagement(data);
@@ -346,6 +354,16 @@ export class RentalService {
 
   private validateDistrict(district?: string) {
     if (district && !BEIJING_DISTRICTS.includes(district)) throw new BadRequestException('请选择北京市所辖区域');
+  }
+
+  private normalizeRentSegments(segments: unknown) {
+    if (!Array.isArray(segments)) throw new BadRequestException('客租价分段格式不正确');
+    return segments.map((segment: any) => {
+      const start = String(segment?.start || '').trim(), end = String(segment?.end || '').trim(), rent = Number(segment?.rent);
+      if (!validDate(start) || !validDate(end) || start > end) throw new BadRequestException('客租价分段的租期无效');
+      if (!Number.isFinite(rent) || rent < 0) throw new BadRequestException('客租价分段的月租金须为非负数字');
+      return { start, end, rent: Math.round(rent * 100) / 100 };
+    });
   }
 
   private validateManagement(data: RentalSetInput) {

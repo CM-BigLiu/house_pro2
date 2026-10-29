@@ -162,6 +162,9 @@ export class RentalSet {
   @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true, default: 0 })
   rent: number;
 
+  @Column({ name: 'tenant_rent_segments', type: 'jsonb', default: [] })
+  tenantRentSegments: { start: string; end: string; rent: number }[];
+
   @Column({ type: 'date', nullable: true })
   leaseStart: string;
 

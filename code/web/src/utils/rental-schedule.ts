@@ -21,6 +21,11 @@ export function calendarMonths(value: string, count: number): string {
   return formatDate(date);
 }
 const dateDays = (from: string, until: string) => Math.round((Date.parse(until) - Date.parse(from)) / 86400000);
+function previousDay(value: string): string {
+  const date = localDate(value);
+  date.setDate(date.getDate() - 1);
+  return formatDate(date);
+}
 
 export function buildLeasePeriod(startStr: string | undefined, years: number, today = new Date()) {
   const start = startStr ? localDate(startStr) : new Date(today);
@@ -29,6 +34,23 @@ export function buildLeasePeriod(startStr: string | undefined, years: number, to
   const end = localDate(calendarMonths(formatDate(start), years * 12));
   end.setDate(end.getDate() - 1);
   return { start: formatDate(start), end: formatDate(end) };
+}
+
+/** 按客租期以“周年”切分为逐年租期，用于客租价按年分段录入。 */
+export function leaseYearPeriods(startStr?: string, endStr?: string) {
+  const periods: { start: string; end: string }[] = [];
+  if (!startStr || !endStr) return periods;
+  const start = localDate(startStr), end = localDate(endStr);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return periods;
+  let cursor = startStr;
+  for (let index = 0; index < 100 && cursor <= endStr; index++) {
+    const next = calendarMonths(cursor, 12);
+    const periodEnd = next <= endStr ? previousDay(next) : endStr;
+    periods.push({ start: cursor, end: periodEnd });
+    if (next > endStr) break;
+    cursor = next;
+  }
+  return periods;
 }
 
 export function buildPaymentSchedule(startStr?: string, endStr?: string, method?: string, firstPaymentDate?: string, earlyByMonth?: number) {

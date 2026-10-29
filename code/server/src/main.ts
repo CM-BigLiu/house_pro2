@@ -11,7 +11,22 @@ async function bootstrap() {
   app.use(urlencoded({ extended: true, limit: '50mb' }));
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
-  app.enableCors({ origin: true, credentials: true });
+  // 仅放行本机与内网来源；无 Origin 的请求（同源、Vite 代理、命令行）直接放行
+  app.enableCors({
+    credentials: true,
+    origin: (
+      origin: string | undefined,
+      cb: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      if (!origin) return cb(null, true);
+      const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+      const isPrivateLan =
+        /^https?:\/\/(10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(
+          origin,
+        );
+      cb(null, isLocalhost || isPrivateLan);
+    },
+  });
 
   const config = new DocumentBuilder()
     .setTitle('房屋租售管理系统 API')

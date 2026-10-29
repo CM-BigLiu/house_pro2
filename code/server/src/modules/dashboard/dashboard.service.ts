@@ -34,12 +34,12 @@ export class DashboardService {
   ) {}
 
   async getOverview(user: CurrentUserPayload) {
-    const keys = ['properties', 'rented', 'vacant', ...(this.canViewFinance(user) ? ['receivable', 'received'] : [])];
-    const labels = { properties: '在管房源', rented: '在租房间', vacant: '空房间', receivable: '本月应收', received: '本月实收' };
+    const keys = ['properties', 'rented', 'vacant', ...(this.canViewFinance(user) ? ['receivable', 'received', 'payable'] : [])];
+    const labels = { properties: '在管房源', rented: '在租房间', vacant: '空房间', receivable: '本月应收', received: '本月实收', payable: '本月应付' };
     const data = await Promise.all(keys.map(key => this.kpiRows(key, user)));
     const kpis = keys.map((key, index) => ({ key, label: labels[key],
-      value: index < 3 ? data[index].length : (data[index].reduce((sum, row) => sum + cents(row.amount), 0) / 1000000).toFixed(2),
-      unit: key === 'properties' ? '套' : index < 3 ? '间' : '万', color: ['blue', 'green', 'orange', 'blue', 'green'][index],
+      value: index < 3 ? data[index].length : (data[index].reduce((sum, row) => sum + cents(row.amount), 0) / 100).toFixed(2),
+      unit: key === 'properties' ? '套' : index < 3 ? '间' : '元', color: ['blue', 'green', 'orange', 'blue', 'green', 'red'][index],
     }));
     return { greetingName: user.name, role: user.dataScope || 'self', kpis,
       charts: { monthly: this.canViewFinance(user) ? await this.monthlyTrend(user) : [] },
@@ -67,10 +67,10 @@ export class DashboardService {
       const rows = await qb.orderBy('rr.id', 'ASC').getMany();
       return rows.map(row => ({ id: row.id, propertyCode: row.set.code, propertyName: row.set.title || row.set.address, roomNo: row.roomNo, status: row.status, rent: Number(row.rentPrice || 0), leaseStart: row.leaseStart, leaseEnd: row.leaseEnd }));
     }
-    if (!['receivable', 'received'].includes(key)) throw new BadRequestException('不支持的经营指标');
+    if (!['receivable', 'received', 'payable'].includes(key)) throw new BadRequestException('不支持的经营指标');
     if (!this.canViewFinance(user)) throw new ForbiddenException('无权查看财务详情');
     const { start, end } = this.currentMonthRange();
-    if (key === 'received') return (await this.costs.report(start.slice(0, 7), user)).list.filter(row => row.direction === 'income');
+    if (key === 'received' || key === 'payable') return (await this.costs.report(start.slice(0, 7), user)).list.filter(row => row.direction === (key === 'payable' ? 'expense' : 'income'));
     const schedules = this.rentalSetRepo.manager.getRepository(ContractSchedule).createQueryBuilder('s')
       .where('s.direction = :direction AND s.status != :cancelled AND s.dueDate BETWEEN :start AND :end', { direction: 'receive', cancelled: 'cancelled', start, end });
     applyDataScope(schedules, user, 's', { ownerField: 'employeeId', groupField: 'groupId' });

@@ -718,6 +718,13 @@ export class BusinessWorkflowService {
     }).getMany();
     const calculate = (start: string, end: string, rent: number, freeDays?: number[], ranges?: { start: string; end: string }[]) =>
       validDate(start) && validDate(end) && start <= end ? leaseAmount(start, end, Number(rent || 0), from, until, freeDays, ranges) : 0;
+    // 客租价按年分段时逐段计算，未分段则回退到整段月租金。
+    const calculateIncome = (start: string, end: string, segments: { start: string; end: string; rent: number }[] | undefined, fallbackRent: number) => {
+      const validSegments = (segments || []).filter(seg => validDate(seg.start) && validDate(seg.end) && seg.start <= seg.end);
+      return validSegments.length
+        ? money(validSegments.reduce((sum, seg) => sum + cents(calculate(seg.start, seg.end, Number(seg.rent))), 0))
+        : calculate(start, end, Number(fallbackRent || 0));
+    };
     const list = rentals.map(rental => {
       const contracts = deals.filter(deal => deal.propertyId === rental.id);
       const landlords = contracts.filter(deal => deal.workflowType === 'management'), tenants = contracts.filter(deal => deal.workflowType === 'tenant');
@@ -727,7 +734,7 @@ export class BusinessWorkflowService {
       const contractedRooms = new Set(tenants.map(deal => deal.roomId));
       let income = money(tenants.reduce((sum, deal) => sum + cents(calculate(deal.leaseStart, endDate(deal), Number(deal.amount))), 0));
       if (rental.bizType === 'shared') income = money(cents(income) + (rental.rooms || []).filter(room => !contractedRooms.has(room.id) && ['rented', 'checkout'].includes(room.status)).reduce((sum, room) => sum + cents(calculate(room.leaseStart, room.leaseEnd, room.rentPrice)), 0));
-      else if (!tenants.length && ['rented', 'checkout'].includes(rental.status)) income = calculate(rental.tenantLeaseStart, rental.tenantLeaseEnd, rental.rent);
+      else if (!tenants.length && ['rented', 'checkout'].includes(rental.status)) income = calculateIncome(rental.tenantLeaseStart, rental.tenantLeaseEnd, rental.tenantRentSegments, rental.rent);
       return { propertyId: rental.id, propertyCode: rental.code, propertyName: rental.title || rental.address, rentIncome: income, originalRent: original, freeAmount: money(cents(original) - cents(cost)), rentCost: cost, net: money(cents(income) - cents(cost)) };
     }).filter(row => row.originalRent || row.rentIncome);
     const totalIncome = money(list.reduce((sum, row) => sum + cents(row.rentIncome), 0)), totalCost = money(list.reduce((sum, row) => sum + cents(row.rentCost), 0)), freeAmount = money(list.reduce((sum, row) => sum + cents(row.freeAmount), 0));

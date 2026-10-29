@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { buildLeasePeriod } from '@/utils/rental-schedule';
-import { buildPaymentSchedule, formatDate } from '@/utils/rental-schedule';
+import { buildLeasePeriod, buildPaymentSchedule, formatDate, leaseYearPeriods } from '@/utils/rental-schedule';
 import { ref, reactive, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { rentalFormErrors, rentalLandlordFields } from '@/utils/rental-form';
-import { createRentalSet, getRentalSet, getRentalDistricts, updateRentalSet, type RentalSet, type RentalRoom } from '@/api/rental';
+import { createRentalSet, getRentalSet, getRentalDistricts, updateRentalSet, type RentalSet, type RentalRoom, type TenantRentSegment } from '@/api/rental';
 import { uploadImage } from '@/api/wizard';
 import { getCommunities, type Community } from '@/api/community';
 import { getEmployees, getStores, type Employee, type Store } from '@/api/organization';
@@ -54,12 +53,13 @@ const rentalStatusOptions = computed(() => {
 
 type RoomForm = Partial<RentalRoom> & { leaseDateRange: [Date, Date] | null };
 type RentalEmergencyContact = { name: string; phone: string; relation?: string };
-type FormState = Omit<Partial<RentalSet>, 'rooms' | 'tags' | 'facilities' | 'emergencyContacts' | 'images'> & {
+type FormState = Omit<Partial<RentalSet>, 'rooms' | 'tags' | 'facilities' | 'emergencyContacts' | 'images' | 'tenantRentSegments'> & {
   rooms: RoomForm[];
   tags: string[];
   facilities: string[];
   emergencyContacts: RentalEmergencyContact[];
   images: string[];
+  tenantRentSegments: TenantRentSegment[];
   leaseDateRange: [Date, Date] | null;
   tenantLeaseDateRange: [Date, Date] | null;
 };
@@ -105,6 +105,7 @@ function createEmptyForm(): FormState {
     rentFreePeriod: '',
     freeRentRanges: [],
     rent: 0,
+    tenantRentSegments: [],
     deposit: 0,
     status: 'vacant',
     storeId: userStore.userInfo?.storeIds[0],
@@ -249,6 +250,7 @@ async function loadData(id: string) {
       freeRentRanges: (data.freeRentRanges || []).map(range => ({ ...range })),
       rentFreePeriod: data.rentFreePeriod ?? '',
       rent: data.rent ?? 0,
+      tenantRentSegments: (data.tenantRentSegments || []).map(segment => ({ ...segment })),
       deposit: data.deposit ?? 0,
       status: data.status,
       storeId: data.storeId,
@@ -472,6 +474,24 @@ function onTenantDateRangeChange(val: [Date, Date] | null) {
   }
 }
 
+// 客租价按客租期周年分段：租期变化时重建分段，已填金额按顺序保留，新增段沿用上一段金额。
+watch(
+  () => [form.tenantLeaseStart, form.tenantLeaseEnd],
+  () => {
+    const periods = leaseYearPeriods(form.tenantLeaseStart, form.tenantLeaseEnd);
+    const previous = (form.tenantRentSegments || []) as TenantRentSegment[];
+    const fallback = previous.length ? Number(previous[previous.length - 1].rent) || 0 : Number(tenantRentText.value) || 0;
+    form.tenantRentSegments = periods.map((period, index) => ({
+      ...period,
+      rent: Number(previous[index]?.rent ?? fallback) || 0,
+    }));
+  },
+);
+// 首年租金回写标量客租价，供列表展示与表单校验复用。
+watch(() => form.tenantRentSegments[0]?.rent, (value) => {
+  if (form.tenantRentSegments.length) tenantRentText.value = value == null ? '' : String(value);
+});
+
 // 整租交租计划
 const tenantPaymentSchedule = computed(() =>
   buildPaymentSchedule(form.tenantLeaseStart, form.tenantLeaseEnd, form.tenantPaymentMethod),
@@ -499,6 +519,8 @@ async function submit(manage = false) {
   try {
     const errors = rentalFormErrors(form, landlordRentText.value, tenantRentText.value, canViewLandlordInfo.value);
     if (Object.keys(errors).length) { ElMessage.warning(Object.values(errors)[0]); return; }
+    const badSegment = form.bizType === 'entire' ? form.tenantRentSegments.findIndex(seg => !Number.isFinite(Number(seg.rent)) || Number(seg.rent) < 0) : -1;
+    if (badSegment >= 0) { ElMessage.warning(`第 ${badSegment + 1} 年月租金须为非负数字`); return; }
     if (!await formRef.value?.validate().catch(() => false)) return;
     if (manage && (!form.landlordName?.trim() || !form.landlordPhone?.trim()
       || !form.leaseStart || !form.leaseEnd || !form.landlordPaymentMethod)) {
@@ -507,7 +529,12 @@ async function submit(manage = false) {
     }
     form.landlordRent = Number(landlordRentText.value);
     form.landlordDeposit = Number(form.landlordDeposit) || 0;
-    if (form.bizType === 'entire') form.rent = Number(tenantRentText.value || 0);
+    if (form.bizType === 'entire') {
+      const firstRent = form.tenantRentSegments.length ? Number(form.tenantRentSegments[0].rent) : Number(tenantRentText.value || 0);
+      form.rent = Number.isFinite(firstRent) ? firstRent : 0;
+    } else {
+      form.tenantRentSegments = [];
+    }
     form.buildingArea = Number(form.buildingArea);
     form.interiorArea = Number(form.interiorArea) || 0;
     const totalFloorText = String(form.totalFloor ?? '').trim();
@@ -940,11 +967,27 @@ async function toggleManagement() {
             </el-col>
             <el-col :span="12">
               <el-form-item label="客租价" prop="rent">
-                <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
-                  <el-input v-model="tenantRentText" placeholder="请输入对房客的租价" />
-                  <span style="font-size: 12px; color: #94a3b8; flex: none;">元</span>
+                <div v-if="form.tenantRentSegments.length" class="rent-segments">
+                  <div v-for="(segment, index) in form.tenantRentSegments" :key="segment.start" class="rent-segment">
+                    <div class="rent-segment-head">
+                      <span>第 {{ index + 1 }} 年</span>
+                      <small>{{ segment.start }} 至 {{ segment.end }}</small>
+                    </div>
+                    <div class="rent-segment-input">
+                      <PlainNumberInput v-model="segment.rent" :min="0" :precision="2" style="flex: 1;" />
+                      <span>元/月</span>
+                    </div>
+                    <MoneyUppercase :value="segment.rent" />
+                  </div>
+                  <p class="rent-segment-hint">按客租期逐年分段，请分别填写每年的月租金。</p>
                 </div>
-                <MoneyUppercase :value="tenantRentText" />
+                <template v-else>
+                  <div style="width: 100%; display: flex; align-items: center; gap: 8px;">
+                    <el-input v-model="tenantRentText" placeholder="请输入对房客的租价" />
+                    <span style="font-size: 12px; color: #94a3b8; flex: none;">元</span>
+                  </div>
+                  <MoneyUppercase :value="tenantRentText" />
+                </template>
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -1203,6 +1246,21 @@ async function toggleManagement() {
   cursor: pointer; transition: all 0.15s;
 }
 .lease-preset-btn:hover { background: #dbeafe; border-color: #3b82f6; }
+
+/* 客租价按年分段 */
+.rent-segments { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.rent-segment {
+  padding: 8px 10px 4px;
+  border: 1px solid #e7edf5;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.rent-segment-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.rent-segment-head span { color: #475569; font-size: 12px; font-weight: 600; }
+.rent-segment-head small { color: #94a3b8; font-size: 11px; }
+.rent-segment-input { display: flex; align-items: center; gap: 8px; }
+.rent-segment-input > span { flex: none; color: #94a3b8; font-size: 12px; }
+.rent-segment-hint { margin: 0; color: #94a3b8; font-size: 11px; }
 
 /* 交租日期表 */
 .pay-schedule {

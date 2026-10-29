@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import {
@@ -72,10 +72,15 @@ async function load() {
     if (current === generation) loading.value = false;
   }
 }
+/** 局域网 IP 等非安全上下文没有 crypto.randomUUID，退回随机串保证幂等编号可用。 */
+function createRequestKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
 function openPayment(row: ContractSchedule) {
   selected.value = row;
   Object.assign(form, {
-    requestKey: crypto.randomUUID(),
+    requestKey: createRequestKey(),
     paymentDate: new Date().toLocaleDateString('sv-SE'),
     amount: row.remaining,
     accountCode: 'bank_ccb',
@@ -142,11 +147,18 @@ function configure(row: ContractSchedule) {
   configurationProperty.value = row;
   configurationVisible.value = true;
 }
-onMounted(async () => { await dict.ensureLoaded(['payment_method']); await load(); });
+const page = ref<HTMLElement | null>(null);
+function scrollToSection() {
+  const target = route.query.section;
+  if (target !== 'pay' && target !== 'receive') return;
+  nextTick(() => page.value?.querySelector(`.direction-section.${target}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+}
+onMounted(async () => { await dict.ensureLoaded(['payment_method']); await load(); scrollToSection(); });
 watch(() => [route.query.propertyId, route.query.roomId], load);
+watch(() => route.query.section, scrollToSection);
 </script>
 <template>
-  <div class="business-page">
+  <div class="business-page" ref="page">
     <header class="page-header">
       <div>
         <h1 class="page-title">房管房业务</h1>
@@ -336,6 +348,7 @@ watch(() => [route.query.propertyId, route.query.roomId], load);
   padding: 18px;
   border-radius: 12px;
   border: 1px solid;
+  scroll-margin-top: 80px;
 }
 .pay {
   background: #fff7ed;

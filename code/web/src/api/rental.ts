@@ -1,5 +1,11 @@
 import { del, get, post, put } from '@/utils/request';
 
+export interface TenantRentSegment {
+  start: string;
+  end: string;
+  rent: number;
+}
+
 export interface RentalSet {
   financialSummary?: RentalFinancialSummary;
   id: number;
@@ -45,7 +51,8 @@ export interface RentalSet {
   leaseTerm?: string;
   rentFreePeriod?: string;
   freeRentRanges?: import('@/utils/free-rent').FreeRentRange[];
-  rent?: number;           // 客租价（对房客，整租时使用）
+  rent?: number;           // 客租价（对房客，整租时使用，取分段首段月租金）
+  tenantRentSegments?: TenantRentSegment[]; // 客租价按年分段（整租时使用）
   deposit?: number;        // 租客押金（整租时使用）
   status: string;
   operationStatus?: string;
