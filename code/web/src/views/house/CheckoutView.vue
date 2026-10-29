@@ -4,14 +4,15 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { getCheckout, getCheckouts, confirmCheckout, completeCheckout, type Checkout } from '@/api/checkout';
 import { formatMoney, formatDate } from '@/utils/format';
 import { downloadCsv } from '@/utils/csv';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 const router = useRouter();
+const route = useRoute();
 
 const list = ref<Checkout[]>([]);
 const total = ref(0);
 const loading = ref(false);
-const query = reactive({ keyword: '', status: '', startDate: '', endDate: '', page: 1, pageSize: 20 });
+const query = reactive({ keyword: '', status: String(route.query.status || ''), startDate: '', endDate: '', page: 1, pageSize: 20 });
 const detailVisible = ref(false);
 const detailLoading = ref(false);
 const detail = ref<Checkout | null>(null);

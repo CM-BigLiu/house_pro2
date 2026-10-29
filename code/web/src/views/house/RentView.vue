@@ -261,6 +261,9 @@ function openFinances(item: RentalSet, room: RentalRoom | undefined, section: 'p
   router.push({ path: '/finance/arrears', query: { propertyId: item.id, ...(room ? { roomId: room.id } : {}), section } });
 }
 function openConfiguration(item: RentalSet) { configurationProperty.value = item; configurationVisible.value = true; }
+function openCheckoutApproval() {
+  router.push({ path: '/house/checkout', query: { status: 'pending' } });
+}
 
 function handleRowDoubleClick(item: RentalSet, event: MouseEvent) {
   const target = event.target as HTMLElement;
@@ -849,7 +852,7 @@ function exportCurrent() {
       </div>
     </div>
 
-    <RentalCards v-else :items="sortedList" :deleting-id="deletingId" :checkout-submitting="checkoutSubmitting" :store-name="storeName" v-loading="loading" @detail="openDetail" @edit="editSet" @sign="openPropertySign" @checkout="checkout" @delegation="(item) => { delegationProperty = item; delegationVisible = true; }" @appointment="openAppointment" @remove="removeSet" @bills="openBills" @finances="openFinances" @configure="openConfiguration" />
+    <RentalCards v-else :items="sortedList" :deleting-id="deletingId" :checkout-submitting="checkoutSubmitting" :store-name="storeName" v-loading="loading" @detail="openDetail" @edit="editSet" @sign="openPropertySign" @checkout="checkout" @delegation="(item) => { delegationProperty = item; delegationVisible = true; }" @appointment="openAppointment" @remove="removeSet" @bills="openBills" @finances="openFinances" @approval="openCheckoutApproval" @configure="openConfiguration" />
     <PropertyConfigurationDialog v-model:visible="configurationVisible" :property-id="configurationProperty?.id || null" :property-name="configurationProperty ? formatPropertyName(configurationProperty) : ''" @completed="load" />
 
     <footer v-if="!loading && total > 0" class="pagination-bar">
